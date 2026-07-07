@@ -1,0 +1,32 @@
+# --- General ---
+.DS_Store
+Thumbs.db
+*.log
+
+# --- Android / Gradle ---
+android/.gradle/
+android/build/
+android/**/build/
+android/local.properties
+android/.idea/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# --- Windows / .NET ---
+windows/**/bin/
+windows/**/obj/
+windows/**/*.user
+windows/.vs/
+windows/**/Generated Files/
+*.msix
+*.msixbundle
+
+# --- IDE ---
+.idea/
+.vscode/
+*.iml

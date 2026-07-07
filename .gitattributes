@@ -1,0 +1,19 @@
+# Normalize line endings: LF in the repository by default.
+* text=auto eol=lf
+
+# Windows-specific scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# The Gradle wrapper launcher must stay LF to run on Linux CI runners.
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Binary files.
+*.jar binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.keystore binary
+*.jks binary
