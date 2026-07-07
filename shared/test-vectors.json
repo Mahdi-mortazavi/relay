@@ -97,5 +97,21 @@
     { "description": "not base64url", "encoded": "%%%not-base64%%%", "reason": "decode-error" },
     { "description": "base64url of non-JSON", "encoded": "aGVsbG8gd29ybGQ", "reason": "decode-error" },
     { "description": "empty string", "encoded": "", "reason": "decode-error" }
-  ]
+  ],
+  "typedCodes": {
+    "$comment": "See typed-code.md. Valid entries round-trip: encode(host,port)==code and decode(code)=={host,port,mode:socks5}. Decoders accept lowercase and '-'/whitespace separators.",
+    "valid": [
+      { "host": "192.168.43.1", "port": 1080, "code": "FNASJQE2" },
+      { "host": "192.168.137.1", "port": 1080, "code": "TEASJQAA" },
+      { "host": "192.168.49.23", "port": 8080, "code": "GEMT9EBS" },
+      { "host": "192.168.0.1", "port": 65535, "code": "AAA99952" }
+    ],
+    "invalid": [
+      { "description": "corrupted character (checksum mismatch)", "code": "FNBSJQE2" },
+      { "description": "non-zero padding bits", "code": "FNASJQE3" },
+      { "description": "excluded character O", "code": "FNASJQEO" },
+      { "description": "too short", "code": "FNASJQ" },
+      { "description": "too long", "code": "FNASJQE2A" }
+    ]
+  }
 }
