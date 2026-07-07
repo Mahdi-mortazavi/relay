@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- UI-free on purpose: everything here is unit-testable on any runner
+         and is the layer shared-contract tests run against. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Relay.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>
