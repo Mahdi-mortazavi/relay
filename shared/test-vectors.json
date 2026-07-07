@@ -91,6 +91,22 @@
         "wg": { "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820, "dns": "1.1.1.1" }
       },
       "reason": "unexpected-wg-block"
+    },
+    {
+      "description": "wireguard mode missing a wg sub-field (dns)",
+      "payload": {
+        "v": 1, "mode": "wireguard", "host": "192.168.43.1", "port": 51820,
+        "wg": { "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820 }
+      },
+      "reason": "missing-wg-field"
+    },
+    {
+      "description": "wireguard mode with a malformed key",
+      "payload": {
+        "v": 1, "mode": "wireguard", "host": "192.168.43.1", "port": 51820,
+        "wg": { "serverPublicKey": "not-a-valid-key", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820, "dns": "1.1.1.1" }
+      },
+      "reason": "invalid-wg-key"
     }
   ],
   "invalidEncoded": [
