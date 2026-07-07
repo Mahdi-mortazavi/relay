@@ -1,0 +1,26 @@
+<Window
+    x:Class="Relay.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="BaseAlt" />
+    </Window.SystemBackdrop>
+
+    <!-- Skeleton only. Phase 1 replaces this with the tray icon + glass popup. -->
+    <Grid>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+            <TextBlock
+                x:Uid="AppTitle"
+                Text="Relay"
+                FontSize="34"
+                FontWeight="SemiBold"
+                HorizontalAlignment="Center" />
+            <TextBlock
+                x:Uid="AppTagline"
+                Text="Share your connection. Instantly."
+                Opacity="0.6"
+                HorizontalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</Window>

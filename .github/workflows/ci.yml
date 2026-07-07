@@ -1,0 +1,72 @@
+# CI is the ONLY build system for this project (ADR-0004): there is no local
+# toolchain. Both jobs must stay green at all times and are required checks
+# for merging into main. Debug artifacts are uploaded from every run so a
+# testable build is always downloadable without cutting a release.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android (build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and run unit tests
+        run: ./gradlew assembleDebug testDebugUnitTest
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  windows:
+    name: Windows (build + test)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # WinUI 3 projects need Visual Studio MSBuild: the PRI packaging tasks
+      # (ExpandPriContent) are not shipped with the dotnet CLI's MSBuild.
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build app (x64)
+        run: msbuild windows/Relay.App/Relay.App.csproj /restore /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Run unit tests
+        run: dotnet test windows/Relay.App.Tests/Relay.App.Tests.csproj -c Release
+
+      - name: Upload debug build
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-windows-debug-build
+          path: windows/Relay.App/bin/x64/Release/net8.0-windows10.0.19041.0/
+          if-no-files-found: error

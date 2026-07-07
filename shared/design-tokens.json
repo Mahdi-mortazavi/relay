@@ -1,0 +1,73 @@
+{
+  "$comment": "Single source of truth for the Liquid Glass design language (§3). Both apps map these tokens to platform constructs (Compose theme objects / WinUI resources). Colors are sRGB hex or rgba(). Do not fork values per platform — change them here.",
+  "color": {
+    "dark": {
+      "backgroundBase": "#0A0C10",
+      "backgroundGradientTop": "#12151C",
+      "backgroundGradientBottom": "#08090C",
+      "glassFill": "rgba(255,255,255,0.06)",
+      "glassFillRaised": "rgba(255,255,255,0.09)",
+      "glassStroke": "rgba(255,255,255,0.12)",
+      "glassStrokeHighlight": "rgba(255,255,255,0.22)",
+      "glassInnerGlow": "rgba(255,255,255,0.04)",
+      "textPrimary": "rgba(255,255,255,0.96)",
+      "textSecondary": "rgba(255,255,255,0.62)",
+      "textTertiary": "rgba(255,255,255,0.38)",
+      "accent": "#45D6B8",
+      "accentPressed": "#33B99C",
+      "accentSubtle": "rgba(69,214,184,0.16)",
+      "error": "#E5645F",
+      "errorSubtle": "rgba(229,100,95,0.16)",
+      "warning": "#E0A458"
+    },
+    "light": {
+      "backgroundBase": "#F2F3F5",
+      "backgroundGradientTop": "#F7F8FA",
+      "backgroundGradientBottom": "#E9EBEF",
+      "glassFill": "rgba(255,255,255,0.55)",
+      "glassFillRaised": "rgba(255,255,255,0.72)",
+      "glassStroke": "rgba(0,0,0,0.08)",
+      "glassStrokeHighlight": "rgba(255,255,255,0.85)",
+      "glassInnerGlow": "rgba(255,255,255,0.35)",
+      "textPrimary": "rgba(0,0,0,0.92)",
+      "textSecondary": "rgba(0,0,0,0.56)",
+      "textTertiary": "rgba(0,0,0,0.34)",
+      "accent": "#0E9F86",
+      "accentPressed": "#0B8270",
+      "accentSubtle": "rgba(14,159,134,0.14)",
+      "error": "#C94742",
+      "errorSubtle": "rgba(201,71,66,0.12)",
+      "warning": "#B57B2E"
+    }
+  },
+  "radius": { "xs": 8, "sm": 12, "md": 16, "lg": 24, "pill": 999 },
+  "blur": { "subtle": 12, "panel": 24, "overlay": 40 },
+  "spacing": { "xxs": 4, "xs": 8, "sm": 12, "md": 16, "lg": 24, "xl": 32, "xxl": 48 },
+  "motion": {
+    "duration": { "instant": 100, "fast": 180, "base": 260, "gentle": 420 },
+    "easing": {
+      "standard": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      "decelerate": "cubic-bezier(0.0, 0.0, 0.2, 1)"
+    },
+    "spring": {
+      "default": { "stiffness": 380, "damping": 32 },
+      "settle": { "stiffness": 220, "damping": 26 }
+    }
+  },
+  "typography": {
+    "family": {
+      "windows": "Segoe UI Variable",
+      "android": "system-default",
+      "sharedFallback": "Inter",
+      "persian": "Vazirmatn",
+      "code": "Cascadia Mono"
+    },
+    "scale": {
+      "display": { "size": 34, "lineHeight": 40, "weight": 600 },
+      "title": { "size": 22, "lineHeight": 28, "weight": 600 },
+      "body": { "size": 15, "lineHeight": 22, "weight": 400 },
+      "caption": { "size": 12, "lineHeight": 16, "weight": 400 },
+      "pairingCode": { "size": 28, "lineHeight": 36, "weight": 500, "features": ["tabular-numbers", "letter-spacing:0.12em"] }
+    }
+  }
+}
