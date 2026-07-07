@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Mahdi-mortazavi/relay/blob/main/shared/qr-payload.schema.json",
+  "title": "Relay QR pairing payload",
+  "description": "Versioned pairing payload. The JSON document is serialized compactly, encoded as base64url (no padding), and rendered as a QR code. Both apps MUST validate against this schema and reject payloads whose 'v' is unknown.",
+  "type": "object",
+  "required": ["v", "mode", "host", "port"],
+  "additionalProperties": false,
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Payload schema version. Clients reject values they do not support."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["socks5", "wireguard"],
+      "description": "Transport mode. 'socks5' = Fast Mode (TCP), 'wireguard' = Full Mode (TCP+UDP)."
+    },
+    "host": {
+      "type": "string",
+      "format": "ipv4",
+      "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+      "description": "Android hotspot gateway IP the client connects to."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Listening port on the phone (SOCKS5 port in Fast Mode; informational in Full Mode, see wg.endpointPort)."
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Optional friendly device label shown in the client UI."
+    },
+    "issuedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix seconds at generation time. Informational in v1; reserved for expiry in a future pairing strategy."
+    },
+    "wg": {
+      "type": "object",
+      "description": "WireGuard parameters. Present if and only if mode == 'wireguard'.",
+      "required": ["serverPublicKey", "clientPrivateKey", "allowedIps", "endpointPort", "dns"],
+      "additionalProperties": false,
+      "properties": {
+        "serverPublicKey": { "type": "string", "pattern": "^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$", "description": "Server Curve25519 public key, base64." },
+        "clientPrivateKey": { "type": "string", "pattern": "^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$", "description": "Per-pairing client private key, base64. Discarded on disconnect." },
+        "allowedIps": { "type": "string", "description": "Comma-separated CIDR list routed through the tunnel." },
+        "endpointPort": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "WireGuard UDP listen port on the phone." },
+        "dns": { "type": "string", "description": "DNS server the client should use while tunneled." }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "wireguard" } } },
+      "then": { "required": ["wg"] }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "socks5" } } },
+      "then": { "not": { "required": ["wg"] } }
+    }
+  ]
+}

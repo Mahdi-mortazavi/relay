@@ -1,0 +1,20 @@
+{
+  "$comment": "Canonical connection state machine (§8 of the spec). Both apps model exactly these states and transitions; unit tests on each platform assert their state machine matches this definition. 'Connected' carries the current client count n >= 1. 'Error' carries a stable error code from docs/errors.md.",
+  "states": ["Idle", "Preparing", "Advertising", "Connected", "Error"],
+  "initial": "Idle",
+  "transitions": [
+    { "from": "Idle",        "to": "Preparing",   "on": "start" },
+    { "from": "Preparing",   "to": "Advertising", "on": "ready" },
+    { "from": "Preparing",   "to": "Error",       "on": "failure" },
+    { "from": "Preparing",   "to": "Idle",        "on": "stop" },
+    { "from": "Advertising", "to": "Connected",   "on": "clientConnected" },
+    { "from": "Advertising", "to": "Idle",        "on": "stop" },
+    { "from": "Advertising", "to": "Error",       "on": "failure" },
+    { "from": "Connected",   "to": "Connected",   "on": "clientCountChanged" },
+    { "from": "Connected",   "to": "Advertising", "on": "lastClientDisconnected" },
+    { "from": "Connected",   "to": "Idle",        "on": "stop" },
+    { "from": "Connected",   "to": "Error",       "on": "failure" },
+    { "from": "Error",       "to": "Idle",        "on": "dismiss" },
+    { "from": "Error",       "to": "Preparing",   "on": "retry" }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "$comment": "Canonical test vectors for the Relay QR pairing payload. Both the Android and Windows test suites consume this file so the platforms cannot drift. Round-trip contract: decode(encoded) MUST equal payload field-by-field (semantic equality, not string equality — key order and whitespace are not significant). Encoding is compact JSON -> UTF-8 -> base64url without padding. WireGuard keys in vectors are format-valid random bytes, not real keys.",
+  "valid": [
+    {
+      "description": "socks5 (Fast Mode) with all optional fields",
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "host": "192.168.43.1",
+        "port": 1080,
+        "name": "Pixel-8-Hotspot",
+        "issuedAt": 1730000000
+      },
+      "encoded": "eyJ2IjoxLCJtb2RlIjoic29ja3M1IiwiaG9zdCI6IjE5Mi4xNjguNDMuMSIsInBvcnQiOjEwODAsIm5hbWUiOiJQaXhlbC04LUhvdHNwb3QiLCJpc3N1ZWRBdCI6MTczMDAwMDAwMH0"
+    },
+    {
+      "description": "socks5 (Fast Mode) minimal — only required fields",
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "host": "192.168.43.1",
+        "port": 1080
+      },
+      "encoded": "eyJ2IjoxLCJtb2RlIjoic29ja3M1IiwiaG9zdCI6IjE5Mi4xNjguNDMuMSIsInBvcnQiOjEwODB9"
+    },
+    {
+      "description": "wireguard (Full Mode) with wg block",
+      "payload": {
+        "v": 1,
+        "mode": "wireguard",
+        "host": "192.168.43.1",
+        "port": 51820,
+        "name": "Pixel-8-Hotspot",
+        "issuedAt": 1730000000,
+        "wg": {
+          "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=",
+          "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=",
+          "allowedIps": "0.0.0.0/0",
+          "endpointPort": 51820,
+          "dns": "1.1.1.1"
+        }
+      },
+      "encoded": "eyJ2IjoxLCJtb2RlIjoid2lyZWd1YXJkIiwiaG9zdCI6IjE5Mi4xNjguNDMuMSIsInBvcnQiOjUxODIwLCJuYW1lIjoiUGl4ZWwtOC1Ib3RzcG90IiwiaXNzdWVkQXQiOjE3MzAwMDAwMDAsIndnIjp7InNlcnZlclB1YmxpY0tleSI6ImExeW4zZndERUJsNlpQYytLRDY3cndHbjBvaWE1ZGxGRWxwOWxrV3hHSTQ9IiwiY2xpZW50UHJpdmF0ZUtleSI6IlAyR0oxYVdRYjVVcnJMTkxsL2l3WVgvQUE4SzZDL0JTOUwxZTJKbmV3cG89IiwiYWxsb3dlZElwcyI6IjAuMC4wLjAvMCIsImVuZHBvaW50UG9ydCI6NTE4MjAsImRucyI6IjEuMS4xLjEifX0"
+    }
+  ],
+  "invalid": [
+    {
+      "description": "unsupported schema version",
+      "payload": { "v": 99, "mode": "socks5", "host": "192.168.43.1", "port": 1080 },
+      "reason": "unknown-version"
+    },
+    {
+      "description": "missing host",
+      "payload": { "v": 1, "mode": "socks5", "port": 1080 },
+      "reason": "missing-required-field"
+    },
+    {
+      "description": "missing port",
+      "payload": { "v": 1, "mode": "socks5", "host": "192.168.43.1" },
+      "reason": "missing-required-field"
+    },
+    {
+      "description": "port out of range",
+      "payload": { "v": 1, "mode": "socks5", "host": "192.168.43.1", "port": 70000 },
+      "reason": "invalid-port"
+    },
+    {
+      "description": "port zero",
+      "payload": { "v": 1, "mode": "socks5", "host": "192.168.43.1", "port": 0 },
+      "reason": "invalid-port"
+    },
+    {
+      "description": "host is not an IPv4 address",
+      "payload": { "v": 1, "mode": "socks5", "host": "not-an-ip", "port": 1080 },
+      "reason": "invalid-host"
+    },
+    {
+      "description": "unknown mode",
+      "payload": { "v": 1, "mode": "carrier-pigeon", "host": "192.168.43.1", "port": 1080 },
+      "reason": "invalid-mode"
+    },
+    {
+      "description": "wireguard mode without wg block",
+      "payload": { "v": 1, "mode": "wireguard", "host": "192.168.43.1", "port": 51820 },
+      "reason": "missing-wg-block"
+    },
+    {
+      "description": "socks5 mode with a stray wg block",
+      "payload": {
+        "v": 1, "mode": "socks5", "host": "192.168.43.1", "port": 1080,
+        "wg": { "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820, "dns": "1.1.1.1" }
+      },
+      "reason": "unexpected-wg-block"
+    }
+  ],
+  "invalidEncoded": [
+    { "description": "not base64url", "encoded": "%%%not-base64%%%", "reason": "decode-error" },
+    { "description": "base64url of non-JSON", "encoded": "aGVsbG8gd29ybGQ", "reason": "decode-error" },
+    { "description": "empty string", "encoded": "", "reason": "decode-error" }
+  ]
+}
