@@ -87,7 +87,7 @@ public sealed partial class MainWindow : Window
     private Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
     {
         var themeKey = Root.ActualTheme == ElementTheme.Light ? "Light" : "Default";
-        var dict = (ResourceDictionary)Root.Resources.ThemeDictionaries[themeKey];
+        var dict = (ResourceDictionary)Application.Current.Resources.ThemeDictionaries[themeKey];
         return (Microsoft.UI.Xaml.Media.Brush)dict[key];
     }
 

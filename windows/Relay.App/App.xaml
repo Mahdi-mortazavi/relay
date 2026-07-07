@@ -7,6 +7,55 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Theme-aware glass tokens. These MUST live at the application level:
+                 the {ThemeResource} markup extension only resolves against
+                 Application.Resources theme dictionaries, not element-level ones. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="TextPrimary" Color="#F5FFFFFF" />
+                    <SolidColorBrush x:Key="TextSecondary" Color="#9EFFFFFF" />
+                    <SolidColorBrush x:Key="TextTertiary" Color="#61FFFFFF" />
+                    <SolidColorBrush x:Key="Accent" Color="#45D6B8" />
+                    <SolidColorBrush x:Key="AccentText" Color="#0A0C10" />
+                    <SolidColorBrush x:Key="GlassFill" Color="#14FFFFFF" />
+                    <SolidColorBrush x:Key="GlassStroke" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="#E5645F" />
+                    <SolidColorBrush x:Key="WarningBrush" Color="#E0A458" />
+                    <SolidColorBrush x:Key="PreviewBg" Color="#14171D" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="TextPrimary" Color="#F00C0E12" />
+                    <SolidColorBrush x:Key="TextSecondary" Color="#940C0E12" />
+                    <SolidColorBrush x:Key="TextTertiary" Color="#5C0C0E12" />
+                    <SolidColorBrush x:Key="Accent" Color="#17A98C" />
+                    <SolidColorBrush x:Key="AccentText" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="GlassFill" Color="#8CFFFFFF" />
+                    <SolidColorBrush x:Key="GlassStroke" Color="#14000000" />
+                    <SolidColorBrush x:Key="ErrorBrush" Color="#C7433E" />
+                    <SolidColorBrush x:Key="WarningBrush" Color="#B37417" />
+                    <SolidColorBrush x:Key="PreviewBg" Color="#DCE1E8" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <Style x:Key="PrimaryButton" TargetType="Button">
+                <Setter Property="Background" Value="{ThemeResource Accent}" />
+                <Setter Property="Foreground" Value="{ThemeResource AccentText}" />
+                <Setter Property="CornerRadius" Value="20" />
+                <Setter Property="Padding" Value="24,10" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
+            <Style x:Key="SubtleButton" TargetType="Button">
+                <Setter Property="Background" Value="{ThemeResource GlassFill}" />
+                <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource GlassStroke}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="20" />
+                <Setter Property="Padding" Value="24,10" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
