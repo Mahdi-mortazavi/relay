@@ -1,60 +1,86 @@
 package io.relay.app
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import io.relay.app.ui.HomeScreen
+import io.relay.app.ui.MainViewModel
+import io.relay.app.ui.theme.RelayBackground
+import io.relay.app.ui.theme.RelayTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             RelayTheme {
-                HomeScreen()
+                RelayBackground {
+                    val state by viewModel.state.collectAsState()
+                    val batteryExempt by viewModel.batteryExempt.collectAsState()
+
+                    val notificationPermission = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission(),
+                    ) { viewModel.startSharing() } // start regardless; the notification just may not show
+
+                    // Re-check the exemption whenever the user returns from Settings.
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    LaunchedEffect(lifecycleOwner) {
+                        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                            viewModel.refreshBatteryExempt()
+                        }
+                    }
+
+                    HomeScreen(
+                        state = state,
+                        batteryExempt = batteryExempt,
+                        onStart = {
+                            if (Build.VERSION.SDK_INT >= 33) {
+                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                viewModel.startSharing()
+                            }
+                        },
+                        onStop = viewModel::stopSharing,
+                        onRetry = viewModel::retry,
+                        onDismissError = viewModel::dismissError,
+                        onAllowBattery = ::requestBatteryExemption,
+                    )
+                }
             }
         }
     }
-}
 
-/**
- * Placeholder theme. Phase 1 replaces this with the full Liquid Glass theme
- * derived from /shared/design-tokens.json.
- */
-@Composable
-fun RelayTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = Color(0xFF0A0C10),
-            onBackground = Color(0xF5FFFFFF),
-        ),
-        content = content,
-    )
-}
-
-@Composable
-fun HomeScreen() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+    /** Deep link to the exemption dialog for this app (ADR-0003). */
+    private fun requestBatteryExemption() {
+        val direct = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:$packageName"),
         )
+        try {
+            startActivity(direct)
+        } catch (_: Exception) {
+            // Some OEM builds block the direct dialog — fall back to the list screen.
+            runCatching {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
     }
 }

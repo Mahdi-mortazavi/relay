@@ -2,4 +2,44 @@
 <resources>
     <string name="app_name">Relay</string>
     <string name="tagline">Share your connection. Instantly.</string>
+
+    <!-- Home -->
+    <string name="action_start">Start Sharing</string>
+    <string name="action_stop">Stop</string>
+    <string name="status_idle">Not sharing</string>
+    <string name="status_preparing">Starting…</string>
+    <string name="status_waiting">Waiting for your PC…</string>
+    <plurals name="status_connected">
+        <item quantity="one">%d device connected</item>
+        <item quantity="other">%d devices connected</item>
+    </plurals>
+    <string name="scan_hint">Scan with Relay on your PC</string>
+    <string name="or_type_code">or enter this code on your PC</string>
+    <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
+
+    <!-- Errors (codes: docs/errors.md) -->
+    <string name="error_hotspot_off_title">Hotspot is off</string>
+    <string name="error_hotspot_off_body">Turn on your phone's Wi-Fi hotspot, then try again.</string>
+    <string name="error_port_in_use_title">Ports are busy</string>
+    <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
+    <string name="error_service_failed_title">Something went wrong</string>
+    <string name="error_service_failed_body">Sharing stopped unexpectedly. Try starting it again.</string>
+    <string name="action_retry">Try Again</string>
+    <string name="action_dismiss">Dismiss</string>
+
+    <!-- Battery exemption onboarding (ADR-0003) -->
+    <string name="battery_banner_title">Keep sharing alive</string>
+    <string name="battery_banner_body">Allow Relay to ignore battery optimization so sharing survives when the screen is off.</string>
+    <string name="battery_banner_allow">Allow</string>
+    <string name="battery_banner_done">Background sharing is protected</string>
+
+    <!-- Foreground-service notification -->
+    <string name="notification_channel">Sharing status</string>
+    <string name="notification_starting">Starting…</string>
+    <string name="notification_waiting">Sharing is on — waiting for your PC</string>
+    <plurals name="notification_connected">
+        <item quantity="one">Sharing with %d device</item>
+        <item quantity="other">Sharing with %d devices</item>
+    </plurals>
+    <string name="notification_error">Sharing stopped — open Relay for details</string>
 </resources>

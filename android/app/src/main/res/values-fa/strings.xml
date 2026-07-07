@@ -2,4 +2,44 @@
 <resources>
     <string name="app_name">رله</string>
     <string name="tagline">اتصالت را به‌اشتراک بگذار. در یک لحظه.</string>
+
+    <!-- Home -->
+    <string name="action_start">شروع اشتراک‌گذاری</string>
+    <string name="action_stop">توقف</string>
+    <string name="status_idle">اشتراک‌گذاری خاموش است</string>
+    <string name="status_preparing">در حال شروع…</string>
+    <string name="status_waiting">در انتظار رایانه شما…</string>
+    <plurals name="status_connected">
+        <item quantity="one">%d دستگاه متصل است</item>
+        <item quantity="other">%d دستگاه متصل هستند</item>
+    </plurals>
+    <string name="scan_hint">با «رله» روی رایانه‌تان اسکن کنید</string>
+    <string name="or_type_code">یا این کد را در رایانه وارد کنید</string>
+    <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
+
+    <!-- Errors (codes: docs/errors.md) -->
+    <string name="error_hotspot_off_title">هات‌اسپات خاموش است</string>
+    <string name="error_hotspot_off_body">هات‌اسپات وای‌فای گوشی را روشن کنید و دوباره تلاش کنید.</string>
+    <string name="error_port_in_use_title">پورت‌ها در اشغال‌اند</string>
+    <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
+    <string name="error_service_failed_title">مشکلی پیش آمد</string>
+    <string name="error_service_failed_body">اشتراک‌گذاری به‌طور غیرمنتظره متوقف شد. دوباره شروع کنید.</string>
+    <string name="action_retry">تلاش دوباره</string>
+    <string name="action_dismiss">بستن</string>
+
+    <!-- Battery exemption onboarding (ADR-0003) -->
+    <string name="battery_banner_title">اشتراک‌گذاری را زنده نگه دارید</string>
+    <string name="battery_banner_body">به رله اجازه دهید بهینه‌سازی باتری را نادیده بگیرد تا با خاموش‌شدن صفحه، اشتراک‌گذاری قطع نشود.</string>
+    <string name="battery_banner_allow">اجازه دادن</string>
+    <string name="battery_banner_done">اشتراک‌گذاری در پس‌زمینه محافظت می‌شود</string>
+
+    <!-- Foreground-service notification -->
+    <string name="notification_channel">وضعیت اشتراک‌گذاری</string>
+    <string name="notification_starting">در حال شروع…</string>
+    <string name="notification_waiting">اشتراک‌گذاری روشن است — در انتظار رایانه شما</string>
+    <plurals name="notification_connected">
+        <item quantity="one">در حال اشتراک با %d دستگاه</item>
+        <item quantity="other">در حال اشتراک با %d دستگاه</item>
+    </plurals>
+    <string name="notification_error">اشتراک‌گذاری متوقف شد — برای جزئیات، رله را باز کنید</string>
 </resources>
