@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
@@ -89,10 +88,16 @@ public sealed class CameraQrScanner : IDisposable
         {
             var width = bitmap.PixelWidth;
             var height = bitmap.PixelHeight;
-            var buffer = new Buffer((uint)(width * height * 4));
+            var buffer = new Windows.Storage.Streams.Buffer((uint)(width * height * 4));
             bitmap.CopyToBuffer(buffer);
-            var luminance = new RGBLuminanceSource(
-                buffer.ToArray(), width, height, RGBLuminanceSource.BitmapFormat.BGRA32);
+            var bytes = new byte[buffer.Length];
+            using (var reader = DataReader.FromBuffer(buffer))
+            {
+                reader.ReadBytes(bytes);
+            }
+            // 3-arg ctor auto-detects 4 bytes/pixel; channel order (BGRA vs RGBA)
+            // is irrelevant for a black/white QR's luminance.
+            var luminance = new RGBLuminanceSource(bytes, width, height);
             return _decoder.Decode(luminance)?.Text;
         }
         catch (Exception)

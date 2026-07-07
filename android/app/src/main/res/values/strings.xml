@@ -19,7 +19,7 @@
 
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">Hotspot is off</string>
-    <string name="error_hotspot_off_body">Turn on your phone's Wi-Fi hotspot, then try again.</string>
+    <string name="error_hotspot_off_body">Turn on your phone\'s Wi-Fi hotspot, then try again.</string>
     <string name="error_port_in_use_title">Ports are busy</string>
     <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
     <string name="error_service_failed_title">Something went wrong</string>
