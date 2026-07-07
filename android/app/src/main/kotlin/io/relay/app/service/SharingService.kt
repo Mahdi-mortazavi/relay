@@ -19,13 +19,19 @@ import io.relay.app.core.ConnectionState
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
+import io.relay.app.core.ReconnectPolicy
+import io.relay.app.core.WarningCode
 import io.relay.app.net.HotspotInfo
 import io.relay.app.net.Socks5Server
+import io.relay.app.net.VpnStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -38,9 +44,12 @@ class SharingService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val pairing = DirectPairingStrategy()
+    private val settings by lazy { Settings(this) }
     private var server: Socks5Server? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastTrafficPush = 0L
+    private var currentHost: String? = null
+    private var hotspotWatcher: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -91,31 +100,29 @@ class SharingService : Service() {
 
     private fun startSharing() {
         if (!ConnectionRepository.dispatch("start") { ConnectionState.Preparing }) return
+        LocalLog.add("Starting sharing")
+        ConnectionRepository.clearWarnings()
+
+        // Non-blocking advisory: sharing works either way, but the user may have
+        // meant to share a VPN that isn't on (docs/errors.md → NO_VPN_ACTIVE).
+        ConnectionRepository.setWarning(
+            WarningCode.NO_VPN_ACTIVE, !VpnStatus.isVpnActive(this),
+        )
 
         val host = HotspotInfo.findHotspotIpv4()
         if (host == null) {
+            LocalLog.add("No hotspot interface found")
             ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.HOTSPOT_OFF) }
             return
         }
 
-        var bound: Socks5Server? = null
-        var boundPort = -1
-        for (candidate in CANDIDATE_PORTS) {
-            try {
-                val attempt = Socks5Server(candidate, serverListener)
-                attempt.start()
-                bound = attempt
-                boundPort = candidate
-                break
-            } catch (_: IOException) {
-                // Port taken — try the next one; the client learns the port from the QR.
-            }
-        }
-        if (bound == null) {
+        val boundPort = bindServer()
+        if (boundPort < 0) {
+            LocalLog.add("All candidate ports busy")
             ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
             return
         }
-        server = bound
+        currentHost = host
 
         val payload = pairing.issuePayload(
             mode = QrPayload.MODE_SOCKS5,
@@ -123,9 +130,90 @@ class SharingService : Service() {
             port = boundPort,
             deviceName = Build.MODEL.take(64),
         )
+        LocalLog.add("Advertising on $host:$boundPort")
         ConnectionRepository.dispatch("ready") {
             ConnectionState.Advertising(payload, pairing.issueTypedCode(payload))
         }
+        startHotspotWatcher()
+    }
+
+    /** Binds the SOCKS server; preferred port (Advanced) first, then the fallback list. Returns the bound port or -1. */
+    private fun bindServer(): Int {
+        val candidates = buildList {
+            settings.preferredPort.takeIf { it in 1..65535 }?.let { add(it) }
+            addAll(CANDIDATE_PORTS)
+        }.distinct()
+        for (candidate in candidates) {
+            try {
+                val attempt = Socks5Server(candidate, serverListener)
+                attempt.start()
+                server = attempt
+                return candidate
+            } catch (_: IOException) {
+                // Port taken — try the next one; the client learns the port from the QR.
+            }
+        }
+        return -1
+    }
+
+    /**
+     * Watches for the hotspot interface disappearing while sharing and drives
+     * the bounded reconnect policy (ADR-0007): a brief drop is absorbed
+     * silently; only exhausting the budget surfaces HOTSPOT_LOST.
+     */
+    private fun startHotspotWatcher() {
+        hotspotWatcher?.cancel()
+        hotspotWatcher = scope.launch {
+            while (isActive) {
+                delay(HOTSPOT_POLL_MS)
+                val state = ConnectionRepository.state.value
+                if (state !is ConnectionState.Advertising && state !is ConnectionState.Connected) continue
+                if (HotspotInfo.findHotspotIpv4() != null) continue
+                if (!runReconnect()) return@launch // exhausted → Error, stop watching
+            }
+        }
+    }
+
+    /** Returns true when the hotspot came back (session restored), false when the budget was exhausted. */
+    private suspend fun runReconnect(): Boolean {
+        LocalLog.add("Hotspot dropped — reconnecting")
+        ConnectionRepository.annotateReconnecting(true)
+        for ((attempt, wait) in ReconnectPolicy.attemptDelaysMs.withIndex()) {
+            delay(wait)
+            val host = HotspotInfo.findHotspotIpv4()
+            if (host != null) {
+                LocalLog.add("Hotspot back after attempt ${attempt + 1}")
+                ConnectionRepository.annotateReconnecting(false)
+                if (host != currentHost) rebind(host)
+                return true
+            }
+        }
+        LocalLog.add("Reconnect budget exhausted")
+        teardown()
+        ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.HOTSPOT_LOST) }
+        return false
+    }
+
+    /** Hotspot returned on a different IP: restart the server and re-issue the QR/code. */
+    private fun rebind(host: String) {
+        server?.stop()
+        server = null
+        val boundPort = bindServer()
+        if (boundPort < 0) {
+            teardown()
+            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
+            return
+        }
+        currentHost = host
+        val payload = pairing.issuePayload(
+            mode = QrPayload.MODE_SOCKS5, host = host, port = boundPort,
+            deviceName = Build.MODEL.take(64),
+        )
+        val code = pairing.issueTypedCode(payload)
+        LocalLog.add("Re-advertising on $host:$boundPort")
+        // Present the fresh payload in place; the client count (if any) is stale
+        // after a rebind, so drop back to Advertising until a client reconnects.
+        ConnectionRepository.reissue(payload, code)
     }
 
     private fun stopSharing() {
@@ -136,15 +224,20 @@ class SharingService : Service() {
     }
 
     private fun teardown() {
+        hotspotWatcher?.cancel()
+        hotspotWatcher = null
         server?.stop()
         server = null
+        currentHost = null
         releaseWakeLock()
+        ConnectionRepository.clearWarnings()
     }
 
     // --- server callbacks ----------------------------------------------------
 
     private val serverListener = object : Socks5Server.Listener {
         override fun onClientsChanged(devices: Int) {
+            LocalLog.add("Clients: $devices")
             if (devices > 0) {
                 acquireWakeLock()
                 ConnectionRepository.dispatch("clientConnected") { current ->
@@ -209,9 +302,12 @@ class SharingService : Service() {
     private fun buildNotification(state: ConnectionState): Notification {
         val text = when (state) {
             is ConnectionState.Idle, ConnectionState.Preparing -> getString(R.string.notification_starting)
-            is ConnectionState.Advertising -> getString(R.string.notification_waiting)
+            is ConnectionState.Advertising ->
+                if (state.reconnecting) getString(R.string.notification_reconnecting)
+                else getString(R.string.notification_waiting)
             is ConnectionState.Connected ->
-                resources.getQuantityString(
+                if (state.reconnecting) getString(R.string.notification_reconnecting)
+                else resources.getQuantityString(
                     R.plurals.notification_connected, state.clientCount, state.clientCount,
                 )
             is ConnectionState.Error -> getString(R.string.notification_error)
@@ -242,6 +338,7 @@ class SharingService : Service() {
         const val ACTION_STOP = "io.relay.app.action.STOP"
         const val CHANNEL_ID = "sharing"
         const val NOTIFICATION_ID = 1
+        const val HOTSPOT_POLL_MS = 2000L
 
         /** Client discovers the port via the QR, so any of these is fine. */
         val CANDIDATE_PORTS = listOf(1080, 1081, 10800)

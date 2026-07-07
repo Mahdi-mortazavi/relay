@@ -18,6 +18,8 @@ sealed interface ConnectionState {
     data class Advertising(
         val payload: QrPayload,
         val typedCode: String?,
+        /** True while the bounded reconnect policy is re-binding the hotspot (ADR-0007). */
+        val reconnecting: Boolean = false,
     ) : ConnectionState {
         override val stateName = "Advertising"
     }
@@ -28,6 +30,8 @@ sealed interface ConnectionState {
         val clientCount: Int,
         val bytesUp: Long = 0,
         val bytesDown: Long = 0,
+        /** True while the bounded reconnect policy is recovering a dropped hotspot (ADR-0007). */
+        val reconnecting: Boolean = false,
     ) : ConnectionState {
         override val stateName = "Connected"
     }
@@ -41,8 +45,15 @@ sealed interface ConnectionState {
 /** Android-side error codes; the full cross-platform taxonomy is docs/errors.md. */
 enum class ErrorCode {
     HOTSPOT_OFF,
+    HOTSPOT_LOST,
     PORT_IN_USE,
     SERVICE_FAILED,
+}
+
+/** Non-blocking, dismissible advisories shown as a banner (docs/errors.md → Warning). */
+enum class WarningCode {
+    NO_VPN_ACTIVE,
+    BATTERY_UNRESTRICTED_DENIED,
 }
 
 /**
