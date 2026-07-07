@@ -33,3 +33,38 @@ There is no local dev loop: manual verification always uses an **installable art
 - **Camera denied:** deny camera to desktop apps, tap **Scan QR** → the app shows the `ERR_CAMERA_DENIED` message pointing to manual entry, never a crash.
 - **Phone not on hotspot:** try to connect with the laptop on a different network → `ERR_HOST_UNREACHABLE`, and the proxy is rolled back (re-check as in AC1.4).
 - **Crash recovery:** connect, kill the Windows app from Task Manager, relaunch → the proxy is restored on start (unless you changed it meanwhile, in which case your change is kept).
+
+## Phase 2 — Hardening & UX polish
+
+### Automated (CI)
+
+- `ReconnectPolicy` on both platforms is asserted equal to `/shared/test-vectors.json → reconnect` (schedule, attempt count, and the ~11 s bound) — this is the CI-verifiable half of **AC2.3**.
+- Existing QR/typed-code/state-machine/proxy tests continue to gate every PR.
+
+### AC2.2 — every surfaced error is actionable
+
+Fully enumerated in [`errors.md`](errors.md): each code has a severity and exactly one next action, wired to EN/FA strings on both platforms. Verify by reading that table against the app strings; no raw exception text is ever shown.
+
+### AC2.1 — no crash or stuck state across the manual matrix
+
+Run each row from an installable CI artifact; **pass = the app shows a correct state or an actionable error, never a crash or a frozen/half-open state.**
+
+| # | Scenario | Expected |
+|---|---|---|
+| M1 | Start sharing with hotspot **off** | Phone shows `HOTSPOT_OFF`; retry works after enabling it |
+| M2 | Start sharing with **no VPN** active | `NO_VPN_ACTIVE` banner; sharing still works; banner dismissible |
+| M3 | Occupy the SOCKS port with another app, then start | `PORT_IN_USE`, or automatic bind to a fallback/preferred port |
+| M4 | Laptop scans a **non-Relay** QR | `ERR_QR_INVALID` locally; no system change |
+| M5 | Laptop connects while **not on the hotspot** | `ERR_WRONG_NETWORK`; proxy untouched (verify by read-back) |
+| M6 | Deny camera, then Scan QR | `ERR_CAMERA_DENIED` pointing to manual entry; no crash |
+| M7 | Windows Firewall blocks the port | `ERR_FIREWALL_BLOCKED`; proxy rolled back |
+| M8 | Toggle dark/light OS theme while the popup / app is open | Both apps re-theme; text stays legible over glass/acrylic |
+| M9 | Open Advanced on both; change theme (Android), change port (Android), view logs | Settings persist; logs are local-only and clearable |
+| M10 | Kill either app mid-session | Android: service stops cleanly; Windows: proxy restored on next launch |
+
+### AC2.3 — brief hotspot drop auto-recovers within the bound
+
+1. Connect and start a download on the laptop.
+2. Briefly disable the phone's hotspot (or move out/in of range) for **< 11 s**, then re-enable.
+3. **Expected:** both apps show **Reconnecting…** (amber), the Windows proxy stays applied, and the session resumes automatically without re-pairing. Recovery completes within the ~11 s bound (`ReconnectPolicy`).
+4. **Now exceed the bound:** keep the hotspot off > 11 s. **Expected:** phone → `HOTSPOT_LOST`, Windows → `ERR_CONNECTION_LOST` with the proxy rolled back (verify by read-back, as AC1.4).
