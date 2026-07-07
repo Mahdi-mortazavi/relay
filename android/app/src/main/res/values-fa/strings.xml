@@ -18,6 +18,12 @@
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
     <string name="status_reconnecting">در حال اتصال مجدد…</string>
 
+    <!-- Transport modes -->
+    <string name="mode_fast">سریع</string>
+    <string name="mode_full">کامل</string>
+    <string name="mode_fast_desc">بهترین برای مرور و پخش.</string>
+    <string name="mode_full_desc">بهترین برای بازی و تماس تصویری.</string>
+
     <!-- Warnings (non-blocking banners) -->
     <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>
     <string name="warning_no_vpn_body">در حال اشتراک اتصال معمولی خود هستید. اگر می‌خواستید VPN را به‌اشتراک بگذارید، ابتدا آن را روشن کنید.</string>
@@ -45,6 +51,8 @@
     <string name="error_service_failed_body">اشتراک‌گذاری به‌طور غیرمنتظره متوقف شد. دوباره شروع کنید.</string>
     <string name="error_hotspot_lost_title">اتصال هات‌اسپات قطع شد</string>
     <string name="error_hotspot_lost_body">هات‌اسپات قطع شد و بازنگشت. مطمئن شوید روشن است و دوباره اشتراک‌گذاری را شروع کنید.</string>
+    <string name="error_wg_start_title">حالت کامل شروع نشد</string>
+    <string name="error_wg_start_body">تونل WireGuard روی این گوشی شروع نشد. حالت سریع را امتحان کنید یا دوباره شروع کنید.</string>
     <string name="action_retry">تلاش دوباره</string>
     <string name="action_dismiss">بستن</string>
 

@@ -18,6 +18,12 @@
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
     <string name="status_reconnecting">Reconnecting…</string>
 
+    <!-- Transport modes -->
+    <string name="mode_fast">Fast</string>
+    <string name="mode_full">Full</string>
+    <string name="mode_fast_desc">Best for browsing and streaming.</string>
+    <string name="mode_full_desc">Best for games and video calls.</string>
+
     <!-- Warnings (non-blocking banners) -->
     <string name="warning_no_vpn_title">No VPN is active</string>
     <string name="warning_no_vpn_body">You\'re sharing your regular connection. Turn on your VPN first if you meant to share it.</string>
@@ -45,6 +51,8 @@
     <string name="error_service_failed_body">Sharing stopped unexpectedly. Try starting it again.</string>
     <string name="error_hotspot_lost_title">Hotspot connection lost</string>
     <string name="error_hotspot_lost_body">The hotspot dropped and didn\'t come back. Check it\'s still on, then start sharing again.</string>
+    <string name="error_wg_start_title">Couldn\'t start Full Mode</string>
+    <string name="error_wg_start_body">The WireGuard tunnel couldn\'t start on this phone. Try Fast Mode, or start sharing again.</string>
     <string name="action_retry">Try Again</string>
     <string name="action_dismiss">Dismiss</string>
 

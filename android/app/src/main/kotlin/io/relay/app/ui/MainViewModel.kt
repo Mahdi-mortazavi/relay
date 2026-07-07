@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
 import io.relay.app.core.ConnectionState
+import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.LocalLog
@@ -29,6 +30,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _preferredPort = MutableStateFlow(settings.preferredPort)
     val preferredPort: StateFlow<Int> = _preferredPort
+
+    private val _transportMode = MutableStateFlow(TransportMode.fromSetting(settings.transportMode))
+    val transportMode: StateFlow<TransportMode> = _transportMode
 
     fun refreshBatteryExempt() {
         _batteryExempt.value = readBatteryExempt()
@@ -60,6 +64,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val clamped = port.takeIf { it in 1..65535 } ?: 0
         settings.preferredPort = clamped
         _preferredPort.value = clamped
+    }
+
+    /** Selects the transport mode; applied on the next start (choose while idle — AC3.3, no restart). */
+    fun setTransportMode(mode: TransportMode) {
+        settings.transportMode = mode.name
+        _transportMode.value = mode
     }
 
     fun clearLogs() = LocalLog.clear()
