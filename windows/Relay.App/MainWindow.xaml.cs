@@ -30,6 +30,9 @@ public sealed partial class MainWindow : Window
         ApplyStrings();
 
         _controller.StateChanged += () => DispatcherQueue.TryEnqueue(Render);
+        LocalLog.Changed += () => DispatcherQueue.TryEnqueue(RefreshLogs);
+        Root.ActualThemeChanged += (_, _) => Render();
+        RefreshLogs();
         Render();
     }
 
@@ -74,7 +77,30 @@ public sealed partial class MainWindow : Window
         BusyText.Text = Strings.Get("StatusConnecting");
         DisconnectButton.Content = Strings.Get("Disconnect");
         ErrorDismissButton.Content = Strings.Get("Dismiss");
+        AdvancedHeader.Text = Strings.Get("Advanced");
+        AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
+        AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
+        AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
     }
+
+    /// <summary>Resolves a theme-dictionary brush by key for the effective theme.</summary>
+    private Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
+    {
+        var themeKey = Root.ActualTheme == ElementTheme.Light ? "Light" : "Default";
+        var dict = (ResourceDictionary)Root.Resources.ThemeDictionaries[themeKey];
+        return (Microsoft.UI.Xaml.Media.Brush)dict[key];
+    }
+
+    private void RefreshLogs()
+    {
+        var logs = LocalLog.Snapshot();
+        LogText.Text = logs.Count == 0
+            ? Strings.Get("AdvancedLogsEmpty")
+            : string.Join("\n", logs.Reverse().Select(e =>
+                $"{e.ElapsedSeconds,7:F1}s  {e.Message}"));
+    }
+
+    private void OnClearLogsClick(object sender, RoutedEventArgs e) => LocalLog.Clear();
 
     /// <summary>Positions the popup just above the taskbar corner and shows it.</summary>
     public void ShowNearTray()
@@ -100,20 +126,25 @@ public sealed partial class MainWindow : Window
         ConnectedPanel.Visibility = Show(state == "Connected");
         ErrorPanel.Visibility = Show(state == "Error");
 
-        StatusDot.Fill = (Microsoft.UI.Xaml.Media.Brush)Root.Resources[
-            state switch
+        var reconnecting = _controller.Reconnecting && state == "Connected";
+        StatusDot.Fill = ThemeBrush(
+            reconnecting ? "WarningBrush"
+            : state switch
             {
                 "Connected" => "Accent",
                 "Error" => "ErrorBrush",
                 "Preparing" or "Advertising" => "TextSecondary",
                 _ => "TextTertiary",
-            }];
+            });
 
         if (state == "Connected" && _controller.Payload is { } payload)
         {
             ConnectedText.Text = string.Format(
                 Strings.Get("ConnectedVia"), payload.Name ?? payload.Host);
             ConnectedDetailText.Text = $"{payload.Host}:{payload.Port}";
+            ReconnectingText.Text = Strings.Get("Reconnecting");
+            ReconnectingText.Visibility = Show(reconnecting);
+            ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "Accent");
         }
         if (state == "Error")
         {
@@ -123,12 +154,20 @@ public sealed partial class MainWindow : Window
                 "ERR_QR_INVALID" => "ErrQrInvalid",
                 "ERR_CODE_INVALID" => "ErrCodeInvalid",
                 "ERR_HOST_UNREACHABLE" => "ErrHostUnreachable",
+                "ERR_WRONG_NETWORK" => "ErrWrongNetwork",
+                "ERR_CONNECTION_LOST" => "ErrConnectionLost",
+                "ERR_FIREWALL_BLOCKED" => "ErrFirewall",
                 "ERR_PROXY_APPLY_FAILED" => "ErrProxyApply",
                 "ERR_ROLLBACK_INCOMPLETE" => "ErrRollback",
                 "ERR_CAMERA_DENIED" => "ErrCameraDenied",
                 _ => "ErrProxyApply",
             });
         }
+
+        // Advanced address reflects the active session, if any.
+        AdvancedAddressValue.Text = _controller.Payload is { } p
+            ? $"{p.Host}:{p.Port}"
+            : "—";
     }
 
     private static Visibility Show(bool visible) =>

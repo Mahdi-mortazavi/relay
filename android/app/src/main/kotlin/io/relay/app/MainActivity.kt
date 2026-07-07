@@ -31,10 +31,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            RelayTheme {
+            val themeMode by viewModel.themeMode.collectAsState()
+            RelayTheme(themeMode = themeMode) {
                 RelayBackground {
                     val state by viewModel.state.collectAsState()
                     val batteryExempt by viewModel.batteryExempt.collectAsState()
+                    val warnings by viewModel.warnings.collectAsState()
+                    val logs by viewModel.logs.collectAsState()
+                    val preferredPort by viewModel.preferredPort.collectAsState()
 
                     val notificationPermission = rememberLauncherForActivityResult(
                         ActivityResultContracts.RequestPermission(),
@@ -51,6 +55,10 @@ class MainActivity : ComponentActivity() {
                     HomeScreen(
                         state = state,
                         batteryExempt = batteryExempt,
+                        warnings = warnings,
+                        themeMode = themeMode,
+                        preferredPort = preferredPort,
+                        logs = logs,
                         onStart = {
                             if (Build.VERSION.SDK_INT >= 33) {
                                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -62,6 +70,10 @@ class MainActivity : ComponentActivity() {
                         onRetry = viewModel::retry,
                         onDismissError = viewModel::dismissError,
                         onAllowBattery = ::requestBatteryExemption,
+                        onDismissWarning = viewModel::dismissWarning,
+                        onSetTheme = viewModel::setThemeMode,
+                        onSetPort = viewModel::setPreferredPort,
+                        onClearLogs = viewModel::clearLogs,
                     )
                 }
             }

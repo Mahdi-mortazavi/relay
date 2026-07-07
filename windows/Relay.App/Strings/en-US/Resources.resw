@@ -18,13 +18,22 @@
   <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Disconnect" xml:space="preserve"><value>Disconnect</value></data>
   <data name="Dismiss" xml:space="preserve"><value>Dismiss</value></data>
+  <data name="Reconnecting" xml:space="preserve"><value>Reconnecting…</value></data>
   <data name="TrayOpen" xml:space="preserve"><value>Open Relay</value></data>
   <data name="TrayExit" xml:space="preserve"><value>Exit</value></data>
   <data name="ConnectedVia" xml:space="preserve"><value>Connected via {0}</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Advanced</value></data>
+  <data name="AdvancedAddress" xml:space="preserve"><value>Hotspot address</value></data>
+  <data name="AdvancedLogs" xml:space="preserve"><value>Activity log (stays on this PC)</value></data>
+  <data name="AdvancedLogsClear" xml:space="preserve"><value>Clear</value></data>
+  <data name="AdvancedLogsEmpty" xml:space="preserve"><value>No activity yet</value></data>
   <data name="ErrQrInvalid" xml:space="preserve"><value>That's not a Relay code. Show the QR from the Relay app on your phone and try again.</value></data>
   <data name="ErrQrNewer" xml:space="preserve"><value>This code was made by a newer version of Relay — please update this app.</value></data>
   <data name="ErrCodeInvalid" xml:space="preserve"><value>That code doesn't look right. Check the 8 characters on the phone and try again.</value></data>
   <data name="ErrHostUnreachable" xml:space="preserve"><value>Can't reach your phone. Connect this PC to the phone's hotspot Wi-Fi, then try again.</value></data>
+  <data name="ErrWrongNetwork" xml:space="preserve"><value>This PC isn't on the phone's hotspot. Join the phone's Wi-Fi, then try again.</value></data>
+  <data name="ErrConnectionLost" xml:space="preserve"><value>The phone became unreachable. Re-check the hotspot and connect again.</value></data>
+  <data name="ErrFirewall" xml:space="preserve"><value>The connection was blocked. Allow Relay through Windows Firewall (or your security software), then try again.</value></data>
   <data name="ErrProxyApply" xml:space="preserve"><value>Windows refused the proxy change. Close other proxy/VPN managers and try again.</value></data>
   <data name="ErrRollback" xml:space="preserve"><value>Relay couldn't fully restore your proxy settings. Disconnect again to retry.</value></data>
   <data name="ErrCameraDenied" xml:space="preserve"><value>Relay can't use the camera. Allow camera access for desktop apps in Windows Settings &gt; Privacy, or enter the code manually.</value></data>

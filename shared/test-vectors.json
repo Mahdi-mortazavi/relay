@@ -113,5 +113,11 @@
       { "description": "too short", "code": "FNASJQ" },
       { "description": "too long", "code": "FNASJQE2A" }
     ]
+  },
+  "reconnect": {
+    "$comment": "See reconnect.md. Both platforms assert their ReconnectPolicy equals this.",
+    "attemptDelaysMs": [1000, 2000, 2000, 3000, 3000],
+    "attempts": 5,
+    "totalBoundMs": 11000
   }
 }

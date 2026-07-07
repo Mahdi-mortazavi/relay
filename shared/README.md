@@ -9,6 +9,7 @@ Contracts both apps consume. **Never** duplicate these values into platform code
 | [`connection-states.json`](connection-states.json) | Connection state machine: states, initial state, transitions | Both apps' state-machine tests |
 | [`design-tokens.json`](design-tokens.json) | Liquid Glass tokens: colors, radii, blur, spacing, motion, type | Both apps' theme layers |
 | [`typed-code.md`](typed-code.md) | Typed-code fallback algorithm (base32 + CRC-5 check) | Both apps' typed-code codecs |
+| [`reconnect.md`](reconnect.md) | Bounded auto-reconnect schedule + recovery bound | Both apps' `ReconnectPolicy` |
 
 ## Encoding contract (QR + typed code)
 

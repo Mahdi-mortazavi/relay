@@ -7,61 +7,84 @@
         <DesktopAcrylicBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="Root" Padding="24" RequestedTheme="Dark">
+    <Grid x:Name="Root" Padding="24">
         <Grid.Resources>
-            <SolidColorBrush x:Key="TextPrimary" Color="#F5FFFFFF" />
-            <SolidColorBrush x:Key="TextSecondary" Color="#9EFFFFFF" />
-            <SolidColorBrush x:Key="TextTertiary" Color="#61FFFFFF" />
-            <SolidColorBrush x:Key="Accent" Color="#45D6B8" />
-            <SolidColorBrush x:Key="AccentText" Color="#0A0C10" />
-            <SolidColorBrush x:Key="GlassFill" Color="#0FFFFFFF" />
-            <SolidColorBrush x:Key="GlassStroke" Color="#1FFFFFFF" />
-            <SolidColorBrush x:Key="ErrorBrush" Color="#E5645F" />
+            <!-- Theme-aware glass tokens: the light set keeps text legible over
+                 the acrylic material; WinUI selects by the effective theme. -->
+            <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Default">
+                        <SolidColorBrush x:Key="TextPrimary" Color="#F5FFFFFF" />
+                        <SolidColorBrush x:Key="TextSecondary" Color="#9EFFFFFF" />
+                        <SolidColorBrush x:Key="TextTertiary" Color="#61FFFFFF" />
+                        <SolidColorBrush x:Key="Accent" Color="#45D6B8" />
+                        <SolidColorBrush x:Key="AccentText" Color="#0A0C10" />
+                        <SolidColorBrush x:Key="GlassFill" Color="#14FFFFFF" />
+                        <SolidColorBrush x:Key="GlassStroke" Color="#1FFFFFFF" />
+                        <SolidColorBrush x:Key="ErrorBrush" Color="#E5645F" />
+                        <SolidColorBrush x:Key="WarningBrush" Color="#E0A458" />
+                        <SolidColorBrush x:Key="PreviewBg" Color="#14171D" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Light">
+                        <SolidColorBrush x:Key="TextPrimary" Color="#F00C0E12" />
+                        <SolidColorBrush x:Key="TextSecondary" Color="#940C0E12" />
+                        <SolidColorBrush x:Key="TextTertiary" Color="#5C0C0E12" />
+                        <SolidColorBrush x:Key="Accent" Color="#17A98C" />
+                        <SolidColorBrush x:Key="AccentText" Color="#FFFFFF" />
+                        <SolidColorBrush x:Key="GlassFill" Color="#8CFFFFFF" />
+                        <SolidColorBrush x:Key="GlassStroke" Color="#14000000" />
+                        <SolidColorBrush x:Key="ErrorBrush" Color="#C7433E" />
+                        <SolidColorBrush x:Key="WarningBrush" Color="#B37417" />
+                        <SolidColorBrush x:Key="PreviewBg" Color="#DCE1E8" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
 
-            <Style x:Key="PrimaryButton" TargetType="Button">
-                <Setter Property="Background" Value="{StaticResource Accent}" />
-                <Setter Property="Foreground" Value="{StaticResource AccentText}" />
-                <Setter Property="CornerRadius" Value="20" />
-                <Setter Property="Padding" Value="24,10" />
-                <Setter Property="HorizontalAlignment" Value="Stretch" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="BorderThickness" Value="0" />
-            </Style>
-            <Style x:Key="SubtleButton" TargetType="Button">
-                <Setter Property="Background" Value="{StaticResource GlassFill}" />
-                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-                <Setter Property="BorderBrush" Value="{StaticResource GlassStroke}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="20" />
-                <Setter Property="Padding" Value="24,10" />
-                <Setter Property="HorizontalAlignment" Value="Stretch" />
-            </Style>
+                <Style x:Key="PrimaryButton" TargetType="Button">
+                    <Setter Property="Background" Value="{ThemeResource Accent}" />
+                    <Setter Property="Foreground" Value="{ThemeResource AccentText}" />
+                    <Setter Property="CornerRadius" Value="20" />
+                    <Setter Property="Padding" Value="24,10" />
+                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </Style>
+                <Style x:Key="SubtleButton" TargetType="Button">
+                    <Setter Property="Background" Value="{ThemeResource GlassFill}" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextPrimary}" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource GlassStroke}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="20" />
+                    <Setter Property="Padding" Value="24,10" />
+                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                </Style>
+            </ResourceDictionary>
         </Grid.Resources>
 
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <Grid Grid.Row="0" Margin="0,4,0,20">
             <TextBlock x:Name="TitleText" Text="Relay" FontSize="20" FontWeight="SemiBold"
-                       Foreground="{StaticResource TextPrimary}" />
+                       Foreground="{ThemeResource TextPrimary}" />
             <Ellipse x:Name="StatusDot" Width="10" Height="10"
                      HorizontalAlignment="Right" VerticalAlignment="Center"
-                     Fill="{StaticResource TextTertiary}" />
+                     Fill="{ThemeResource TextTertiary}" />
         </Grid>
 
         <!-- Idle -->
         <StackPanel x:Name="IdlePanel" Grid.Row="1" VerticalAlignment="Center" Spacing="12">
             <TextBlock x:Name="IdleStatusText" HorizontalAlignment="Center"
-                       Foreground="{StaticResource TextSecondary}" />
+                       Foreground="{ThemeResource TextSecondary}" />
             <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}" Margin="0,16,0,0"
                     Click="OnScanClick" />
             <Button x:Name="EnterCodeButton" Style="{StaticResource SubtleButton}"
                     Click="OnEnterCodeClick" />
             <TextBlock x:Name="TaglineText" HorizontalAlignment="Center" Margin="0,12,0,0"
-                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+                       FontSize="12" Foreground="{ThemeResource TextTertiary}" />
         </StackPanel>
 
         <!-- Scanning -->
@@ -72,13 +95,13 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Border Grid.Row="0" CornerRadius="16"
-                    Background="#14171D"
-                    BorderBrush="{StaticResource GlassStroke}" BorderThickness="1">
+                    Background="{ThemeResource PreviewBg}"
+                    BorderBrush="{ThemeResource GlassStroke}" BorderThickness="1">
                 <Image x:Name="PreviewImage" Stretch="UniformToFill" />
             </Border>
             <TextBlock x:Name="ScanHintText" Grid.Row="1" Margin="0,12,0,12"
                        TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+                       FontSize="12" Foreground="{ThemeResource TextTertiary}" />
             <Button x:Name="ScanCancelButton" Grid.Row="2" Style="{StaticResource SubtleButton}"
                     Click="OnCancelClick" />
         </Grid>
@@ -90,7 +113,7 @@
                      FontSize="24" TextAlignment="Center" CharacterSpacing="150"
                      MaxLength="9" />
             <TextBlock x:Name="CodeHintText" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+                       FontSize="12" Foreground="{ThemeResource TextTertiary}" />
             <Button x:Name="CodeConnectButton" Style="{StaticResource PrimaryButton}"
                     Click="OnCodeConnectClick" />
             <Button x:Name="CodeCancelButton" Style="{StaticResource SubtleButton}"
@@ -101,22 +124,24 @@
         <StackPanel x:Name="BusyPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="16"
                     Visibility="Collapsed">
             <ProgressRing IsActive="True" Width="36" Height="36"
-                          Foreground="{StaticResource Accent}" />
+                          Foreground="{ThemeResource Accent}" />
             <TextBlock x:Name="BusyText" HorizontalAlignment="Center"
-                       Foreground="{StaticResource TextSecondary}" />
+                       Foreground="{ThemeResource TextSecondary}" />
         </StackPanel>
 
         <!-- Connected -->
         <StackPanel x:Name="ConnectedPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="8"
                     Visibility="Collapsed">
-            <Ellipse Width="12" Height="12" Fill="{StaticResource Accent}"
+            <Ellipse x:Name="ConnectedDot" Width="12" Height="12" Fill="{ThemeResource Accent}"
                      HorizontalAlignment="Center" />
             <TextBlock x:Name="ConnectedText" HorizontalAlignment="Center"
                        FontSize="16" FontWeight="SemiBold"
-                       Foreground="{StaticResource TextPrimary}" TextAlignment="Center"
+                       Foreground="{ThemeResource TextPrimary}" TextAlignment="Center"
                        TextWrapping="Wrap" />
             <TextBlock x:Name="ConnectedDetailText" HorizontalAlignment="Center"
-                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+                       FontSize="12" Foreground="{ThemeResource TextTertiary}" />
+            <TextBlock x:Name="ReconnectingText" HorizontalAlignment="Center" Visibility="Collapsed"
+                       FontSize="12" Foreground="{ThemeResource WarningBrush}" />
             <Button x:Name="DisconnectButton" Style="{StaticResource SubtleButton}" Margin="0,20,0,0"
                     Click="OnDisconnectClick" />
         </StackPanel>
@@ -124,12 +149,39 @@
         <!-- Error -->
         <StackPanel x:Name="ErrorPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="12"
                     Visibility="Collapsed">
-            <Ellipse Width="12" Height="12" Fill="{StaticResource ErrorBrush}"
+            <Ellipse Width="12" Height="12" Fill="{ThemeResource ErrorBrush}"
                      HorizontalAlignment="Center" />
             <TextBlock x:Name="ErrorText" TextWrapping="Wrap" TextAlignment="Center"
-                       Foreground="{StaticResource TextSecondary}" />
+                       Foreground="{ThemeResource TextSecondary}" />
             <Button x:Name="ErrorDismissButton" Style="{StaticResource SubtleButton}" Margin="0,12,0,0"
                     Click="OnDismissClick" />
         </StackPanel>
+
+        <!-- Advanced (always available at the bottom) -->
+        <Expander x:Name="AdvancedExpander" Grid.Row="2" Margin="0,16,0,0"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+            <Expander.Header>
+                <TextBlock x:Name="AdvancedHeader" FontSize="12"
+                           Foreground="{ThemeResource TextSecondary}" />
+            </Expander.Header>
+            <StackPanel Spacing="10">
+                <Grid>
+                    <TextBlock x:Name="AdvancedAddressLabel" FontSize="12"
+                               Foreground="{ThemeResource TextSecondary}" />
+                    <TextBlock x:Name="AdvancedAddressValue" HorizontalAlignment="Right"
+                               FontFamily="Consolas" Foreground="{ThemeResource TextPrimary}" />
+                </Grid>
+                <Grid>
+                    <TextBlock x:Name="AdvancedLogsLabel" FontSize="12"
+                               Foreground="{ThemeResource TextSecondary}" />
+                    <HyperlinkButton x:Name="AdvancedLogsClear" HorizontalAlignment="Right"
+                                     Padding="0" Click="OnClearLogsClick" />
+                </Grid>
+                <ScrollViewer Height="140" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="11"
+                               TextWrapping="NoWrap" Foreground="{ThemeResource TextTertiary}" />
+                </ScrollViewer>
+            </StackPanel>
+        </Expander>
     </Grid>
 </Window>

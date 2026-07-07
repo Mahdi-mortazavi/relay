@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -17,21 +18,19 @@ import androidx.compose.ui.unit.dp
 /**
  * The glass material: a translucent layered surface with a light-from-above
  * gradient fill and a specular top edge. Elevation is communicated by
- * translucency, not drop shadows (see docs/design). Backdrop blur is applied
- * where the platform supports it; the fallback below is the layered-
- * translucency look and must never appear broken.
+ * translucency, not drop shadows (see docs/design). The layered-translucency
+ * fallback used here must never appear broken; backdrop blur is layered on where
+ * the platform supports it.
  */
-fun Modifier.glassPanel(
-    radius: Dp = Glass.radiusLg,
-    raised: Boolean = false,
-): Modifier {
+fun Modifier.glassPanel(radius: Dp = 24.dp, raised: Boolean = false): Modifier = composed {
+    val glass = LocalGlass.current
     val shape = RoundedCornerShape(radius)
-    val fill = if (raised) Glass.fillRaised else Glass.fill
-    return this
+    val fill = if (raised) glass.fillRaised else glass.fill
+    this
         .clip(shape)
         .background(
             Brush.linearGradient(
-                colors = listOf(fill.copy(alpha = fill.alpha + 0.03f), fill),
+                colors = listOf(fill.copy(alpha = (fill.alpha + 0.03f).coerceAtMost(1f)), fill),
                 start = Offset.Zero,
                 end = Offset.Infinite,
             )
@@ -39,7 +38,7 @@ fun Modifier.glassPanel(
         .border(
             width = 1.dp,
             brush = Brush.verticalGradient(
-                listOf(Glass.strokeHighlight, Glass.stroke, Glass.stroke),
+                listOf(glass.strokeHighlight, glass.stroke, glass.stroke),
             ),
             shape = shape,
         )
@@ -48,21 +47,22 @@ fun Modifier.glassPanel(
 /** The quiet backdrop the glass refracts: a deep neutral vertical gradient with a faint accent bloom. */
 @Composable
 fun RelayBackground(content: @Composable () -> Unit) {
+    val glass = LocalGlass.current
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Glass.backgroundGradientTop,
-                        Glass.backgroundBase,
-                        Glass.backgroundGradientBottom,
+                        glass.backgroundGradientTop,
+                        glass.backgroundBase,
+                        glass.backgroundGradientBottom,
                     )
                 )
             )
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Glass.accent.copy(alpha = 0.05f), Color.Transparent),
+                    colors = listOf(glass.accent.copy(alpha = 0.05f), Color.Transparent),
                     center = Offset(0.5f, 0f),
                     radius = 1200f,
                 )

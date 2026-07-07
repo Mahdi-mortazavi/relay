@@ -16,6 +16,25 @@
     <string name="scan_hint">Scan with Relay on your PC</string>
     <string name="or_type_code">or enter this code on your PC</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
+    <string name="status_reconnecting">Reconnecting…</string>
+
+    <!-- Warnings (non-blocking banners) -->
+    <string name="warning_no_vpn_title">No VPN is active</string>
+    <string name="warning_no_vpn_body">You\'re sharing your regular connection. Turn on your VPN first if you meant to share it.</string>
+
+    <!-- Advanced -->
+    <string name="advanced">Advanced</string>
+    <string name="advanced_ip">Hotspot address</string>
+    <string name="advanced_port">Preferred port</string>
+    <string name="advanced_port_hint">0 = automatic</string>
+    <string name="advanced_port_save">Save</string>
+    <string name="advanced_theme">Appearance</string>
+    <string name="theme_system">System</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="advanced_logs">Activity log (stays on this device)</string>
+    <string name="advanced_logs_clear">Clear</string>
+    <string name="advanced_logs_empty">No activity yet</string>
 
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">Hotspot is off</string>
@@ -24,6 +43,8 @@
     <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
     <string name="error_service_failed_title">Something went wrong</string>
     <string name="error_service_failed_body">Sharing stopped unexpectedly. Try starting it again.</string>
+    <string name="error_hotspot_lost_title">Hotspot connection lost</string>
+    <string name="error_hotspot_lost_body">The hotspot dropped and didn\'t come back. Check it\'s still on, then start sharing again.</string>
     <string name="action_retry">Try Again</string>
     <string name="action_dismiss">Dismiss</string>
 
@@ -42,4 +63,5 @@
         <item quantity="other">Sharing with %d devices</item>
     </plurals>
     <string name="notification_error">Sharing stopped — open Relay for details</string>
+    <string name="notification_reconnecting">Reconnecting…</string>
 </resources>

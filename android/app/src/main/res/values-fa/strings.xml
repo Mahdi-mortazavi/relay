@@ -16,6 +16,25 @@
     <string name="scan_hint">با «رله» روی رایانه‌تان اسکن کنید</string>
     <string name="or_type_code">یا این کد را در رایانه وارد کنید</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
+    <string name="status_reconnecting">در حال اتصال مجدد…</string>
+
+    <!-- Warnings (non-blocking banners) -->
+    <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>
+    <string name="warning_no_vpn_body">در حال اشتراک اتصال معمولی خود هستید. اگر می‌خواستید VPN را به‌اشتراک بگذارید، ابتدا آن را روشن کنید.</string>
+
+    <!-- Advanced -->
+    <string name="advanced">پیشرفته</string>
+    <string name="advanced_ip">نشانی هات‌اسپات</string>
+    <string name="advanced_port">پورت ترجیحی</string>
+    <string name="advanced_port_hint">۰ = خودکار</string>
+    <string name="advanced_port_save">ذخیره</string>
+    <string name="advanced_theme">ظاهر</string>
+    <string name="theme_system">سیستم</string>
+    <string name="theme_dark">تیره</string>
+    <string name="theme_light">روشن</string>
+    <string name="advanced_logs">گزارش فعالیت (روی همین دستگاه می‌ماند)</string>
+    <string name="advanced_logs_clear">پاک‌کردن</string>
+    <string name="advanced_logs_empty">هنوز فعالیتی نیست</string>
 
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">هات‌اسپات خاموش است</string>
@@ -24,6 +43,8 @@
     <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
     <string name="error_service_failed_title">مشکلی پیش آمد</string>
     <string name="error_service_failed_body">اشتراک‌گذاری به‌طور غیرمنتظره متوقف شد. دوباره شروع کنید.</string>
+    <string name="error_hotspot_lost_title">اتصال هات‌اسپات قطع شد</string>
+    <string name="error_hotspot_lost_body">هات‌اسپات قطع شد و بازنگشت. مطمئن شوید روشن است و دوباره اشتراک‌گذاری را شروع کنید.</string>
     <string name="action_retry">تلاش دوباره</string>
     <string name="action_dismiss">بستن</string>
 
@@ -42,4 +63,5 @@
         <item quantity="other">در حال اشتراک با %d دستگاه</item>
     </plurals>
     <string name="notification_error">اشتراک‌گذاری متوقف شد — برای جزئیات، رله را باز کنید</string>
+    <string name="notification_reconnecting">در حال اتصال مجدد…</string>
 </resources>
