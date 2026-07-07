@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="AppName" xml:space="preserve"><value>رله</value></data>
+  <data name="Tagline" xml:space="preserve"><value>اتصالت را به‌اشتراک بگذار. در یک لحظه.</value></data>
+  <data name="StatusIdle" xml:space="preserve"><value>متصل نیست</value></data>
+  <data name="StatusConnecting" xml:space="preserve"><value>در حال اتصال…</value></data>
+  <data name="StatusConnected" xml:space="preserve"><value>متصل شد</value></data>
+  <data name="ScanQr" xml:space="preserve"><value>اسکن کد QR</value></data>
+  <data name="EnterCode" xml:space="preserve"><value>واردکردن دستی کد</value></data>
+  <data name="ScanHint" xml:space="preserve"><value>دوربین را به‌سمت کد QR روی گوشی بگیرید</value></data>
+  <data name="CodeHint" xml:space="preserve"><value>کد ۸ حرفی زیر کد QR در گوشی شما</value></data>
+  <data name="Connect" xml:space="preserve"><value>اتصال</value></data>
+  <data name="Cancel" xml:space="preserve"><value>انصراف</value></data>
+  <data name="Disconnect" xml:space="preserve"><value>قطع اتصال</value></data>
+  <data name="Dismiss" xml:space="preserve"><value>بستن</value></data>
+  <data name="TrayOpen" xml:space="preserve"><value>بازکردن رله</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>خروج</value></data>
+  <data name="ConnectedVia" xml:space="preserve"><value>متصل از طریق {0}</value></data>
+  <data name="ErrQrInvalid" xml:space="preserve"><value>این کدِ رله نیست. کد QR را از برنامه رله روی گوشی نمایش دهید و دوباره تلاش کنید.</value></data>
+  <data name="ErrQrNewer" xml:space="preserve"><value>این کد با نسخه جدیدتری از رله ساخته شده — لطفاً این برنامه را به‌روزرسانی کنید.</value></data>
+  <data name="ErrCodeInvalid" xml:space="preserve"><value>این کد درست به‌نظر نمی‌رسد. ۸ حرف روی گوشی را بررسی کنید و دوباره تلاش کنید.</value></data>
+  <data name="ErrHostUnreachable" xml:space="preserve"><value>گوشی در دسترس نیست. این رایانه را به وای‌فای هات‌اسپات گوشی وصل کنید و دوباره تلاش کنید.</value></data>
+  <data name="ErrProxyApply" xml:space="preserve"><value>ویندوز تغییر پراکسی را نپذیرفت. مدیریت‌کننده‌های دیگر پراکسی/VPN را ببندید و دوباره تلاش کنید.</value></data>
+  <data name="ErrRollback" xml:space="preserve"><value>رله نتوانست تنظیمات پراکسی را کاملاً بازگرداند. برای تلاش دوباره، دوباره «قطع اتصال» را بزنید.</value></data>
+  <data name="ErrCameraDenied" xml:space="preserve"><value>رله به دوربین دسترسی ندارد. در تنظیمات ویندوز &gt; حریم خصوصی، دسترسی دوربین برنامه‌های دسکتاپ را فعال کنید، یا کد را دستی وارد کنید.</value></data>
+</root>

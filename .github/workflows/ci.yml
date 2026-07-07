@@ -39,7 +39,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: relay-android-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          # ABI split names the file app-arm64-v8a-debug.apk; glob covers both.
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
   windows:
