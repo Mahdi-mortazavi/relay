@@ -72,8 +72,9 @@ jobs:
         run: |
           PREV=$(git tag -l 'windows-v*' --sort=-v:refname | sed -n 2p)
           RANGE=$([ -n "$PREV" ] && echo "$PREV..HEAD" || echo "HEAD")
+          # Write to a file (never interpolated into a shell command) so commit
+          # messages with quotes/backticks/parens can't break release creation.
           {
-            echo 'body<<CHANGELOG_EOF'
             echo "## Relay for Windows ${{ steps.version.outputs.version }}"
             echo
             echo "### How to install"
@@ -83,8 +84,7 @@ jobs:
             echo
             echo "### Changes"
             git log $RANGE --no-merges --pretty='- %s' -- windows shared .github | head -100
-            echo 'CHANGELOG_EOF'
-          } >> "$GITHUB_OUTPUT"
+          } > "$RUNNER_TEMP/notes.md"
 
       - name: Upload dry-run artifacts
         if: github.event_name == 'workflow_dispatch'
@@ -101,4 +101,4 @@ jobs:
         run: |
           gh release create "${GITHUB_REF#refs/tags/}" windows/installer/output/*.exe \
             --title "Relay for Windows ${{ steps.version.outputs.version }}" \
-            --notes "${{ steps.changelog.outputs.body }}"
+            --notes-file "$RUNNER_TEMP/notes.md"
