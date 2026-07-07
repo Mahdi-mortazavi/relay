@@ -6,9 +6,14 @@ plugins {
 }
 
 // Release version comes from the tag via -PrelayVersion=x.y.z (android-release.yml).
+// A pre-release suffix (e.g. "0.0.0-dry-run") is allowed for the versionName but
+// stripped before computing the integer versionCode.
 val relayVersion: String = (project.findProperty("relayVersion") as String?) ?: "0.1.0"
-val relayVersionCode: Int = relayVersion.split(".").let { (major, minor, patch) ->
-    major.toInt() * 10_000 + minor.toInt() * 100 + patch.toInt()
+val relayVersionCode: Int = relayVersion.substringBefore("-").split(".").let { parts ->
+    val major = parts.getOrNull(0)?.toIntOrNull() ?: 0
+    val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+    major * 10_000 + minor * 100 + patch
 }
 
 android {
