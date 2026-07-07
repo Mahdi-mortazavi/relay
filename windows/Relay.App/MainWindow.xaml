@@ -4,23 +4,132 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Window.SystemBackdrop>
-        <MicaBackdrop Kind="BaseAlt" />
+        <DesktopAcrylicBackdrop />
     </Window.SystemBackdrop>
 
-    <!-- Skeleton only. Phase 1 replaces this with the tray icon + glass popup. -->
-    <Grid>
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-            <TextBlock
-                x:Uid="AppTitle"
-                Text="Relay"
-                FontSize="34"
-                FontWeight="SemiBold"
-                HorizontalAlignment="Center" />
-            <TextBlock
-                x:Uid="AppTagline"
-                Text="Share your connection. Instantly."
-                Opacity="0.6"
-                HorizontalAlignment="Center" />
+    <Grid x:Name="Root" Padding="24" RequestedTheme="Dark">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="TextPrimary" Color="#F5FFFFFF" />
+            <SolidColorBrush x:Key="TextSecondary" Color="#9EFFFFFF" />
+            <SolidColorBrush x:Key="TextTertiary" Color="#61FFFFFF" />
+            <SolidColorBrush x:Key="Accent" Color="#45D6B8" />
+            <SolidColorBrush x:Key="AccentText" Color="#0A0C10" />
+            <SolidColorBrush x:Key="GlassFill" Color="#0FFFFFFF" />
+            <SolidColorBrush x:Key="GlassStroke" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="ErrorBrush" Color="#E5645F" />
+
+            <Style x:Key="PrimaryButton" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource Accent}" />
+                <Setter Property="Foreground" Value="{StaticResource AccentText}" />
+                <Setter Property="CornerRadius" Value="20" />
+                <Setter Property="Padding" Value="24,10" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
+            <Style x:Key="SubtleButton" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource GlassFill}" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                <Setter Property="BorderBrush" Value="{StaticResource GlassStroke}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="20" />
+                <Setter Property="Padding" Value="24,10" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,4,0,20">
+            <TextBlock x:Name="TitleText" Text="Relay" FontSize="20" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimary}" />
+            <Ellipse x:Name="StatusDot" Width="10" Height="10"
+                     HorizontalAlignment="Right" VerticalAlignment="Center"
+                     Fill="{StaticResource TextTertiary}" />
+        </Grid>
+
+        <!-- Idle -->
+        <StackPanel x:Name="IdlePanel" Grid.Row="1" VerticalAlignment="Center" Spacing="12">
+            <TextBlock x:Name="IdleStatusText" HorizontalAlignment="Center"
+                       Foreground="{StaticResource TextSecondary}" />
+            <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}" Margin="0,16,0,0"
+                    Click="OnScanClick" />
+            <Button x:Name="EnterCodeButton" Style="{StaticResource SubtleButton}"
+                    Click="OnEnterCodeClick" />
+            <TextBlock x:Name="TaglineText" HorizontalAlignment="Center" Margin="0,12,0,0"
+                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+        </StackPanel>
+
+        <!-- Scanning -->
+        <Grid x:Name="ScanPanel" Grid.Row="1" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" CornerRadius="16"
+                    Background="#14171D"
+                    BorderBrush="{StaticResource GlassStroke}" BorderThickness="1">
+                <Image x:Name="PreviewImage" Stretch="UniformToFill" />
+            </Border>
+            <TextBlock x:Name="ScanHintText" Grid.Row="1" Margin="0,12,0,12"
+                       TextWrapping="Wrap" TextAlignment="Center"
+                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+            <Button x:Name="ScanCancelButton" Grid.Row="2" Style="{StaticResource SubtleButton}"
+                    Click="OnCancelClick" />
+        </Grid>
+
+        <!-- Manual code entry -->
+        <StackPanel x:Name="CodePanel" Grid.Row="1" VerticalAlignment="Center" Spacing="12"
+                    Visibility="Collapsed">
+            <TextBox x:Name="CodeBox" PlaceholderText="XXXX-XXXX"
+                     FontSize="24" TextAlignment="Center" CharacterSpacing="150"
+                     MaxLength="9" />
+            <TextBlock x:Name="CodeHintText" TextWrapping="Wrap" TextAlignment="Center"
+                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+            <Button x:Name="CodeConnectButton" Style="{StaticResource PrimaryButton}"
+                    Click="OnCodeConnectClick" />
+            <Button x:Name="CodeCancelButton" Style="{StaticResource SubtleButton}"
+                    Click="OnCancelClick" />
+        </StackPanel>
+
+        <!-- Busy -->
+        <StackPanel x:Name="BusyPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="16"
+                    Visibility="Collapsed">
+            <ProgressRing IsActive="True" Width="36" Height="36"
+                          Foreground="{StaticResource Accent}" />
+            <TextBlock x:Name="BusyText" HorizontalAlignment="Center"
+                       Foreground="{StaticResource TextSecondary}" />
+        </StackPanel>
+
+        <!-- Connected -->
+        <StackPanel x:Name="ConnectedPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="8"
+                    Visibility="Collapsed">
+            <Ellipse Width="12" Height="12" Fill="{StaticResource Accent}"
+                     HorizontalAlignment="Center" />
+            <TextBlock x:Name="ConnectedText" HorizontalAlignment="Center"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimary}" TextAlignment="Center"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="ConnectedDetailText" HorizontalAlignment="Center"
+                       FontSize="12" Foreground="{StaticResource TextTertiary}" />
+            <Button x:Name="DisconnectButton" Style="{StaticResource SubtleButton}" Margin="0,20,0,0"
+                    Click="OnDisconnectClick" />
+        </StackPanel>
+
+        <!-- Error -->
+        <StackPanel x:Name="ErrorPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="12"
+                    Visibility="Collapsed">
+            <Ellipse Width="12" Height="12" Fill="{StaticResource ErrorBrush}"
+                     HorizontalAlignment="Center" />
+            <TextBlock x:Name="ErrorText" TextWrapping="Wrap" TextAlignment="Center"
+                       Foreground="{StaticResource TextSecondary}" />
+            <Button x:Name="ErrorDismissButton" Style="{StaticResource SubtleButton}" Margin="0,12,0,0"
+                    Click="OnDismissClick" />
         </StackPanel>
     </Grid>
 </Window>
