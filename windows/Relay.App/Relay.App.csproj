@@ -13,7 +13,11 @@
     <UseWinUI>true</UseWinUI>
     <!-- Unpackaged deployment: EXE installer, not MSIX (ADR-0005). -->
     <WindowsPackageType>None</WindowsPackageType>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <!-- MUST stay true even though unpackaged: this pulls in the MakePri targets
+         that generate the app's resources.pri, which indexes ms-appx:///*.xaml.
+         With it false, no resources.pri was produced and every window failed to
+         load at runtime (XamlParseException). -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

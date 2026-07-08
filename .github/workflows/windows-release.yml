@@ -40,15 +40,28 @@ jobs:
       - name: Publish x64 and x86 (self-contained)
         shell: pwsh
         run: |
+          $proj = "windows/Relay.App/Relay.App.csproj"
           foreach ($arch in @('x64', 'x86')) {
-            msbuild windows/Relay.App/Relay.App.csproj /restore /t:Publish /v:minimal `
-              /p:Configuration=Release `
-              /p:Platform=$arch `
-              /p:RuntimeIdentifier=win-$arch `
-              /p:SelfContained=true `
-              /p:WindowsAppSDKSelfContained=true `
-              /p:PublishDir="$env:GITHUB_WORKSPACE\publish-$arch\"
+            $pub = "$env:GITHUB_WORKSPACE\publish-$arch"
+            $props = "/p:Configuration=Release /p:Platform=$arch /p:RuntimeIdentifier=win-$arch /p:SelfContained=true /p:WindowsAppSDKSelfContained=true"
+            # Build first: this runs the MRT PRI generation that produces the app's
+            # resources.pri (which indexes ms-appx:///MainWindow.xaml). A bare
+            # /t:Publish skips it, and the window then fails to load at runtime.
+            msbuild $proj /restore /t:Build /v:minimal $props.Split(' ')
             if ($LASTEXITCODE -ne 0) { exit 1 }
+            msbuild $proj /t:Publish /v:minimal $props.Split(' ') /p:PublishDir="$pub\"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            # Safety net + guard: publish to a custom dir can drop resources.pri.
+            if (-not (Test-Path "$pub\resources.pri")) {
+              $bin = "windows/Relay.App/bin/$arch/Release/net8.0-windows10.0.19041.0/win-$arch"
+              $pri = Get-ChildItem $bin -Filter resources.pri -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($pri) { Copy-Item $pri.FullName "$pub\resources.pri" }
+            }
+            if (-not (Test-Path "$pub\resources.pri")) {
+              Write-Error "resources.pri missing from publish output for $arch — the app would crash at launch."
+              exit 1
+            }
+            Write-Host "resources.pri present for $arch"
           }
 
       - name: Build installers (Inno Setup)
