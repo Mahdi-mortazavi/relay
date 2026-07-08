@@ -87,8 +87,19 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Resolves a theme-dictionary brush by key for the effective theme.</summary>
-    private static Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key) =>
-        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[key];
+    /// <summary>Dynamic status-dot color by key. Inline so it needs no XAML resources.</summary>
+    private static Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
+    {
+        (byte a, byte r, byte g, byte b) = key switch
+        {
+            "Accent" => ((byte)0xFF, (byte)0x45, (byte)0xD6, (byte)0xB8),
+            "ErrorBrush" => ((byte)0xFF, (byte)0xE5, (byte)0x64, (byte)0x5F),
+            "WarningBrush" => ((byte)0xFF, (byte)0xE0, (byte)0xA4, (byte)0x58),
+            "TextSecondary" => ((byte)0x9E, (byte)0xFF, (byte)0xFF, (byte)0xFF),
+            _ => ((byte)0x61, (byte)0xFF, (byte)0xFF, (byte)0xFF), // TextTertiary
+        };
+        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
+    }
 
     private void RefreshLogs()
     {
