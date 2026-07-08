@@ -25,6 +25,9 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Acrylic is cosmetic and can fault on some setups; set it in code so a
+        // failure degrades to the solid Grid background instead of crashing load.
+        try { SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop(); } catch { }
         Title = Strings.Get("AppName");
         ConfigureAppWindow();
         ApplyStrings();
@@ -84,12 +87,8 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Resolves a theme-dictionary brush by key for the effective theme.</summary>
-    private Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
-    {
-        var themeKey = Root.ActualTheme == ElementTheme.Light ? "Light" : "Default";
-        var dict = (ResourceDictionary)Application.Current.Resources.ThemeDictionaries[themeKey];
-        return (Microsoft.UI.Xaml.Media.Brush)dict[key];
-    }
+    private static Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key) =>
+        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[key];
 
     private void RefreshLogs()
     {
