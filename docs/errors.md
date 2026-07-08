@@ -18,6 +18,7 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 | `HOTSPOT_LOST` | Transient → Error | Hotspot interface dropped and did not return within the reconnect bound | Check the hotspot is still on, then start sharing again |
 | `PORT_IN_USE` | Error | Every candidate SOCKS port is bound by another app | Close the other app using those ports, then try again |
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly | Start sharing again |
+| `WG_START_FAILED` | Error | Full Mode WireGuard endpoint could not start on the phone | Try Fast Mode, or start sharing again |
 | `NO_VPN_ACTIVE` | Warning | No VPN is active on the phone when sharing starts | Informational: you're sharing your regular connection. Turn on your VPN first if you meant to share it |
 | `BATTERY_UNRESTRICTED_DENIED` | Warning | Battery-optimization exemption not granted | Allow it so sharing survives screen-off (button opens the exemption dialog) |
 

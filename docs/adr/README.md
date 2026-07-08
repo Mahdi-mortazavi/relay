@@ -11,3 +11,4 @@ Short, immutable records of significant decisions. New decision → new numbered
 | [0005](0005-windows-stack-winui3.md) | Windows stack — .NET 8 + WinUI 3, unpackaged, EXE installer | Accepted |
 | [0006](0006-in-repo-socks5-server.md) | In-repo minimal SOCKS5 server on Android | Accepted |
 | [0007](0007-bounded-auto-reconnect.md) | Bounded auto-reconnect as an internal policy, not a new state | Accepted |
+| [0008](0008-full-mode-wireguard-forwarder.md) | Full Mode — phone as a userspace WireGuard forwarding endpoint | Accepted |

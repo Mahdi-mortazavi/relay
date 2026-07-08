@@ -52,11 +52,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    val transportMode by viewModel.transportMode.collectAsState()
+
                     HomeScreen(
                         state = state,
                         batteryExempt = batteryExempt,
                         warnings = warnings,
                         themeMode = themeMode,
+                        transportMode = transportMode,
                         preferredPort = preferredPort,
                         logs = logs,
                         onStart = {
@@ -72,6 +75,7 @@ class MainActivity : ComponentActivity() {
                         onAllowBattery = ::requestBatteryExemption,
                         onDismissWarning = viewModel::dismissWarning,
                         onSetTheme = viewModel::setThemeMode,
+                        onSetMode = viewModel::setTransportMode,
                         onSetPort = viewModel::setPreferredPort,
                         onClearLogs = viewModel::clearLogs,
                     )

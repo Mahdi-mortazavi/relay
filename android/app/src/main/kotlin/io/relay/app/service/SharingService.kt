@@ -20,10 +20,16 @@ import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
+import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
+import io.relay.app.core.WgConfig
 import io.relay.app.net.HotspotInfo
 import io.relay.app.net.Socks5Server
 import io.relay.app.net.VpnStatus
+import io.relay.app.net.wg.WgForwarder
+import io.relay.app.net.wg.WgForwarderException
+import io.relay.app.net.wg.WgForwarderProvider
+import io.relay.app.net.wg.WgKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +56,11 @@ class SharingService : Service() {
     private var lastTrafficPush = 0L
     private var currentHost: String? = null
     private var hotspotWatcher: Job? = null
+
+    // Full Mode session (ADR-0008): the userspace forwarder + this pairing's keys.
+    private var mode = TransportMode.FAST
+    private var wgForwarder: WgForwarder? = WgForwarderProvider.create()
+    private var wgKeys: WgConfig.KeySet? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -116,25 +127,57 @@ class SharingService : Service() {
             return
         }
 
-        val boundPort = bindServer()
-        if (boundPort < 0) {
-            LocalLog.add("All candidate ports busy")
-            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
-            return
-        }
-        currentHost = host
+        mode = TransportMode.fromSetting(settings.transportMode)
+        LocalLog.add("Mode: ${mode.name}")
+        val payload = when (mode) {
+            TransportMode.FAST -> prepareFast(host)
+            TransportMode.FULL -> prepareFull(host)
+        } ?: return // preparation dispatched the appropriate error
 
-        val payload = pairing.issuePayload(
-            mode = QrPayload.MODE_SOCKS5,
-            host = host,
-            port = boundPort,
-            deviceName = Build.MODEL.take(64),
-        )
-        LocalLog.add("Advertising on $host:$boundPort")
+        currentHost = host
         ConnectionRepository.dispatch("ready") {
             ConnectionState.Advertising(payload, pairing.issueTypedCode(payload))
         }
         startHotspotWatcher()
+    }
+
+    /** Fast Mode: bind the SOCKS server and return its socks5 payload, or null on failure. */
+    private fun prepareFast(host: String): QrPayload? {
+        val boundPort = bindServer()
+        if (boundPort < 0) {
+            LocalLog.add("All candidate ports busy")
+            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
+            return null
+        }
+        LocalLog.add("Advertising SOCKS on $host:$boundPort")
+        return pairing.issuePayload(
+            mode = QrPayload.MODE_SOCKS5, host = host, port = boundPort,
+            deviceName = Build.MODEL.take(64),
+        )
+    }
+
+    /** Full Mode: mint per-pairing keys, start the userspace WG endpoint, return its wireguard payload. */
+    private fun prepareFull(host: String): QrPayload? {
+        val forwarder = wgForwarder
+        if (forwarder == null) {
+            LocalLog.add("WireGuard forwarder unavailable")
+            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.WG_START_FAILED) }
+            return null
+        }
+        val keys = WgKeys.generate()
+        try {
+            forwarder.start(WgConfig.serverConfig(keys))
+        } catch (e: WgForwarderException) {
+            LocalLog.add("WireGuard endpoint failed: ${e.message}")
+            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.WG_START_FAILED) }
+            return null
+        }
+        wgKeys = keys
+        LocalLog.add("WireGuard endpoint up on $host:${keys.endpointPort}")
+        return pairing.issuePayload(
+            mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
+            deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
+        )
     }
 
     /** Binds the SOCKS server; preferred port (Advanced) first, then the fallback list. Returns the bound port or -1. */
@@ -194,26 +237,39 @@ class SharingService : Service() {
         return false
     }
 
-    /** Hotspot returned on a different IP: restart the server and re-issue the QR/code. */
+    /** Hotspot returned on a different IP: re-advertise (and, for Fast, rebind the socket). */
     private fun rebind(host: String) {
-        server?.stop()
-        server = null
-        val boundPort = bindServer()
-        if (boundPort < 0) {
-            teardown()
-            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
-            return
-        }
         currentHost = host
-        val payload = pairing.issuePayload(
-            mode = QrPayload.MODE_SOCKS5, host = host, port = boundPort,
-            deviceName = Build.MODEL.take(64),
-        )
-        val code = pairing.issueTypedCode(payload)
-        LocalLog.add("Re-advertising on $host:$boundPort")
+        val payload = when (mode) {
+            TransportMode.FAST -> {
+                server?.stop()
+                server = null
+                val boundPort = bindServer()
+                if (boundPort < 0) {
+                    teardown()
+                    ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
+                    return
+                }
+                LocalLog.add("Re-advertising SOCKS on $host:$boundPort")
+                pairing.issuePayload(
+                    mode = QrPayload.MODE_SOCKS5, host = host, port = boundPort,
+                    deviceName = Build.MODEL.take(64),
+                )
+            }
+            // Full Mode: the endpoint listens on a UDP port regardless of interface,
+            // so it stays up; only the advertised host changes, keys unchanged.
+            TransportMode.FULL -> {
+                val keys = wgKeys ?: return
+                LocalLog.add("Re-advertising WireGuard on $host:${keys.endpointPort}")
+                pairing.issuePayload(
+                    mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
+                    deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
+                )
+            }
+        }
         // Present the fresh payload in place; the client count (if any) is stale
         // after a rebind, so drop back to Advertising until a client reconnects.
-        ConnectionRepository.reissue(payload, code)
+        ConnectionRepository.reissue(payload, pairing.issueTypedCode(payload))
     }
 
     private fun stopSharing() {
@@ -228,6 +284,9 @@ class SharingService : Service() {
         hotspotWatcher = null
         server?.stop()
         server = null
+        // Full Mode: stop the endpoint and drop the per-pairing keys (§4.2).
+        runCatching { wgForwarder?.stop() }
+        wgKeys = null
         currentHost = null
         releaseWakeLock()
         ConnectionRepository.clearWarnings()

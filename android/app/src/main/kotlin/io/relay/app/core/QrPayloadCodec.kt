@@ -32,6 +32,9 @@ object QrPayloadCodec {
         "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"
     )
 
+    /** base64 of a 32-byte Curve25519 key (matches /shared/qr-payload.schema.json). */
+    private val wgKeyRegex = Regex("^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
+
     fun encode(payload: QrPayload): String {
         val bytes = json.encodeToString(QrPayload.serializer(), payload).toByteArray(Charsets.UTF_8)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
@@ -82,6 +85,10 @@ object QrPayloadCodec {
         if (mode == QrPayload.MODE_SOCKS5 && hasWg) {
             return DecodeResult.Invalid("unexpected-wg-block")
         }
+        if (mode == QrPayload.MODE_WIREGUARD) {
+            val wgResult = validateWg(obj["wg"] as? JsonObject)
+            if (wgResult != null) return wgResult
+        }
 
         val payload = try {
             json.decodeFromJsonElement(QrPayload.serializer(), obj)
@@ -89,5 +96,20 @@ object QrPayloadCodec {
             return DecodeResult.Invalid("decode-error")
         }
         return DecodeResult.Ok(payload)
+    }
+
+    /** Validates the wg sub-object; returns an Invalid result on the first problem, else null. */
+    private fun validateWg(wg: JsonObject?): DecodeResult? {
+        if (wg == null) return DecodeResult.Invalid("missing-wg-block")
+        for (field in listOf("serverPublicKey", "clientPrivateKey", "allowedIps", "endpointPort", "dns")) {
+            if (!wg.containsKey(field)) return DecodeResult.Invalid("missing-wg-field")
+        }
+        val serverKey = wg["serverPublicKey"]?.jsonPrimitive?.contentOrNull
+        val clientKey = wg["clientPrivateKey"]?.jsonPrimitive?.contentOrNull
+        if (serverKey == null || !wgKeyRegex.matches(serverKey)) return DecodeResult.Invalid("invalid-wg-key")
+        if (clientKey == null || !wgKeyRegex.matches(clientKey)) return DecodeResult.Invalid("invalid-wg-key")
+        val endpointPort = wg["endpointPort"]?.jsonPrimitive?.intOrNull
+        if (endpointPort == null || endpointPort !in 1..65535) return DecodeResult.Invalid("invalid-wg-port")
+        return null
     }
 }

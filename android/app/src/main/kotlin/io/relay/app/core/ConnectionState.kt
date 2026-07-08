@@ -48,6 +48,7 @@ enum class ErrorCode {
     HOTSPOT_LOST,
     PORT_IN_USE,
     SERVICE_FAILED,
+    WG_START_FAILED,
 }
 
 /** Non-blocking, dismissible advisories shown as a banner (docs/errors.md → Warning). */

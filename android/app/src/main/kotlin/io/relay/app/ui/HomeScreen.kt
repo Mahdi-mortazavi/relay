@@ -60,6 +60,7 @@ import io.relay.app.R
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayloadCodec
+import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
 import io.relay.app.service.LocalLog
 import io.relay.app.ui.theme.LocalGlass
@@ -72,6 +73,7 @@ fun HomeScreen(
     batteryExempt: Boolean,
     warnings: Set<WarningCode>,
     themeMode: String,
+    transportMode: TransportMode,
     preferredPort: Int,
     logs: List<LocalLog.Entry>,
     onStart: () -> Unit,
@@ -81,6 +83,7 @@ fun HomeScreen(
     onAllowBattery: () -> Unit,
     onDismissWarning: (WarningCode) -> Unit,
     onSetTheme: (String) -> Unit,
+    onSetMode: (TransportMode) -> Unit,
     onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
 ) {
@@ -104,7 +107,7 @@ fun HomeScreen(
                 label = "state",
             ) { current ->
                 when (current) {
-                    is ConnectionState.Idle -> IdlePanel(onStart)
+                    is ConnectionState.Idle -> IdlePanel(transportMode, onSetMode, onStart)
                     is ConnectionState.Preparing -> PreparingPanel()
                     is ConnectionState.Advertising ->
                         PairingPanel(
@@ -225,7 +228,11 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
 // --- panels ------------------------------------------------------------------
 
 @Composable
-private fun IdlePanel(onStart: () -> Unit) {
+private fun IdlePanel(
+    transportMode: TransportMode,
+    onSetMode: (TransportMode) -> Unit,
+    onStart: () -> Unit,
+) {
     val glass = LocalGlass.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -233,13 +240,55 @@ private fun IdlePanel(onStart: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = glass.textSecondary,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
+        ModeToggle(transportMode, onSetMode)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(
+                if (transportMode == TransportMode.FAST) R.string.mode_fast_desc
+                else R.string.mode_full_desc
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            color = glass.textTertiary,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
         PrimaryButton(text = stringResource(R.string.action_start), onClick = onStart)
         Spacer(Modifier.height(16.dp))
         Text(
             text = stringResource(R.string.tagline),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
+        )
+    }
+}
+
+/** Segmented Fast/Full selector — one glass pill with the active segment in accent. */
+@Composable
+private fun ModeToggle(mode: TransportMode, onSet: (TransportMode) -> Unit) {
+    Row(
+        modifier = Modifier.clip(RoundedCornerShape(999.dp)).glassPanel(radius = 999.dp).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        ModeSegment(stringResource(R.string.mode_fast), mode == TransportMode.FAST) { onSet(TransportMode.FAST) }
+        ModeSegment(stringResource(R.string.mode_full), mode == TransportMode.FULL) { onSet(TransportMode.FULL) }
+    }
+}
+
+@Composable
+private fun ModeSegment(label: String, selected: Boolean, onClick: () -> Unit) {
+    val glass = LocalGlass.current
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) glass.accent else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 22.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) glass.onAccent else glass.textSecondary,
         )
     }
 }
@@ -342,6 +391,7 @@ private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Un
         ErrorCode.HOTSPOT_LOST -> R.string.error_hotspot_lost_title to R.string.error_hotspot_lost_body
         ErrorCode.PORT_IN_USE -> R.string.error_port_in_use_title to R.string.error_port_in_use_body
         ErrorCode.SERVICE_FAILED -> R.string.error_service_failed_title to R.string.error_service_failed_body
+        ErrorCode.WG_START_FAILED -> R.string.error_wg_start_title to R.string.error_wg_start_body
     }
     Column(
         modifier = Modifier.fillMaxWidth().glassPanel().padding(24.dp),

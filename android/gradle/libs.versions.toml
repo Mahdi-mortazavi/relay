@@ -9,6 +9,7 @@ junit = "4.13.2"
 kotlinxSerialization = "1.7.3"
 kotlinxCoroutines = "1.9.0"
 zxing = "3.5.3"
+wireguard = "1.0.20230706"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -24,6 +25,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+wireguard-tunnel = { group = "com.wireguard.android", name = "tunnel", version.ref = "wireguard" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

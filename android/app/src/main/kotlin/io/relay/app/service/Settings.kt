@@ -19,8 +19,14 @@ class Settings(context: Context) {
         get() = prefs.getString(KEY_THEME, "system") ?: "system"
         set(value) = prefs.edit().putString(KEY_THEME, value).apply()
 
+    /** "FAST" | "FULL" — the selected transport mode (TransportMode.name). */
+    var transportMode: String
+        get() = prefs.getString(KEY_MODE, "FAST") ?: "FAST"
+        set(value) = prefs.edit().putString(KEY_MODE, value).apply()
+
     companion object {
         private const val KEY_PORT = "preferred_port"
         private const val KEY_THEME = "theme_mode"
+        private const val KEY_MODE = "transport_mode"
     }
 }

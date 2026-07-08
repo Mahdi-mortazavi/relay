@@ -97,6 +97,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.zxing.core)
+    // Official WireGuard key generation + crypto (Full Mode, ADR-0008). The
+    // userspace forwarder AAR is added by the wg-forwarder build in CI.
+    implementation(libs.wireguard.tunnel)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

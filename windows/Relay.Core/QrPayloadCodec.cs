@@ -36,6 +36,10 @@ public static partial class QrPayloadCodec
     [GeneratedRegex(@"^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$")]
     private static partial Regex Ipv4Regex();
 
+    /// <summary>base64 of a 32-byte Curve25519 key (matches /shared/qr-payload.schema.json).</summary>
+    [GeneratedRegex(@"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")]
+    private static partial Regex WgKeyRegex();
+
     public static string Encode(QrPayload payload)
     {
         var json = JsonSerializer.Serialize(payload, SerializeOptions);
@@ -100,9 +104,14 @@ public static partial class QrPayloadCodec
         if (port is < 1 or > 65535) return DecodeResult.Invalid("invalid-port");
         if (!Ipv4Regex().IsMatch(host)) return DecodeResult.Invalid("invalid-host");
 
-        var hasWg = obj.TryGetProperty("wg", out _);
+        var hasWg = obj.TryGetProperty("wg", out var wgElement);
         if (mode == QrPayload.ModeWireguard && !hasWg) return DecodeResult.Invalid("missing-wg-block");
         if (mode == QrPayload.ModeSocks5 && hasWg) return DecodeResult.Invalid("unexpected-wg-block");
+        if (mode == QrPayload.ModeWireguard)
+        {
+            var wgResult = ValidateWg(wgElement);
+            if (wgResult is not null) return wgResult;
+        }
 
         try
         {
@@ -115,6 +124,29 @@ public static partial class QrPayloadCodec
         {
             return DecodeResult.Invalid("decode-error");
         }
+    }
+
+    /// <summary>Validates the wg sub-object; returns an Invalid result on the first problem, else null.</summary>
+    private static DecodeResult? ValidateWg(JsonElement wg)
+    {
+        if (wg.ValueKind != JsonValueKind.Object) return DecodeResult.Invalid("missing-wg-block");
+        foreach (var field in new[] { "serverPublicKey", "clientPrivateKey", "allowedIps", "endpointPort", "dns" })
+        {
+            if (!wg.TryGetProperty(field, out _)) return DecodeResult.Invalid("missing-wg-field");
+        }
+        if (!TryGetString(wg, "serverPublicKey", out var serverKey) || !WgKeyRegex().IsMatch(serverKey))
+        {
+            return DecodeResult.Invalid("invalid-wg-key");
+        }
+        if (!TryGetString(wg, "clientPrivateKey", out var clientKey) || !WgKeyRegex().IsMatch(clientKey))
+        {
+            return DecodeResult.Invalid("invalid-wg-key");
+        }
+        if (!TryGetInt(wg, "endpointPort", out var endpointPort) || endpointPort is < 1 or > 65535)
+        {
+            return DecodeResult.Invalid("invalid-wg-port");
+        }
+        return null;
     }
 
     private static bool TryGetInt(JsonElement obj, string name, out int value)
