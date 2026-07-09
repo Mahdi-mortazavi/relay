@@ -127,6 +127,23 @@ public sealed partial class MainWindow : Window
 
     private void Render()
     {
+        // Local input errors (bad scan/code, camera) are owned here too, so a
+        // Render triggered by anything else (e.g. a Windows theme switch) can't
+        // silently wipe the error panel.
+        if (_localError is not null)
+        {
+            IdlePanel.Visibility = Visibility.Collapsed;
+            ScanPanel.Visibility = Visibility.Collapsed;
+            CodePanel.Visibility = Visibility.Collapsed;
+            BusyPanel.Visibility = Visibility.Collapsed;
+            ConnectedPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Visible;
+            ErrorText.Text = LocalErrorMessage(_localError);
+            ErrorDismissButton.Content = Strings.Get("Dismiss");
+            StatusDot.Fill = ThemeBrush("ErrorBrush");
+            return;
+        }
+
         var state = _controller.StateName;
 
         IdlePanel.Visibility = Show(state == "Idle" && _mode == InputMode.None);
@@ -172,6 +189,10 @@ public sealed partial class MainWindow : Window
                 "ERR_CAMERA_DENIED" => "ErrCameraDenied",
                 _ => "ErrProxyApply",
             });
+            // Rollback-incomplete leaves a half-applied proxy: offer a retry here
+            // (the button re-runs Disconnect) instead of only "Dismiss".
+            ErrorDismissButton.Content = Strings.Get(
+                _controller.ErrorCode == "ERR_ROLLBACK_INCOMPLETE" ? "Disconnect" : "Dismiss");
         }
 
         // Advanced address reflects the active session, if any.
@@ -187,6 +208,7 @@ public sealed partial class MainWindow : Window
 
     private async void OnScanClick(object sender, RoutedEventArgs e)
     {
+        _localError = null;
         _mode = InputMode.Scanning;
         Render();
         _scanner = new CameraQrScanner();
@@ -219,9 +241,11 @@ public sealed partial class MainWindow : Window
             using (bitmap)
             {
                 if (_mode != InputMode.Scanning) return;
+                var previous = PreviewImage.Source as SoftwareBitmapSource;
                 var source = new SoftwareBitmapSource();
                 await source.SetBitmapAsync(bitmap);
                 PreviewImage.Source = source;
+                previous?.Dispose(); // release the outgoing frame's native buffer now
             }
         });
     }
@@ -258,6 +282,7 @@ public sealed partial class MainWindow : Window
 
     private void OnEnterCodeClick(object sender, RoutedEventArgs e)
     {
+        _localError = null;
         _mode = InputMode.Code;
         CodeBox.Text = string.Empty;
         Render();
@@ -272,6 +297,7 @@ public sealed partial class MainWindow : Window
             ShowLocalError("ERR_CODE_INVALID");
             return;
         }
+        _localError = null;
         _mode = InputMode.None;
         await _controller.ConnectAsync(new QrPayload
         {
@@ -289,8 +315,15 @@ public sealed partial class MainWindow : Window
     private async void OnDisconnectClick(object sender, RoutedEventArgs e) =>
         await _controller.DisconnectAsync();
 
-    private void OnDismissClick(object sender, RoutedEventArgs e)
+    private async void OnDismissClick(object sender, RoutedEventArgs e)
     {
+        // On a rollback-incomplete error the proxy may still be applied, so the
+        // button retries Disconnect instead of just clearing the message.
+        if (_localError is null && _controller.ErrorCode == "ERR_ROLLBACK_INCOMPLETE")
+        {
+            await _controller.DisconnectAsync();
+            return;
+        }
         _localError = null;
         _controller.DismissError();
         Render();
@@ -304,17 +337,15 @@ public sealed partial class MainWindow : Window
     {
         _localError = code;
         _mode = InputMode.None;
-        IdlePanel.Visibility = Visibility.Collapsed;
-        ScanPanel.Visibility = Visibility.Collapsed;
-        CodePanel.Visibility = Visibility.Collapsed;
-        ErrorPanel.Visibility = Visibility.Visible;
-        ErrorText.Text = Strings.Get(code switch
-        {
-            "ERR_QR_NEWER_VERSION" => "ErrQrNewer",
-            "ERR_QR_INVALID" => "ErrQrInvalid",
-            "ERR_CODE_INVALID" => "ErrCodeInvalid",
-            "ERR_CAMERA_DENIED" => "ErrCameraDenied",
-            _ => "ErrQrInvalid",
-        });
+        Render();
     }
+
+    private static string LocalErrorMessage(string code) => Strings.Get(code switch
+    {
+        "ERR_QR_NEWER_VERSION" => "ErrQrNewer",
+        "ERR_QR_INVALID" => "ErrQrInvalid",
+        "ERR_CODE_INVALID" => "ErrCodeInvalid",
+        "ERR_CAMERA_DENIED" => "ErrCameraDenied",
+        _ => "ErrQrInvalid",
+    });
 }

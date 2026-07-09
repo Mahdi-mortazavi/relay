@@ -48,3 +48,13 @@ Name: "{autodesktop}\Relay"; Filename: "{app}\Relay.App.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Relay.App.exe"; Description: "{cm:LaunchProgram,Relay}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; If a session is active at uninstall time, stop the app and restore the system
+; proxy so the user isn't left with a dangling SOCKS proxy and no app to undo it.
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im Relay.App.exe"; Flags: runhidden; RunOnceId: "StopRelay"
+Filename: "{app}\Relay.App.exe"; Parameters: "--restore-proxy"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "RestoreProxy"
+
+[UninstallDelete]
+; Don't leave the local-only backup/log behind after uninstall.
+Type: filesandordirs; Name: "{localappdata}\Relay"

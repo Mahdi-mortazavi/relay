@@ -53,7 +53,7 @@ public static class Strings
         ["ErrFirewall"] = "The connection was blocked. Allow Relay through Windows Firewall (or your security software), then try again.",
         ["ErrProxyApply"] = "Windows refused the proxy change. Close other proxy/VPN managers and try again.",
         ["ErrRollback"] = "Relay couldn't fully restore your proxy settings. Disconnect again to retry.",
-        ["ErrCameraDenied"] = "Relay can't use the camera. Allow camera access for desktop apps in Windows Settings > Privacy, or enter the code manually.",
+        ["ErrCameraDenied"] = "Relay can't use the camera — it may be missing, in use by another app, or blocked. Allow camera access in Windows Settings > Privacy, or enter the code manually.",
     };
 
     private static readonly Dictionary<string, string> Fa = new()
@@ -89,6 +89,6 @@ public static class Strings
         ["ErrFirewall"] = "اتصال مسدود شد. به رله در فایروال ویندوز (یا نرم‌افزار امنیتی) اجازه دهید و دوباره تلاش کنید.",
         ["ErrProxyApply"] = "ویندوز تغییر پراکسی را نپذیرفت. مدیریت‌کننده‌های دیگر پراکسی/VPN را ببندید و دوباره تلاش کنید.",
         ["ErrRollback"] = "رله نتوانست تنظیمات پراکسی را کاملاً بازگرداند. برای تلاش دوباره، دوباره «قطع اتصال» را بزنید.",
-        ["ErrCameraDenied"] = "رله به دوربین دسترسی ندارد. در تنظیمات ویندوز > حریم خصوصی، دسترسی دوربین برنامه‌های دسکتاپ را فعال کنید، یا کد را دستی وارد کنید.",
+        ["ErrCameraDenied"] = "رله به دوربین دسترسی ندارد — ممکن است نبودن دوربین، اشغال توسط برنامه‌ای دیگر، یا مسدودبودن باشد. در تنظیمات ویندوز > حریم خصوصی دسترسی دوربین را فعال کنید، یا کد را دستی وارد کنید.",
     };
 }
