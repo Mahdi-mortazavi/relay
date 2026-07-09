@@ -23,7 +23,7 @@ import io.relay.app.core.ReconnectPolicy
 import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
 import io.relay.app.core.WgConfig
-import io.relay.app.net.HotspotInfo
+import io.relay.app.net.LocalAddress
 import io.relay.app.net.Socks5Server
 import io.relay.app.net.VpnStatus
 import io.relay.app.net.wg.WgForwarder
@@ -120,9 +120,10 @@ class SharingService : Service() {
             WarningCode.NO_VPN_ACTIVE, !VpnStatus.isVpnActive(this),
         )
 
-        val host = HotspotInfo.findHotspotIpv4()
+        // Works on the phone's hotspot OR a shared Wi-Fi/LAN the laptop is also on.
+        val host = LocalAddress.findAdvertisableIpv4()
         if (host == null) {
-            LocalLog.add("No hotspot interface found")
+            LocalLog.add("No usable Wi-Fi/hotspot interface found")
             ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.HOTSPOT_OFF) }
             return
         }
@@ -211,7 +212,7 @@ class SharingService : Service() {
                 delay(HOTSPOT_POLL_MS)
                 val state = ConnectionRepository.state.value
                 if (state !is ConnectionState.Advertising && state !is ConnectionState.Connected) continue
-                if (HotspotInfo.findHotspotIpv4() != null) continue
+                if (LocalAddress.findAdvertisableIpv4() != null) continue
                 if (!runReconnect()) return@launch // exhausted → Error, stop watching
             }
         }
@@ -223,9 +224,9 @@ class SharingService : Service() {
         ConnectionRepository.annotateReconnecting(true)
         for ((attempt, wait) in ReconnectPolicy.attemptDelaysMs.withIndex()) {
             delay(wait)
-            val host = HotspotInfo.findHotspotIpv4()
+            val host = LocalAddress.findAdvertisableIpv4()
             if (host != null) {
-                LocalLog.add("Hotspot back after attempt ${attempt + 1}")
+                LocalLog.add("Network back after attempt ${attempt + 1}")
                 ConnectionRepository.annotateReconnecting(false)
                 if (host != currentHost) rebind(host)
                 return true
