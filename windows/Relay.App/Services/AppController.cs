@@ -19,6 +19,7 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
 
     private readonly ProxySession _session = new(proxyStore, backupStore);
     private readonly object _gate = new();
+    private readonly object _sessionLock = new(); // serializes all _session IO
     private CancellationTokenSource? _supervisor;
 
     public string StateName { get; private set; } = ConnectionRules.Initial;
@@ -58,7 +59,19 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             return;
         }
 
-        var applied = await Task.Run(() => _session.Connect(payload.Host, payload.Port));
+        ProxySession.Result applied;
+        try
+        {
+            applied = await ConnectLocked(payload.Host, payload.Port);
+        }
+        catch (Exception ex)
+        {
+            // A registry/file hiccup during apply must not crash the app; undo and surface.
+            LocalLog.Add($"Proxy apply threw: {ex.Message}");
+            try { await DisconnectLocked(); } catch { }
+            Fail("ERR_PROXY_APPLY_FAILED");
+            return;
+        }
         if (!applied.Ok)
         {
             LocalLog.Add($"Proxy apply failed: {applied.ErrorCode}");
@@ -70,7 +83,7 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         var probe = await Task.Run(() => ProbePhone(payload.Host, payload.Port));
         if (probe != Probe.Ok)
         {
-            await Task.Run(_session.Disconnect); // roll back before surfacing
+            try { await DisconnectLocked(); } catch { } // roll back before surfacing
             var code = probe == Probe.Refused ? "ERR_FIREWALL_BLOCKED" : "ERR_HOST_UNREACHABLE";
             LocalLog.Add($"Initial probe failed → {code}");
             Fail(code);
@@ -85,7 +98,17 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     public async Task DisconnectAsync()
     {
         StopSupervisor();
-        var result = await Task.Run(_session.Disconnect);
+        ProxySession.Result result;
+        try
+        {
+            result = await DisconnectLocked();
+        }
+        catch (Exception ex)
+        {
+            LocalLog.Add($"Disconnect threw: {ex.Message}");
+            Fail("ERR_ROLLBACK_INCOMPLETE");
+            return;
+        }
         if (result.Ok)
         {
             LocalLog.Add("Disconnected");
@@ -99,6 +122,14 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     }
 
     public void DismissError() => Dispatch("dismiss");
+
+    // All ProxySession IO goes through these so a user Disconnect and the
+    // reconnect supervisor can never touch the registry/backup concurrently.
+    private Task<ProxySession.Result> ConnectLocked(string host, int port) =>
+        Task.Run(() => { lock (_sessionLock) return _session.Connect(host, port); });
+
+    private Task<ProxySession.Result> DisconnectLocked() =>
+        Task.Run(() => { lock (_sessionLock) return _session.Disconnect(); });
 
     // --- reconnect supervisor (ADR-0007) -------------------------------------
 
@@ -144,8 +175,10 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
                 SetReconnecting(false);
                 if (!recovered)
                 {
+                    // If the user already asked to disconnect, that path owns teardown.
+                    if (token.IsCancellationRequested) return;
                     LocalLog.Add("Reconnect budget exhausted");
-                    await Task.Run(_session.Disconnect); // now roll back
+                    await DisconnectLocked(); // now roll back
                     Fail("ERR_CONNECTION_LOST");
                     return;
                 }
