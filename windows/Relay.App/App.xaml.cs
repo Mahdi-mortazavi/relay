@@ -10,6 +10,8 @@ namespace Relay.App;
 public partial class App : Application
 {
     private static Mutex? _singleInstance;
+    private static EventWaitHandle? _showSignal;
+    private const string ShowSignalName = @"Local\RelayAppShow";
 
     private TaskbarIcon? _tray;
     private MainWindow? _window;
@@ -21,6 +23,16 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Uninstall/repair runs "Relay.App.exe --restore-proxy" to undo an active
+        // session's system proxy before the app is removed. Headless; no window.
+        if (Environment.GetCommandLineArgs().Any(a =>
+                string.Equals(a, "--restore-proxy", StringComparison.OrdinalIgnoreCase)))
+        {
+            try { AppController.Instance.RecoverIfCrashed(); } catch { }
+            Exit();
+            return;
+        }
+
         // Attach the crash handler FIRST so any startup failure is written to a
         // log instead of dying silently (this app is unpackaged; a stowed COM
         // exception during startup would otherwise leave no trace).
@@ -36,6 +48,9 @@ public partial class App : Application
             _singleInstance = new Mutex(initiallyOwned: true, @"Local\RelayAppSingleton", out var isFirst);
             if (!isFirst)
             {
+                // Already running in the tray: tell that instance to show its
+                // window instead of silently doing nothing, then exit.
+                try { EventWaitHandle.OpenExisting(ShowSignalName).Set(); } catch { }
                 Exit();
                 return;
             }
@@ -45,6 +60,13 @@ public partial class App : Application
 
             _window = new MainWindow();
             _window.ShowNearTray();
+
+            // Let a second launch (see the !isFirst path) pop this window back up.
+            _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);
+            ThreadPool.RegisterWaitForSingleObject(
+                _showSignal,
+                (_, _) => _window?.DispatcherQueue.TryEnqueue(() => _window?.ShowNearTray()),
+                null, Timeout.Infinite, executeOnlyOnce: false);
             // Tray creation is best-effort: a failure here must not stop the
             // window (which is already shown) from being usable.
             try

@@ -78,7 +78,14 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             Fail(applied.ErrorCode!);
             return;
         }
-        Dispatch("ready");
+        // A concurrent Disconnect may have moved us back to Idle after the proxy
+        // was applied; if so, undo it rather than leaving the proxy on with an
+        // Idle UI (silent, unrecoverable-from-the-window proxy leak).
+        if (!Dispatch("ready"))
+        {
+            try { await DisconnectLocked(); } catch { }
+            return;
+        }
 
         var probe = await Task.Run(() => ProbePhone(payload.Host, payload.Port));
         if (probe != Probe.Ok)
@@ -89,8 +96,12 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             Fail(code);
             return;
         }
+        if (!Dispatch("clientConnected"))
+        {
+            try { await DisconnectLocked(); } catch { }
+            return;
+        }
         LocalLog.Add("Connected");
-        Dispatch("clientConnected");
         StartSupervisor(payload);
     }
 
@@ -112,7 +123,9 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         if (result.Ok)
         {
             LocalLog.Add("Disconnected");
-            Dispatch("stop");
+            // "stop" is legal from Connected; a retry from the Error surface
+            // (ERR_ROLLBACK_INCOMPLETE) clears via "dismiss" instead.
+            if (!Dispatch("stop")) Dispatch("dismiss");
         }
         else
         {
@@ -137,15 +150,19 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     {
         StopSupervisor();
         var cts = new CancellationTokenSource();
-        _supervisor = cts;
+        lock (_gate) { _supervisor = cts; }
         _ = SuperviseAsync(payload, cts.Token);
     }
 
     private void StopSupervisor()
     {
-        _supervisor?.Cancel();
-        _supervisor?.Dispose();
-        _supervisor = null;
+        // Swap the field out under the lock and operate on the local so a
+        // concurrent Start/Stop can't Cancel-after-Dispose or double-dispose.
+        CancellationTokenSource? cts;
+        lock (_gate) { cts = _supervisor; _supervisor = null; }
+        if (cts is null) return;
+        try { cts.Cancel(); } catch { }
+        cts.Dispose();
     }
 
     private async Task SuperviseAsync(QrPayload payload, CancellationToken token)

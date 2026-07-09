@@ -111,18 +111,19 @@ public sealed class CameraQrScanner : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        try
-        {
-            if (_reader is not null)
-            {
-                _reader.FrameArrived -= OnFrame;
-                _reader.StopAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
-                _reader.Dispose();
-            }
-        }
-        catch (Exception) { /* teardown must never throw */ }
-        _capture?.Dispose();
-        _capture = null;
+        var reader = _reader;
+        var capture = _capture;
         _reader = null;
+        _capture = null;
+        // Unsubscribe synchronously so no more frames reach us, then tear the
+        // camera down on a background thread — StopAsync can take ~a second and
+        // Dispose() is called from the UI thread (Cancel / window close).
+        if (reader is not null) reader.FrameArrived -= OnFrame;
+        Task.Run(() =>
+        {
+            try { reader?.StopAsync().AsTask().Wait(TimeSpan.FromSeconds(2)); } catch { }
+            try { reader?.Dispose(); } catch { }
+            try { capture?.Dispose(); } catch { }
+        });
     }
 }
