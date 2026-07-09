@@ -101,13 +101,29 @@ class Socks5Server(
         }
     }
 
+    /**
+     * Reads exactly [n] bytes (blocking) or fewer on EOF. `InputStream.readNBytes`
+     * is API 33+ on Android; using it crashed the SOCKS handshake with
+     * NoSuchMethodError on every device below Android 13, so we read manually.
+     */
+    private fun readExactly(input: InputStream, n: Int): ByteArray {
+        val buffer = ByteArray(n)
+        var offset = 0
+        while (offset < n) {
+            val read = input.read(buffer, offset, n - offset)
+            if (read < 0) break
+            offset += read
+        }
+        return if (offset == n) buffer else buffer.copyOf(offset)
+    }
+
     /** Greeting: VER NMETHODS METHODS… -> VER=5 METHOD=0 (no auth). */
     private fun handshake(input: InputStream, output: OutputStream): Boolean {
         val version = input.read()
         if (version != SOCKS_VERSION) return false
         val methodCount = input.read()
         if (methodCount <= 0) return false
-        val methods = input.readNBytes(methodCount)
+        val methods = readExactly(input, methodCount)
         if (methods.size != methodCount || NO_AUTH !in methods.map { it.toInt() }) {
             output.write(byteArrayOf(SOCKS_VERSION.toByte(), NO_ACCEPTABLE_METHODS.toByte()))
             return false
@@ -118,7 +134,7 @@ class Socks5Server(
 
     /** Request: VER CMD RSV ATYP DST.ADDR DST.PORT -> connected remote socket or null. */
     private fun request(input: InputStream, output: OutputStream): Socket? {
-        val header = input.readNBytes(4)
+        val header = readExactly(input, 4)
         if (header.size != 4 || header[0].toInt() != SOCKS_VERSION) return null
         val command = header[1].toInt()
         if (command != CMD_CONNECT) {
@@ -128,14 +144,14 @@ class Socks5Server(
 
         val address: InetAddress = when (header[3].toInt()) {
             ATYP_IPV4 -> {
-                val raw = input.readNBytes(4)
+                val raw = readExactly(input, 4)
                 if (raw.size != 4) return null
                 InetAddress.getByAddress(raw)
             }
             ATYP_DOMAIN -> {
                 val length = input.read()
                 if (length <= 0) return null
-                val name = input.readNBytes(length)
+                val name = readExactly(input, length)
                 if (name.size != length) return null
                 try {
                     // Resolved on the phone -> uses the VPN's DNS.
@@ -146,7 +162,7 @@ class Socks5Server(
                 }
             }
             ATYP_IPV6 -> {
-                val raw = input.readNBytes(16)
+                val raw = readExactly(input, 16)
                 if (raw.size != 16) return null
                 InetAddress.getByAddress(raw)
             }
@@ -155,7 +171,7 @@ class Socks5Server(
                 return null
             }
         }
-        val portBytes = input.readNBytes(2)
+        val portBytes = readExactly(input, 2)
         if (portBytes.size != 2) return null
         val destinationPort =
             ((portBytes[0].toInt() and 0xFF) shl 8) or (portBytes[1].toInt() and 0xFF)
