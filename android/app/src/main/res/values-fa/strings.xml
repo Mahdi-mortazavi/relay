@@ -43,8 +43,8 @@
     <string name="advanced_logs_empty">هنوز فعالیتی نیست</string>
 
     <!-- Errors (codes: docs/errors.md) -->
-    <string name="error_hotspot_off_title">هات‌اسپات خاموش است</string>
-    <string name="error_hotspot_off_body">هات‌اسپات وای‌فای گوشی را روشن کنید و دوباره تلاش کنید.</string>
+    <string name="error_hotspot_off_title">وای‌فای یا هات‌اسپات نیست</string>
+    <string name="error_hotspot_off_body">گوشی را به وای‌فای وصل کنید یا هات‌اسپات را روشن کنید و دوباره تلاش کنید.</string>
     <string name="error_port_in_use_title">پورت‌ها در اشغال‌اند</string>
     <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
     <string name="error_service_failed_title">مشکلی پیش آمد</string>

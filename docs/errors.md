@@ -14,7 +14,7 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 
 | Code | Severity | Condition | Next action shown to user |
 |---|---|---|---|
-| `HOTSPOT_OFF` | Error | No usable hotspot IPv4 interface when starting | Turn on the phone's Wi-Fi hotspot, then try again |
+| `HOTSPOT_OFF` | Error | No usable Wi-Fi or hotspot IPv4 interface when starting (works on a shared Wi-Fi/LAN too, not only the phone's hotspot) | Connect the phone to Wi-Fi or turn on its hotspot, then try again |
 | `HOTSPOT_LOST` | Transient → Error | Hotspot interface dropped and did not return within the reconnect bound | Check the hotspot is still on, then start sharing again |
 | `PORT_IN_USE` | Error | Every candidate SOCKS port is bound by another app | Close the other app using those ports, then try again |
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly | Start sharing again |
