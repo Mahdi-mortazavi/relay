@@ -32,7 +32,11 @@ public sealed class FileBackupStore : IBackupStore
     public void Save(ProxyBackup backup)
     {
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-        File.WriteAllText(Path, JsonSerializer.Serialize(backup));
+        // Atomic write: a crash mid-write must not strand a truncated backup that
+        // fails to parse, which would skip crash-recovery and leave a dead proxy.
+        var tmp = Path + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(backup));
+        File.Move(tmp, Path, overwrite: true);
     }
 
     public void Delete()

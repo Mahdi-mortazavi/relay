@@ -68,18 +68,20 @@ public sealed class CameraQrScanner : IDisposable
 
         var converted = SoftwareBitmap.Convert(
             bitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-        PreviewFrame?.Invoke(converted); // consumer owns + disposes
 
-        // Decode at most ~6x per second — plenty for a static QR.
+        // Decode BEFORE handing the bitmap off. PreviewFrame's consumer owns and
+        // disposes it (possibly on the UI thread), so touching `converted` after
+        // the invoke is a use-after-dispose / cross-thread race on a non-thread-
+        // safe COM object. Decode at most ~6x/sec — plenty for a static QR.
         var now = Environment.TickCount64;
-        if (now - Interlocked.Read(ref _lastDecodeTicks) < 160) return;
-        Interlocked.Exchange(ref _lastDecodeTicks, now);
-
-        var text = TryDecode(converted);
-        if (text is not null)
+        if (now - Interlocked.Read(ref _lastDecodeTicks) >= 160)
         {
-            Decoded?.Invoke(text);
+            Interlocked.Exchange(ref _lastDecodeTicks, now);
+            var text = TryDecode(converted);
+            if (text is not null) Decoded?.Invoke(text);
         }
+
+        PreviewFrame?.Invoke(converted); // hand off ownership LAST
     }
 
     private string? TryDecode(SoftwareBitmap bitmap)

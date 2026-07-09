@@ -68,7 +68,13 @@ public sealed class ProxySession(IProxyStore store, IBackupStore backup)
     public bool RecoverIfCrashed()
     {
         var saved = backup.Load();
-        if (saved is null) return false;
+        // Treat a corrupt/partial backup (null contents) as "nothing to recover"
+        // rather than dereferencing it and crashing startup.
+        if (saved?.Original is null || saved.AppliedServer is null)
+        {
+            backup.Delete();
+            return false;
+        }
 
         var current = store.Read();
         if (current.Enabled && current.Server == saved.AppliedServer)

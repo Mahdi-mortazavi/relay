@@ -155,7 +155,9 @@ public partial class App : Application
     {
         try
         {
-            AppController.Instance.DisconnectAsync().Wait(TimeSpan.FromSeconds(3));
+            // Run off the UI thread: DisconnectAsync's continuation captures the
+            // UI DispatcherQueue, so .Wait() on the UI thread would deadlock it.
+            Task.Run(() => AppController.Instance.DisconnectAsync()).Wait(TimeSpan.FromSeconds(3));
         }
         catch (Exception)
         {
