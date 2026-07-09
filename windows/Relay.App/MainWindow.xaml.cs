@@ -1,32 +1,45 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Relay.App.Services;
 using Relay.Core;
+using Windows.Graphics;
 using Windows.Graphics.Imaging;
 
 namespace Relay.App;
 
 /// <summary>
-/// The compact glass popup near the tray. UI is a pure projection of
-/// AppController state plus a local "input mode" (scanning / code entry).
+/// The compact glass popover near the tray. It behaves like a macOS menu-bar
+/// popover: the tray icon shows it (brought to the real foreground), and it
+/// hides itself when it loses focus. The UI is a projection of AppController
+/// state plus a local input mode (scanning / code entry).
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    private const int PopupWidth = 400;
-    private const int PopupHeight = 640;
+    private const int PopupWidth = 380;
+    private const int PopupHeight = 600;
 
     private readonly AppController _controller = AppController.Instance;
     private CameraQrScanner? _scanner;
     private long _lastPreviewTicks;
     private enum InputMode { None, Scanning, Code }
     private InputMode _mode = InputMode.None;
+    private string? _localError;
+    private long _shownAtTick;
+
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
+    private const int SW_SHOW = 5;
+
+    private IntPtr Hwnd => WinRT.Interop.WindowNative.GetWindowHandle(this);
 
     public MainWindow()
     {
         InitializeComponent();
-        // Acrylic is cosmetic and can fault on some setups; set it in code so a
-        // failure degrades to the solid Grid background instead of crashing load.
+        // Acrylic gives the glass look; set it in code so an unsupported backdrop
+        // degrades to the solid scrim instead of failing the XAML load.
         try { SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop(); } catch { }
         Title = Strings.Get("AppName");
         ConfigureAppWindow();
@@ -41,28 +54,72 @@ public sealed partial class MainWindow : Window
 
     private void ConfigureAppWindow()
     {
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(PopupWidth, PopupHeight));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsResizable = false;
             presenter.IsMaximizable = false;
             presenter.IsMinimizable = false;
             presenter.SetBorderAndTitleBar(true, false);
+            presenter.IsAlwaysOnTop = true;
         }
         AppWindow.IsShownInSwitchers = false;
 
-        // Closing the popup hides it; the app lives in the tray.
+        // Closing the popover hides it to the tray; it's never destroyed.
         AppWindow.Closing += (_, args) =>
         {
             args.Cancel = true;
-            StopScanning();
-            AppWindow.Hide();
+            HideToTray();
+        };
+
+        // macOS-popover behaviour: hide when focus is lost — but never mid-scan,
+        // so a system camera prompt can't dismiss the scanner.
+        Activated += (_, e) =>
+        {
+            // Ignore the brief deactivation that can follow a show (if the
+            // foreground grab momentarily loses), else the popover flash-hides.
+            if (e.WindowActivationState == WindowActivationState.Deactivated
+                && _mode != InputMode.Scanning
+                && Environment.TickCount64 - _shownAtTick > 400)
+            {
+                AppWindow.Hide();
+            }
         };
 
         if (System.Globalization.CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft)
         {
             Root.FlowDirection = FlowDirection.RightToLeft;
         }
+    }
+
+    /// <summary>Positions the popover above the tray and brings it to the real foreground.</summary>
+    public void ShowNearTray()
+    {
+        var hwnd = Hwnd;
+        var scale = GetDpiForWindow(hwnd) / 96.0;
+        if (scale <= 0) scale = 1.0;
+        var w = (int)(PopupWidth * scale);
+        var h = (int)(PopupHeight * scale);
+        var margin = (int)(12 * scale);
+
+        AppWindow.Resize(new SizeInt32(w, h));
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        AppWindow.Move(new PointInt32(
+            area.X + area.Width - w - margin,
+            area.Y + area.Height - h - margin));
+
+        _shownAtTick = Environment.TickCount64;
+        AppWindow.Show();
+        // Window.Activate() alone doesn't beat Windows' foreground lock from a
+        // tray click, which left the window hidden/behind and looking frozen.
+        ShowWindow(hwnd, SW_SHOW);
+        SetForegroundWindow(hwnd);
+        Activate();
+    }
+
+    private void HideToTray()
+    {
+        StopScanning();
+        AppWindow.Hide();
     }
 
     private void ApplyStrings()
@@ -86,17 +143,16 @@ public sealed partial class MainWindow : Window
         AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
     }
 
-    /// <summary>Resolves a theme-dictionary brush by key for the effective theme.</summary>
-    /// <summary>Dynamic status-dot color by key. Inline so it needs no XAML resources.</summary>
+    /// <summary>Dynamic dot color by key — inline so it needs no XAML resources.</summary>
     private static Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
     {
         (byte a, byte r, byte g, byte b) = key switch
         {
-            "Accent" => ((byte)0xFF, (byte)0x45, (byte)0xD6, (byte)0xB8),
-            "ErrorBrush" => ((byte)0xFF, (byte)0xE5, (byte)0x64, (byte)0x5F),
-            "WarningBrush" => ((byte)0xFF, (byte)0xE0, (byte)0xA4, (byte)0x58),
-            "TextSecondary" => ((byte)0x9E, (byte)0xFF, (byte)0xFF, (byte)0xFF),
-            _ => ((byte)0x61, (byte)0xFF, (byte)0xFF, (byte)0xFF), // TextTertiary
+            "Accent" => ((byte)0xFF, (byte)0x4A, (byte)0xDF, (byte)0xBF),
+            "ErrorBrush" => ((byte)0xFF, (byte)0xFF, (byte)0x6B, (byte)0x66),
+            "WarningBrush" => ((byte)0xFF, (byte)0xF0, (byte)0xB4, (byte)0x5E),
+            "TextSecondary" => ((byte)0xA8, (byte)0xFF, (byte)0xFF, (byte)0xFF),
+            _ => ((byte)0x66, (byte)0xFF, (byte)0xFF, (byte)0xFF),
         };
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
     }
@@ -106,38 +162,21 @@ public sealed partial class MainWindow : Window
         var logs = LocalLog.Snapshot();
         LogText.Text = logs.Count == 0
             ? Strings.Get("AdvancedLogsEmpty")
-            : string.Join("\n", logs.Reverse().Select(e =>
-                $"{e.ElapsedSeconds,7:F1}s  {e.Message}"));
+            : string.Join("\n", logs.Reverse().Select(entry =>
+                $"{entry.ElapsedSeconds,7:F1}s  {entry.Message}"));
     }
 
     private void OnClearLogsClick(object sender, RoutedEventArgs e) => LocalLog.Clear();
-
-    /// <summary>Positions the popup just above the taskbar corner and shows it.</summary>
-    public void ShowNearTray()
-    {
-        var workArea = DisplayArea.Primary.WorkArea;
-        AppWindow.Move(new Windows.Graphics.PointInt32(
-            workArea.X + workArea.Width - PopupWidth - 12,
-            workArea.Y + workArea.Height - PopupHeight - 12));
-        AppWindow.Show();
-        Activate();
-    }
 
     // --- state projection ----------------------------------------------------
 
     private void Render()
     {
-        // Local input errors (bad scan/code, camera) are owned here too, so a
-        // Render triggered by anything else (e.g. a Windows theme switch) can't
-        // silently wipe the error panel.
+        // A local input error (bad scan/code, camera) is a first-class Render
+        // state, so a later Render (e.g. from a theme change) can't erase it.
         if (_localError is not null)
         {
-            IdlePanel.Visibility = Visibility.Collapsed;
-            ScanPanel.Visibility = Visibility.Collapsed;
-            CodePanel.Visibility = Visibility.Collapsed;
-            BusyPanel.Visibility = Visibility.Collapsed;
-            ConnectedPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Visible;
+            ShowOnly(ErrorPanel);
             ErrorText.Text = LocalErrorMessage(_localError);
             ErrorDismissButton.Content = Strings.Get("Dismiss");
             StatusDot.Fill = ThemeBrush("ErrorBrush");
@@ -145,7 +184,6 @@ public sealed partial class MainWindow : Window
         }
 
         var state = _controller.StateName;
-
         IdlePanel.Visibility = Show(state == "Idle" && _mode == InputMode.None);
         ScanPanel.Visibility = Show(state == "Idle" && _mode == InputMode.Scanning);
         CodePanel.Visibility = Show(state == "Idle" && _mode == InputMode.Code);
@@ -166,8 +204,7 @@ public sealed partial class MainWindow : Window
 
         if (state == "Connected" && _controller.Payload is { } payload)
         {
-            ConnectedText.Text = string.Format(
-                Strings.Get("ConnectedVia"), payload.Name ?? payload.Host);
+            ConnectedText.Text = string.Format(Strings.Get("ConnectedVia"), payload.Name ?? payload.Host);
             ConnectedDetailText.Text = $"{payload.Host}:{payload.Port}";
             ReconnectingText.Text = Strings.Get("Reconnecting");
             ReconnectingText.Visibility = Show(reconnecting);
@@ -189,20 +226,35 @@ public sealed partial class MainWindow : Window
                 "ERR_CAMERA_DENIED" => "ErrCameraDenied",
                 _ => "ErrProxyApply",
             });
-            // Rollback-incomplete leaves a half-applied proxy: offer a retry here
-            // (the button re-runs Disconnect) instead of only "Dismiss".
+            // The rollback-incomplete error's next action is to retry the disconnect.
             ErrorDismissButton.Content = Strings.Get(
                 _controller.ErrorCode == "ERR_ROLLBACK_INCOMPLETE" ? "Disconnect" : "Dismiss");
         }
 
-        // Advanced address reflects the active session, if any.
-        AdvancedAddressValue.Text = _controller.Payload is { } p
-            ? $"{p.Host}:{p.Port}"
-            : "—";
+        AdvancedAddressValue.Text = _controller.Payload is { } p ? $"{p.Host}:{p.Port}" : "—";
     }
 
-    private static Visibility Show(bool visible) =>
-        visible ? Visibility.Visible : Visibility.Collapsed;
+    private void ShowOnly(FrameworkElement panel)
+    {
+        IdlePanel.Visibility = Visibility.Collapsed;
+        ScanPanel.Visibility = Visibility.Collapsed;
+        CodePanel.Visibility = Visibility.Collapsed;
+        BusyPanel.Visibility = Visibility.Collapsed;
+        ConnectedPanel.Visibility = Visibility.Collapsed;
+        ErrorPanel.Visibility = Visibility.Collapsed;
+        panel.Visibility = Visibility.Visible;
+    }
+
+    private static string LocalErrorMessage(string code) => Strings.Get(code switch
+    {
+        "ERR_QR_NEWER_VERSION" => "ErrQrNewer",
+        "ERR_QR_INVALID" => "ErrQrInvalid",
+        "ERR_CODE_INVALID" => "ErrCodeInvalid",
+        "ERR_CAMERA_DENIED" => "ErrCameraDenied",
+        _ => "ErrQrInvalid",
+    });
+
+    private static Visibility Show(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 
     // --- scanning -------------------------------------------------------------
 
@@ -245,7 +297,7 @@ public sealed partial class MainWindow : Window
                 var source = new SoftwareBitmapSource();
                 await source.SetBitmapAsync(bitmap);
                 PreviewImage.Source = source;
-                previous?.Dispose(); // release the outgoing frame's native buffer now
+                previous?.Dispose();
             }
         });
     }
@@ -260,11 +312,10 @@ public sealed partial class MainWindow : Window
             var decoded = QrPayloadCodec.Decode(text);
             if (!decoded.IsOk)
             {
-                ShowLocalError(decoded.Reason == "unknown-version"
-                    ? "ERR_QR_NEWER_VERSION"
-                    : "ERR_QR_INVALID");
+                ShowLocalError(decoded.Reason == "unknown-version" ? "ERR_QR_NEWER_VERSION" : "ERR_QR_INVALID");
                 return;
             }
+            _localError = null;
             await _controller.ConnectAsync(decoded.Payload!);
         });
     }
@@ -317,8 +368,7 @@ public sealed partial class MainWindow : Window
 
     private async void OnDismissClick(object sender, RoutedEventArgs e)
     {
-        // On a rollback-incomplete error the proxy may still be applied, so the
-        // button retries Disconnect instead of just clearing the message.
+        // For a failed rollback the action is "retry the disconnect", not dismiss.
         if (_localError is null && _controller.ErrorCode == "ERR_ROLLBACK_INCOMPLETE")
         {
             await _controller.DisconnectAsync();
@@ -329,23 +379,10 @@ public sealed partial class MainWindow : Window
         Render();
     }
 
-    // Input-validation errors (bad scan/typed code) never touched the system,
-    // so they render locally without entering the shared state machine.
-    private string? _localError;
-
     private void ShowLocalError(string code)
     {
         _localError = code;
         _mode = InputMode.None;
         Render();
     }
-
-    private static string LocalErrorMessage(string code) => Strings.Get(code switch
-    {
-        "ERR_QR_NEWER_VERSION" => "ErrQrNewer",
-        "ERR_QR_INVALID" => "ErrQrInvalid",
-        "ERR_CODE_INVALID" => "ErrCodeInvalid",
-        "ERR_CAMERA_DENIED" => "ErrCameraDenied",
-        _ => "ErrQrInvalid",
-    });
 }
