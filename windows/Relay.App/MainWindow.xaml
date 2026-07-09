@@ -99,12 +99,7 @@
                     Visibility="Collapsed">
             <Border CornerRadius="18" Background="#14171D" BorderBrush="#26FFFFFF" BorderThickness="1"
                     Height="300" HorizontalAlignment="Stretch">
-                <Border CornerRadius="18">
-                    <Border.Clip>
-                        <RectangleGeometry Rect="0,0,336,300" RadiusX="18" RadiusY="18" />
-                    </Border.Clip>
-                    <Image x:Name="PreviewImage" Stretch="UniformToFill" />
-                </Border>
+                <Image x:Name="PreviewImage" Stretch="UniformToFill" Margin="1" />
             </Border>
             <TextBlock x:Name="ScanHintText" TextWrapping="Wrap" TextAlignment="Center"
                        FontSize="12.5" Foreground="#8AFFFFFF" />
