@@ -31,7 +31,29 @@ public sealed partial class MainWindow : Window
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hWnd);
     private const int SW_SHOW = 5;
+
+    /// <summary>
+    /// Reliably brings the window to the foreground, even from a background
+    /// process (tray click, second launch). Windows' foreground lock otherwise
+    /// blocks SetForegroundWindow and the popover stays hidden/behind, looking
+    /// frozen; attaching to the current foreground thread's input bypasses it.
+    /// </summary>
+    private static void ForceForeground(IntPtr hwnd)
+    {
+        var fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        var thisThread = GetCurrentThreadId();
+        var attached = fgThread != thisThread && AttachThreadInput(fgThread, thisThread, true);
+        ShowWindow(hwnd, SW_SHOW);
+        BringWindowToTop(hwnd);
+        SetForegroundWindow(hwnd);
+        if (attached) AttachThreadInput(fgThread, thisThread, false);
+    }
 
     private IntPtr Hwnd => WinRT.Interop.WindowNative.GetWindowHandle(this);
 
@@ -109,10 +131,7 @@ public sealed partial class MainWindow : Window
 
         _shownAtTick = Environment.TickCount64;
         AppWindow.Show();
-        // Window.Activate() alone doesn't beat Windows' foreground lock from a
-        // tray click, which left the window hidden/behind and looking frozen.
-        ShowWindow(hwnd, SW_SHOW);
-        SetForegroundWindow(hwnd);
+        ForceForeground(hwnd);
         Activate();
     }
 
