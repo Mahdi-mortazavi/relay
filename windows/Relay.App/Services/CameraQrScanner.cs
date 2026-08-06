@@ -54,10 +54,40 @@ public sealed class CameraQrScanner : IDisposable
         });
 
         var source = _capture.FrameSources[pick.Info.Id];
+        await SelectScanFormatAsync(source);
         _reader = await _capture.CreateFrameReaderAsync(
             source, Windows.Media.MediaProperties.MediaEncodingSubtypes.Bgra8);
         _reader.FrameArrived += OnFrame;
         await _reader.StartAsync();
+    }
+
+    /// <summary>
+    /// Raises capture resolution before the reader is created. Without this the
+    /// source keeps its default format — commonly 640x480 — and a ~49-module QR
+    /// held at arm's length covers maybe a third of the frame, leaving ~4px per
+    /// module. That is under what ZXing needs once webcam softness and screen
+    /// glare are in play, so scanning a phone simply fails (issue #18).
+    /// Best-effort: a camera that rejects the format keeps its default.
+    /// </summary>
+    // ponytail: capped at 1280x720 to bound the per-frame BGRA copy + decode cost
+    // (1080p is a 8MB buffer 6x/sec). Raise the cap if a QR still won't scan.
+    private static async Task SelectScanFormatAsync(MediaFrameSource source)
+    {
+        static long Pixels(MediaFrameFormat f) => (long)f.VideoFormat.Width * f.VideoFormat.Height;
+
+        var best = source.SupportedFormats
+            .Where(f => f.VideoFormat.Width <= 1280 && f.VideoFormat.Height <= 720)
+            .OrderByDescending(Pixels)
+            .ThenByDescending(f => f.FrameRate.Denominator == 0
+                ? 0d
+                : f.FrameRate.Numerator / (double)f.FrameRate.Denominator)
+            .FirstOrDefault();
+
+        // Only ever move up: a camera already defaulting above the cap (some do)
+        // must not be dragged down to 720p by this.
+        var current = source.CurrentFormat;
+        if (best is null || (current is not null && Pixels(best) <= Pixels(current))) return;
+        try { await source.SetFormatAsync(best); } catch (Exception) { }
     }
 
     private void OnFrame(MediaFrameReader sender, MediaFrameArrivedEventArgs args)

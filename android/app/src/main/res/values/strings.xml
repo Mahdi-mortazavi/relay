@@ -15,6 +15,7 @@
     </plurals>
     <string name="scan_hint">Scan with Relay on your PC</string>
     <string name="or_type_code">or enter this code on your PC</string>
+    <string name="code_unavailable">No manual code on this network — scan the QR</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
     <string name="status_reconnecting">Reconnecting…</string>
 

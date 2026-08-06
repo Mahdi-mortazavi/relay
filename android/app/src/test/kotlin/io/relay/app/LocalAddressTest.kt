@@ -3,7 +3,9 @@ package io.relay.app
 import io.relay.app.net.LocalAddress
 import io.relay.app.net.LocalAddress.Candidate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalAddressTest {
@@ -38,6 +40,25 @@ class LocalAddressTest {
     @Test
     fun `returns null when there are no candidates`() {
         assertNull(LocalAddress.choose(emptyList()))
+    }
+
+    @Test
+    fun `rejects cellular and tunnel interfaces the client cannot route to`() {
+        // issue #18: rmnet_data0's carrier address (10.174.226.46) was advertised
+        // with hotspot and Wi-Fi off, producing a QR no PC could ever connect to.
+        for (name in listOf(
+            "rmnet_data0", "v4-rmnet_data0", "ccmni0", "pdp_ip0", "ppp0", "tun0", "dummy0",
+        )) {
+            assertFalse("expected $name to be rejected", LocalAddress.isReachableFromClient(name))
+        }
+    }
+
+    @Test
+    fun `keeps hotspot wifi and wired interfaces`() {
+        // "softap0" contains "tap" — the blocklist must not match it.
+        for (name in listOf("ap0", "swlan0", "softap0", "wlan0", "wlan1", "eth0", "rndis0")) {
+            assertTrue("expected $name to be kept", LocalAddress.isReachableFromClient(name))
+        }
     }
 
     @Test

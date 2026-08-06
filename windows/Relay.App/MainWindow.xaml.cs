@@ -57,6 +57,12 @@ public sealed partial class MainWindow : Window
 
     private IntPtr Hwnd => WinRT.Interop.WindowNative.GetWindowHandle(this);
 
+    /// <summary>
+    /// Set by the tray's Exit item so the Closing handler lets the close through
+    /// instead of hiding to the tray. UI-thread only.
+    /// </summary>
+    public bool ExitRequested { get; set; }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -86,9 +92,13 @@ public sealed partial class MainWindow : Window
         }
         AppWindow.IsShownInSwitchers = false;
 
-        // Closing the popover hides it to the tray; it's never destroyed.
+        // Closing the popover hides it to the tray; it's never destroyed — unless
+        // the user picked Exit, in which case cancelling here would swallow the
+        // close that Application.Exit() depends on and strand the process with no
+        // tray icon and the single-instance mutex still held (issue #18).
         AppWindow.Closing += (_, args) =>
         {
+            if (ExitRequested) return;
             args.Cancel = true;
             HideToTray();
         };

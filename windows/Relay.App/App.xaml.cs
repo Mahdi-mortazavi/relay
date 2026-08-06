@@ -136,6 +136,13 @@ public partial class App : Application
         {
             await AppController.Instance.DisconnectAsync();
             _tray?.Dispose();
+            // Exit() works by closing the app's windows, so the popover has to
+            // stop cancelling its own close first (issue #18).
+            if (_window is not null)
+            {
+                _window.ExitRequested = true;
+                _window.Close();
+            }
             Exit();
         };
 
