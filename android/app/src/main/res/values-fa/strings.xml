@@ -15,6 +15,7 @@
     </plurals>
     <string name="scan_hint">با «رله» روی رایانه‌تان اسکن کنید</string>
     <string name="or_type_code">یا این کد را در رایانه وارد کنید</string>
+    <string name="code_unavailable">کد دستی در این شبکه نیست — کیو‌آر را اسکن کنید</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
     <string name="status_reconnecting">در حال اتصال مجدد…</string>
 

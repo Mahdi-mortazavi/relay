@@ -363,8 +363,8 @@ private fun PairingPanel(
             color = glass.textTertiary,
         )
 
+        Spacer(Modifier.height(20.dp))
         if (typedCode != null) {
-            Spacer(Modifier.height(20.dp))
             Text(
                 text = stringResource(R.string.or_type_code),
                 style = MaterialTheme.typography.labelSmall,
@@ -375,6 +375,14 @@ private fun PairingPanel(
                 text = typedCode.chunked(4).joinToString("-"),
                 style = MaterialTheme.typography.headlineMedium,
                 color = glass.textPrimary,
+            )
+        } else {
+            // Full Mode (key material doesn't fit) or a host outside 192.168.0.0/16.
+            // Say so — an unexplained gap here reads as a bug (issue #18).
+            Text(
+                text = stringResource(R.string.code_unavailable),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textTertiary,
             )
         }
 
