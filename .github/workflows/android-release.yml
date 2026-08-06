@@ -28,7 +28,10 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/android-v* ]]; then
             echo "version=${GITHUB_REF#refs/tags/android-v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.0.0-dry-run" >> "$GITHUB_OUTPUT"
+            # Not 0.0.0: that yields versionCode 0 and AGP rejects it ("should be
+            # a positive integer"), so the dry run failed at configuration and
+            # never actually exercised the release build it exists to verify.
+            echo "version=0.0.1-dry-run" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up JDK 17
