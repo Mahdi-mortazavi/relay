@@ -20,12 +20,21 @@ HOST_PORT=11080
 
 mkdir -p "$OUT"
 
-# No `sh -c`: adb concatenates its arguments into a single string for the
-# *device* shell, so quotes and operators inside a -c payload are re-parsed
-# there rather than passed through. Plain argv only, and cat's exit status is
-# the existence test.
+# Two adb traps in one function:
+#   * no `sh -c` — adb concatenates its arguments into a single string for the
+#     *device* shell, so operators inside a -c payload get re-parsed there;
+#   * exit status is useless — `adb exec-out` reports the adb client's status,
+#     not the remote command's, so a failed `cat` still exits 0. Checking it
+#     made this always answer "yes" and the host raced ahead of the phone.
+# So: judge by content.
+device_read() {
+  adb exec-out run-as "$PKG" cat "$1" 2>/dev/null | tr -d '\r' || true
+}
+
 device_has() {
-  adb exec-out run-as "$PKG" cat "$1" >/dev/null 2>&1
+  local content
+  content="$(device_read "$1")"
+  [ -n "$content" ] && ! printf '%s' "$content" | grep -q 'No such file'
 }
 
 # The device test blocks on this marker. Always release it, even when the host
@@ -59,13 +68,20 @@ if ! device_has "${EVIDENCE}/ready"; then
   exit 1
 fi
 
-ENDPOINT="$(adb exec-out run-as "$PKG" cat "${EVIDENCE}/ready" | tr -d '\r')"
+ENDPOINT="$(device_read "${EVIDENCE}/ready")"
 DEVICE_PORT="${ENDPOINT##*:}"
 echo "Phone is advertising on ${ENDPOINT}"
 echo "::endgroup::"
 
 echo "::group::Bridge the host to the phone"
-adb exec-out run-as "$PKG" cat "${EVIDENCE}/pairing.json" > "${OUT}/pairing.json"
+device_read "${EVIDENCE}/pairing.json" > "${OUT}/pairing.json"
+# Validate rather than trust: a failed read lands error text in the file and the
+# .NET side would then fail with a confusing JSON parse error instead of this.
+if ! grep -q '"qr"' "${OUT}/pairing.json"; then
+  echo "The phone's pairing payload could not be read. Got:"
+  head -c 400 "${OUT}/pairing.json"
+  exit 1
+fi
 adb forward "tcp:${HOST_PORT}" "tcp:${DEVICE_PORT}"
 echo "adb forward localhost:${HOST_PORT} -> device:${DEVICE_PORT}"
 echo "::endgroup::"

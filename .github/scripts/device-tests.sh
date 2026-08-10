@@ -31,7 +31,12 @@ collect() {
   local names
   # Plain argv, no `sh -c`: adb joins its arguments into one string for the
   # device shell, which would re-parse any redirect or quoting inside it.
-  names="$(adb exec-out run-as "$PKG" ls -1 files/e2e 2>/dev/null | tr -d '\r' || true)"
+  # Filtered to plain filenames. adb reports a failed `run-as` on stdout, so an
+  # unfiltered listing once produced a "file" called
+  # "run-as: unknown package: io.relay.app" — whose colons made the artifact
+  # upload reject the whole job, turning a green test run red.
+  names="$(adb exec-out run-as "$PKG" ls -1 files/e2e 2>/dev/null \
+    | tr -d '\r' | grep -E '^[A-Za-z0-9._-]+$' || true)"
   if [ -z "$names" ]; then
     echo "No device evidence found. What the app data directory holds:"
     adb exec-out run-as "$PKG" ls -la files 2>&1 | head -20 || true
@@ -61,6 +66,10 @@ echo "::endgroup::"
 echo "::group::Instrumented tests"
 # The host-harness test needs the host side of the workflow driving it; it runs
 # in the cross-platform job instead.
+# leaveApksInstalledAfterRun: AGP uninstalls both APKs when the connected run
+# finishes, which takes the app's data directory with it. run-as then failed
+# with "unknown package" and every evidence artifact came back empty.
 ( cd android && ./gradlew --no-daemon connectedDebugAndroidTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     -Pandroid.testInstrumentationRunnerArguments.notAnnotation=io.relay.app.e2e.HostHarness )
 echo "::endgroup::"
