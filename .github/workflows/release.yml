@@ -10,13 +10,26 @@
 # The older per-platform workflows (android-release.yml, windows-release.yml)
 # still exist for shipping one platform on its own; this is the normal path.
 #
-# workflow_dispatch runs everything except publishing: a safe dry run.
+# workflow_dispatch builds the same artifacts. Leave `publish` off for a dry
+# run; turn it on to cut the release without pushing a tag first — `gh release
+# create` creates the tag itself, which is also the only route available from
+# environments where pushing tags is blocked.
 name: Release
 
 on:
   push:
     tags: ['v*.*.*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, without the leading v (e.g. 1.1.0)'
+        required: true
+        type: string
+      publish:
+        description: 'Publish a GitHub Release (otherwise artifacts only)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -36,8 +49,8 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.0.0-dry-run" >> "$GITHUB_OUTPUT"
-            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "version=${{ inputs.version || '0.0.0-dry-run' }}" >> "$GITHUB_OUTPUT"
+            echo "publish=${{ inputs.publish || false }}" >> "$GITHUB_OUTPUT"
           fi
 
   android:
@@ -253,7 +266,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # --target so a dispatch-triggered release tags the commit it built
+          # from; gh creates the tag when it does not already exist.
           gh release create "v${{ needs.version.outputs.version }}" dist/* \
+            --target "$GITHUB_SHA" \
             --title "Relay ${{ needs.version.outputs.version }}" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --latest
