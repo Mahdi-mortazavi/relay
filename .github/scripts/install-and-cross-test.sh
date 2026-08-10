@@ -17,14 +17,29 @@ mkdir -p "$OUT"
 export ORG_GRADLE_PROJECT_relayTestAbis=true
 
 collect() {
-  if adb exec-out run-as "$PKG" tar c "$EVIDENCE" 2>/dev/null > "${OUT}/evidence.tar"; then
-    tar xf "${OUT}/evidence.tar" -C "$OUT" --strip-components=1 2>/dev/null || true
+  echo "::group::Collect evidence"
+  # File-by-file through run-as. `tar` is not dependable inside a run-as shell,
+  # and when it failed the artifact came back with nothing and no explanation.
+  local names
+  # Plain argv, no `sh -c`: adb joins its arguments into one string for the
+  # device shell, which would re-parse any redirect or quoting inside it.
+  names="$(adb exec-out run-as "$PKG" ls -1 files/e2e 2>/dev/null | tr -d '\r' || true)"
+  if [ -z "$names" ]; then
+    echo "No device evidence found. What the app data directory holds:"
+    adb exec-out run-as "$PKG" ls -la files 2>&1 | head -20 || true
+  else
+    mkdir -p "${OUT}/device"
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      # exec-out, not shell: these are PNGs and must not be LF-translated.
+      adb exec-out run-as "$PKG" cat "files/e2e/${name}" > "${OUT}/device/${name}" 2>/dev/null || true
+    done <<< "$names"
   fi
-  rm -f "${OUT}/evidence.tar"
-  # See device-tests.sh: adb blocks forever once the emulator is gone, so the
-  # log has to be pulled while the device is still alive.
-  timeout 120 adb logcat -d > "${OUT}/logcat.txt" 2>/dev/null || true
+  timeout 120 adb logcat -d > "${OUT}/logcat.txt" 2>/dev/null || echo "logcat unavailable"
+  ls -R "$OUT" || true
+  echo "::endgroup::"
 }
+
 trap collect EXIT
 
 echo "::group::Install the real APK and the test APK"

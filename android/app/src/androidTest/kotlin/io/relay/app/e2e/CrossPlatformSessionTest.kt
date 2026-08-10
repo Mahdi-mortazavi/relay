@@ -1,6 +1,7 @@
 package io.relay.app.e2e
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -60,6 +61,14 @@ class CrossPlatformSessionTest {
         DeviceEvidence.recordPairing(
             QrPayloadCodec.encodeForQr(payload), payload.host, payload.port, advertising.typedCode,
         )
+        // Let the crossfade finish before capturing, or the evidence shows the
+        // outgoing idle panel while the state machine is already advertising.
+        compose.waitUntil(timeoutMillis = 15_000) {
+            compose.onAllNodesWithContentDescription(
+                compose.activity.getString(R.string.qr_content_description)
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.waitForIdle()
         DeviceEvidence.note("Host harness: advertising ${payload.host}:${payload.port}")
         DeviceEvidence.screenshot("host-harness-advertising")
 

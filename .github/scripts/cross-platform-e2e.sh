@@ -20,8 +20,12 @@ HOST_PORT=11080
 
 mkdir -p "$OUT"
 
+# No `sh -c`: adb concatenates its arguments into a single string for the
+# *device* shell, so quotes and operators inside a -c payload are re-parsed
+# there rather than passed through. Plain argv only, and cat's exit status is
+# the existence test.
 device_has() {
-  adb shell run-as "$PKG" sh -c "[ -f '$1' ] && echo yes" 2>/dev/null | tr -d '\r' | grep -q yes
+  adb exec-out run-as "$PKG" cat "$1" >/dev/null 2>&1
 }
 
 # The device test blocks on this marker. Always release it, even when the host
