@@ -15,6 +15,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -50,6 +51,25 @@ class Socks5Server(
     private val bytesUp = AtomicLong()
     private val bytesDown = AtomicLong()
 
+    /**
+     * Every socket belonging to a live tunnel, both the client side and the
+     * remote side. [stop] closes them; see the comment there for why the scope
+     * alone is not enough.
+     */
+    private val live: MutableSet<Socket> =
+        Collections.newSetFromMap(ConcurrentHashMap<Socket, Boolean>())
+
+    @Volatile
+    private var stopped = false
+
+    /**
+     * The port the listening socket actually bound, or -1 before [start].
+     * Equals the requested [port] unless it was 0 (OS-assigned, used by tests).
+     */
+    @Volatile
+    var boundPort: Int = -1
+        private set
+
     /** @throws BindException when [port] is taken. */
     @Throws(IOException::class)
     fun start() {
@@ -57,13 +77,29 @@ class Socks5Server(
         socket.reuseAddress = true
         socket.bind(InetSocketAddress(port), BACKLOG)
         serverSocket = socket
+        boundPort = socket.localPort
         scope.launch { acceptLoop(socket) }
     }
 
+    /**
+     * Stops listening **and tears down every tunnel already established.**
+     *
+     * Closing the listening socket and cancelling the scope is not enough: each
+     * direction of a tunnel is parked in a blocking `read()`, which coroutine
+     * cancellation cannot interrupt. Without closing the sockets by hand, an
+     * established tunnel kept relaying after the user tapped "Stop sharing" —
+     * the notification and the wake lock went away while the laptop carried on
+     * browsing through the phone. Closing the socket is what unblocks the read.
+     */
     fun stop() {
+        if (stopped) return
+        stopped = true
         runCatching { serverSocket?.close() }
-        scope.cancel()
+        // Iterate a snapshot: the copy loops remove themselves as they unwind.
+        for (socket in live.toList()) runCatching { socket.close() }
+        live.clear()
         clients.clear()
+        scope.cancel()
     }
 
     private suspend fun acceptLoop(socket: ServerSocket) {
@@ -81,24 +117,49 @@ class Socks5Server(
         val clientIp = client.inetAddress.hostAddress ?: "?"
         client.tcpNoDelay = true
         var remote: Socket? = null
+        // Only the connections that reached the relay stage are counted, so the
+        // decrement below must be conditional: a handshake that aborts (a probe,
+        // a cancelled request) or a CONNECT that fails (a dead host — routine
+        // while browsing) shares this client's IP, and an unconditional
+        // decrement zeroed the count for an IP that still had a live tunnel.
+        // The phone then fell back to "waiting for a device" and dropped the
+        // transfer wake lock in the middle of a download.
+        var counted = false
         try {
+            if (!register(client)) return
             client.soTimeout = HANDSHAKE_TIMEOUT_MS
             val input = client.getInputStream()
             val output = client.getOutputStream()
 
             if (!handshake(input, output)) return
             remote = request(input, output) ?: return
+            if (!register(remote)) return
             client.soTimeout = 0
 
             trackClient(clientIp, +1)
+            counted = true
             relayBothDirections(client, remote)
         } catch (_: IOException) {
             // Connection failures surface to the peer via socket close.
         } finally {
-            runCatching { remote?.close() }
+            remote?.let { live.remove(it); runCatching { it.close() } }
+            live.remove(client)
             runCatching { client.close() }
-            trackClient(clientIp, -1)
+            if (counted) trackClient(clientIp, -1)
         }
+    }
+
+    /**
+     * Adds [socket] to the live set, or closes it and returns false when [stop]
+     * already ran — otherwise a socket registered just after stop() took its
+     * snapshot would keep relaying with nothing left to close it.
+     */
+    private fun register(socket: Socket): Boolean {
+        live.add(socket)
+        if (!stopped) return true
+        live.remove(socket)
+        runCatching { socket.close() }
+        return false
     }
 
     /**
@@ -233,7 +294,10 @@ class Socks5Server(
             val next = (count ?: 0) + delta
             if (next <= 0) null else next
         }
-        listener.onClientsChanged(clients.size)
+        // After stop() the tunnels unwind and would each publish a count into a
+        // session the service has already torn down; the owner is not listening
+        // any more, so stay quiet rather than churn its state machine.
+        if (!stopped) listener.onClientsChanged(clients.size)
     }
 
     private companion object {

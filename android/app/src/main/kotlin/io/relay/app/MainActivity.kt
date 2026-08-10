@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
                         warnings = warnings,
                         themeMode = themeMode,
                         transportMode = transportMode,
+                        fullModeAvailable = viewModel.fullModeAvailable,
                         preferredPort = preferredPort,
                         logs = logs,
                         onStart = {
