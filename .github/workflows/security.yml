@@ -1,0 +1,95 @@
+# Static analysis and dependency review on every change. Findings are triaged
+# against docs/security.md; anything that is a real exposure gets an issue and a
+# fix, not a suppression.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so a newly published advisory in an unchanged dependency is still
+    # found — most supply-chain findings arrive without anyone touching the code.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql-android:
+    name: CodeQL (Kotlin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+
+      # Manual build: autobuild does not reliably drive an AGP project.
+      - name: Build
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:java-kotlin
+
+  codeql-windows:
+    name: CodeQL (C#)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Build
+        run: msbuild windows/Relay.App/Relay.App.csproj /restore /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:csharp
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      # Soft until the repository's Dependency graph is switched on
+      # (Settings -> Code security -> Dependency graph). Without it the action
+      # cannot run at all and fails every PR for a reason no code change can
+      # fix. Once it is enabled, delete continue-on-error and this becomes a
+      # real gate.
+      - uses: actions/dependency-review-action@v4
+        continue-on-error: true
+        with:
+          # Relay ships to end users; a known-vulnerable transitive dependency is
+          # not something to merge and fix later.
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure

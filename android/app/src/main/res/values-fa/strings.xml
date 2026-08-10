@@ -14,6 +14,7 @@
         <item quantity="other">%d دستگاه متصل هستند</item>
     </plurals>
     <string name="scan_hint">با «رله» روی رایانه‌تان اسکن کنید</string>
+    <string name="qr_content_description">کد QR جفت‌سازی</string>
     <string name="or_type_code">یا این کد را در رایانه وارد کنید</string>
     <string name="code_unavailable">کد دستی در این شبکه نیست — کیو‌آر را اسکن کنید</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
@@ -24,6 +25,7 @@
     <string name="mode_full">کامل</string>
     <string name="mode_fast_desc">بهترین برای مرور و پخش.</string>
     <string name="mode_full_desc">بهترین برای بازی و تماس تصویری.</string>
+    <string name="mode_full_unavailable">حالت کامل در نسخه‌های بعدی می‌آید. حالت سریع برای مرور و پخش کافی است.</string>
 
     <!-- Warnings (non-blocking banners) -->
     <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>
@@ -34,6 +36,8 @@
     <string name="advanced_ip">نشانی هات‌اسپات</string>
     <string name="advanced_port">پورت ترجیحی</string>
     <string name="advanced_port_hint">۰ = خودکار</string>
+    <string name="advanced_port_saved">ذخیره شد. از دفعهٔ بعدِ شروع اشتراک‌گذاری اعمال می‌شود.</string>
+    <string name="advanced_port_invalid">پورتی بین ۱ تا ۶۵۵۳۵ وارد کنید.</string>
     <string name="advanced_port_save">ذخیره</string>
     <string name="advanced_theme">ظاهر</string>
     <string name="theme_system">سیستم</string>

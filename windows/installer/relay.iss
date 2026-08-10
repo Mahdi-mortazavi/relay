@@ -24,6 +24,10 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputBaseFilename=Relay-Setup-{#AppPlatform}-{#AppVersion}
+; Tell Setup a session may be running, so an upgrade asks to close Relay
+; (and lets Restart Manager try) instead of overwriting files underneath a
+; live proxy session. Matches the mutex App.xaml.cs takes at startup.
+AppMutex=Local\RelayAppSingleton
 OutputDir=output
 Compression=lzma2
 SolidCompression=yes
@@ -56,5 +60,13 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/f /im Relay.App.exe"; Flags: runhi
 Filename: "{app}\Relay.App.exe"; Parameters: "--restore-proxy"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "RestoreProxy"
 
 [UninstallDelete]
-; Don't leave the local-only backup/log behind after uninstall.
-Type: filesandordirs; Name: "{localappdata}\Relay"
+; The startup log is disposable, so it goes.
+;
+; proxy-backup.json deliberately does NOT. If the --restore-proxy step above
+; failed for any reason, that file is the only surviving record of the user's
+; original proxy/PAC settings — deleting it would turn a recoverable problem
+; ("reinstall Relay and it repairs itself") into a permanently broken machine
+; with no way back except editing Internet Options by hand. A few hundred bytes
+; left behind is the cheaper mistake. Relay deletes it itself the moment a
+; rollback succeeds.
+Type: files; Name: "{localappdata}\Relay\startup-error.log"

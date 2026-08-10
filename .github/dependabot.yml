@@ -1,0 +1,26 @@
+# Relay pins every dependency (android/gradle/libs.versions.toml, the .csproj
+# PackageReferences, and the actions in .github/workflows). Dependabot keeps
+# those pins honest — a stale pin is a security problem, not a stable one.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      androidx:
+        patterns: ['androidx.*']
+      compose:
+        patterns: ['androidx.compose*']
+
+  - package-ecosystem: nuget
+    directory: /windows
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

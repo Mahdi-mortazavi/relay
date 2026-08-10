@@ -37,6 +37,7 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     {
         var recovered = _session.RecoverIfCrashed();
         if (recovered) LocalLog.Add("Recovered proxy from a previous crash");
+        ShutdownRecoveryHook.Disarm();
         return recovered;
     }
 
@@ -52,7 +53,22 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         LocalLog.Add($"Connecting to {payload.Host}:{payload.Port}");
 
         // Actionable before we touch the system: are we even on the phone's network?
-        if (!await Task.Run(() => NetworkCheck.IsHostOnLocalSubnet(payload.Host)))
+        // Enumerating adapters can throw on machines with flaky VPN/TAP or
+        // Hyper-V adapters, and this runs under an async void event handler —
+        // an escaping exception would take the whole app down on Connect.
+        bool onLocalSubnet;
+        try
+        {
+            onLocalSubnet = await Task.Run(() => NetworkCheck.IsHostOnLocalSubnet(payload.Host));
+        }
+        catch (Exception ex)
+        {
+            // Undecidable is not the same as wrong: nothing has been touched yet,
+            // so let the connection attempt proceed and let the probe judge it.
+            LocalLog.Add($"Subnet check failed ({ex.GetType().Name}); continuing");
+            onLocalSubnet = true;
+        }
+        if (!onLocalSubnet)
         {
             LocalLog.Add("Host is not on any local subnet");
             Fail("ERR_WRONG_NETWORK");
@@ -102,6 +118,11 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             return;
         }
         LocalLog.Add("Connected");
+        // From here until a clean disconnect, an abrupt end (sign-out, shutdown,
+        // taskkill, a killed upgrade) would strand the system proxy. Arm the
+        // recovery hook so the next sign-in undoes it even if this process never
+        // runs its own cleanup.
+        ShutdownRecoveryHook.Arm();
         StartSupervisor(payload);
     }
 
@@ -122,6 +143,7 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         }
         if (result.Ok)
         {
+            ShutdownRecoveryHook.Disarm();
             LocalLog.Add("Disconnected");
             // "stop" is legal from Connected; a retry from the Error surface
             // (ERR_ROLLBACK_INCOMPLETE) clears via "dismiss" instead.
@@ -195,8 +217,24 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
                     // If the user already asked to disconnect, that path owns teardown.
                     if (token.IsCancellationRequested) return;
                     LocalLog.Add("Reconnect budget exhausted");
-                    await DisconnectLocked(); // now roll back
-                    Fail("ERR_CONNECTION_LOST");
+                    ProxySession.Result rollback;
+                    try
+                    {
+                        rollback = await DisconnectLocked(); // now roll back
+                    }
+                    catch (Exception ex)
+                    {
+                        // This is a fire-and-forget task: an exception here used to
+                        // vanish as an unobserved task fault, leaving the proxy
+                        // applied, the phone gone and the UI still saying
+                        // "Connected" — the app lying about the state of the
+                        // machine. Surface it as the actionable error instead.
+                        LocalLog.Add($"Rollback after connection loss threw: {ex.Message}");
+                        Fail("ERR_ROLLBACK_INCOMPLETE");
+                        return;
+                    }
+                    Fail(rollback.Ok ? "ERR_CONNECTION_LOST" : rollback.ErrorCode!);
+                    if (rollback.Ok) ShutdownRecoveryHook.Disarm();
                     return;
                 }
             }
@@ -204,6 +242,12 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         catch (OperationCanceledException)
         {
             // Normal on Disconnect/Exit.
+        }
+        catch (Exception ex)
+        {
+            // Nothing else observes this task, so an escape would be silent.
+            LocalLog.Add($"Reconnect supervisor failed: {ex.Message}");
+            Fail("ERR_CONNECTION_LOST");
         }
     }
 

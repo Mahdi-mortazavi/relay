@@ -1,0 +1,95 @@
+name: Bug report
+description: Something in Relay does not work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The details below are what make a bug
+        reproducible instead of a guess — the more of them you can fill in, the
+        faster it gets fixed.
+
+        **Please do not paste anything sensitive.** Relay's logs are local-only
+        and contain no personal data, but screenshots can catch other things.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and what you expected instead.
+      placeholder: |
+        1. Started sharing on the phone
+        2. Scanned the QR on Windows
+        3. Expected "Connected"; got ERR_HOST_UNREACHABLE
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it go wrong
+      options:
+        - Android app
+        - Windows app
+        - The connection between them
+        - Installing or updating
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: relay-version
+    attributes:
+      label: Relay version
+      description: Shown in Advanced on the phone, and in the installer filename on Windows.
+      placeholder: 0.2.1
+    validations:
+      required: true
+
+  - type: input
+    id: android
+    attributes:
+      label: Phone and Android version
+      placeholder: Pixel 7, Android 14
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 23H2, x64
+
+  - type: dropdown
+    id: network
+    attributes:
+      label: How are the two devices connected
+      options:
+        - The phone's own hotspot
+        - A shared Wi-Fi network both devices are on
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: error-code
+    attributes:
+      label: Error code, if one was shown
+      description: The ERR_ code from the app. docs/errors.md lists them all.
+      placeholder: ERR_WRONG_NETWORK
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostic log
+      description: >
+        Advanced -> View logs, on whichever side failed. This is local-only and
+        never leaves your device until you paste it here.
+      render: text
+
+  - type: checkboxes
+    id: reproducible
+    attributes:
+      label: Does it happen every time
+      options:
+        - label: Yes, I can reproduce it reliably
+        - label: I have a VPN active on the phone
+        - label: It started after an update

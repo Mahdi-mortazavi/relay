@@ -80,8 +80,16 @@ class SharingService : Service() {
         when (intent?.action) {
             // Null intent = START_STICKY restart after a system kill: resume sharing.
             ACTION_START, null -> {
+                // Must be synchronous: startForegroundService() gives us a few
+                // seconds to post the notification or the process is killed.
                 startInForeground()
-                if (ConnectionRepository.state.value is ConnectionState.Idle) startSharing()
+                // Everything else is blocking IO — enumerating interfaces (slow
+                // with a tun up, which is Relay's normal case) and binding up to
+                // four sockets. onStartCommand runs on the main thread, so doing
+                // it here froze the UI on "Starting…" and risked an ANR.
+                scope.launch {
+                    if (ConnectionRepository.state.value is ConnectionState.Idle) startSharing()
+                }
             }
             ACTION_STOP -> stopSharing()
         }
@@ -124,7 +132,7 @@ class SharingService : Service() {
         val host = LocalAddress.findAdvertisableIpv4()
         if (host == null) {
             LocalLog.add("No usable Wi-Fi/hotspot interface found")
-            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.HOTSPOT_OFF) }
+            fail(ErrorCode.HOTSPOT_OFF)
             return
         }
 
@@ -147,7 +155,7 @@ class SharingService : Service() {
         val boundPort = bindServer()
         if (boundPort < 0) {
             LocalLog.add("All candidate ports busy")
-            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
+            fail(ErrorCode.PORT_IN_USE)
             return null
         }
         LocalLog.add("Advertising SOCKS on $host:$boundPort")
@@ -162,7 +170,7 @@ class SharingService : Service() {
         val forwarder = wgForwarder
         if (forwarder == null) {
             LocalLog.add("WireGuard forwarder unavailable")
-            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.WG_START_FAILED) }
+            fail(ErrorCode.WG_START_FAILED)
             return null
         }
         val keys = WgKeys.generate()
@@ -170,7 +178,7 @@ class SharingService : Service() {
             forwarder.start(WgConfig.serverConfig(keys))
         } catch (e: WgForwarderException) {
             LocalLog.add("WireGuard endpoint failed: ${e.message}")
-            ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.WG_START_FAILED) }
+            fail(ErrorCode.WG_START_FAILED)
             return null
         }
         wgKeys = keys
@@ -188,13 +196,17 @@ class SharingService : Service() {
             addAll(CANDIDATE_PORTS)
         }.distinct()
         for (candidate in candidates) {
+            val attempt = Socks5Server(candidate, serverListener)
             try {
-                val attempt = Socks5Server(candidate, serverListener)
                 attempt.start()
                 server = attempt
-                return candidate
+                return attempt.boundPort
             } catch (_: IOException) {
-                // Port taken — try the next one; the client learns the port from the QR.
+                // Port taken — try the next one; the client learns the port from
+                // the QR. bind() allocates the descriptor before it throws, so
+                // the half-open server has to be closed or each PORT_IN_USE
+                // failure leaks one fd.
+                attempt.stop()
             }
         }
         return -1
@@ -233,8 +245,7 @@ class SharingService : Service() {
             }
         }
         LocalLog.add("Reconnect budget exhausted")
-        teardown()
-        ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.HOTSPOT_LOST) }
+        fail(ErrorCode.HOTSPOT_LOST)
         return false
     }
 
@@ -247,8 +258,8 @@ class SharingService : Service() {
                 server = null
                 val boundPort = bindServer()
                 if (boundPort < 0) {
-                    teardown()
-                    ConnectionRepository.dispatch("failure") { ConnectionState.Error(ErrorCode.PORT_IN_USE) }
+                    LocalLog.add("No free port after rebind")
+                    fail(ErrorCode.PORT_IN_USE)
                     return
                 }
                 LocalLog.add("Re-advertising SOCKS on $host:$boundPort")
@@ -271,6 +282,24 @@ class SharingService : Service() {
         // Present the fresh payload in place; the client count (if any) is stale
         // after a rebind, so drop back to Advertising until a client reconnects.
         ConnectionRepository.reissue(payload, pairing.issueTypedCode(payload))
+    }
+
+    /**
+     * Surfaces [code] and shuts the service down.
+     *
+     * Setting the Error state alone used to leave a *running foreground service*
+     * behind an ongoing, non-dismissible "Sharing stopped" notification: the user
+     * dismissed the error in the app, the UI went back to Idle, and the
+     * notification stayed pinned to the shade forever with no way to remove it
+     * short of force-stopping the app. The Error state itself lives in
+     * [ConnectionRepository], which outlives the service, so the app still shows
+     * the error after the service is gone.
+     */
+    private fun fail(code: ErrorCode) {
+        teardown()
+        ConnectionRepository.dispatch("failure") { ConnectionState.Error(code) }
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun stopSharing() {

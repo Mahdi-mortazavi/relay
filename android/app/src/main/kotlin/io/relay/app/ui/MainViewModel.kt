@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
+import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
@@ -31,7 +32,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _preferredPort = MutableStateFlow(settings.preferredPort)
     val preferredPort: StateFlow<Int> = _preferredPort
 
-    private val _transportMode = MutableStateFlow(TransportMode.fromSetting(settings.transportMode))
+    /**
+     * Full Mode needs the WireGuard forwarder, which this build may not ship
+     * (Phase 3, docs/roadmap.md). When it is absent the mode is not offered, and
+     * a FULL value persisted by an earlier build is coerced back to FAST so the
+     * user cannot be stranded on a mode that always fails to start.
+     */
+    val fullModeAvailable: Boolean = WgForwarderProvider.isAvailable
+
+    private val _transportMode = MutableStateFlow(
+        TransportMode.fromSetting(settings.transportMode).coerceAvailable()
+    )
     val transportMode: StateFlow<TransportMode> = _transportMode
 
     fun refreshBatteryExempt() {
@@ -68,9 +79,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Selects the transport mode; applied on the next start (choose while idle — AC3.3, no restart). */
     fun setTransportMode(mode: TransportMode) {
-        settings.transportMode = mode.name
-        _transportMode.value = mode
+        val selected = mode.coerceAvailable()
+        settings.transportMode = selected.name
+        _transportMode.value = selected
     }
+
+    private fun TransportMode.coerceAvailable(): TransportMode =
+        if (this == TransportMode.FULL && !fullModeAvailable) TransportMode.FAST else this
 
     fun clearLogs() = LocalLog.clear()
 

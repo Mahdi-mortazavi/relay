@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest something Relay should do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Relay is deliberately small: one button on the phone, one scan on the
+        laptop. The bar for adding anything is whether it makes that path
+        shorter or more reliable — please frame the request that way if you can.
+
+        Have a look at `docs/roadmap.md` and `docs/backlog.md` first; it may
+        already be planned.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you hitting
+      description: The situation, not the solution. What are you trying to do that Relay makes hard?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like Relay to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: Workarounds, other tools, or just living with it.

@@ -2,6 +2,27 @@
 
 Ideas and known follow-ups that are **not** in the current phase. Nothing here may be built early (no scope creep) — items graduate into a phase deliberately.
 
+- **Authenticate the pairing, so Relay is not an open proxy on a shared network**
+  (see `SECURITY.md` → threat model). Windows' system proxy has no way to supply
+  SOCKS credentials, so this cannot be RFC 1929 auth; the shape that fits is
+  admitting the first client that the user confirms on the phone and asking
+  about every device after it, behind the existing `PairingStrategy` seam.
+- Full Mode: the gomobile `wireguard-go` AAR has no build step, so
+  `WgForwarderProvider` never resolves `GoWgForwarder` and the mode is hidden.
+  Landing it needs the AAR build in CI *and* a `-keep` rule, since the class is
+  only referenced reflectively and R8 would strip it from the release APK.
+- Harden `--restore-proxy`: it currently boots the whole WinUI stack (which the
+  code itself documents as throwing stowed COM exceptions when unpackaged) to
+  run three lines of registry code. A custom entry point that handles the flag
+  before any XAML initialisation would make the uninstall-time rollback far
+  harder to break.
+- `windows/Relay.App/Strings/*/Resources.resw` are unreferenced at runtime and
+  have already drifted from `Strings.cs`. Removing them risks the fragile
+  `resources.pri` generation, so it needs a build to verify rather than a blind
+  delete.
+- x64 and x86 installers share one `AppId` and install directory, so running the
+  wrong one over an existing install is treated as an upgrade. Fixing it means
+  changing `AppId`, which orphans existing installs — needs a migration plan.
 - Windows code-signing certificate → signed installers, no SmartScreen warning (see `docs/release.md`).
 - OEM-specific battery-manager guidance (Xiaomi/MIUI, Samsung, Huawei aggressive killers) beyond the stock exemption flow.
 - Bytes-transferred counter in the Android status view (Phase 1 marks it nice-to-have).

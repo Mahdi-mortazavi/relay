@@ -22,7 +22,18 @@ public static class NetworkCheck
         foreach (var nic in SafeInterfaces())
         {
             if (nic.OperationalStatus != OperationalStatus.Up) continue;
-            foreach (var ua in nic.GetIPProperties().UnicastAddresses)
+            // An adapter can disappear mid-enumeration, and some VPN/TAP and
+            // virtual-switch adapters throw here rather than returning empty.
+            // One bad adapter must not decide the answer for all the others.
+            UnicastIPAddressInformationCollection addresses;
+            try
+            {
+                addresses = nic.GetIPProperties().UnicastAddresses;
+            }
+            catch (NetworkInformationException) { continue; }
+            catch (PlatformNotSupportedException) { continue; }
+
+            foreach (var ua in addresses)
             {
                 if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
                 var mask = ua.IPv4Mask;

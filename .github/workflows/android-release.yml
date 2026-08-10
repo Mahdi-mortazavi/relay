@@ -70,10 +70,22 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           mkdir -p dist
-          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          # Match the ABI explicitly. `find ... | head -1` would happily pick a
+          # different split and publish it under the arm64-v8a name, shipping a
+          # binary that cannot run on the devices the release page points at.
+          APK=$(find app/build/outputs/apk/release -name '*arm64-v8a*.apk' | head -1)
+          if [ -z "$APK" ]; then
+            echo "No arm64-v8a release APK was produced; refusing to publish." >&2
+            find app/build/outputs/apk/release -name '*.apk' >&2 || true
+            exit 1
+          fi
           AAB=$(find app/build/outputs/bundle/release -name '*.aab' | head -1)
           cp "$APK" "dist/relay-arm64-v8a-$VERSION.apk"
           cp "$AAB" "dist/relay-$VERSION.aab"
+          # Published so anyone can verify the download matches what CI built.
+          # The installers are unsigned (docs/release.md), so this is currently
+          # the only integrity check a user has.
+          ( cd dist && sha256sum ./* > SHA256SUMS.txt && cat SHA256SUMS.txt )
           ls -la dist
 
       - name: Generate changelog
@@ -90,6 +102,12 @@ jobs:
             echo "Download **relay-arm64-v8a-${{ steps.version.outputs.version }}.apk**, allow"
             echo "\"install from unknown sources\" when prompted, and install. The .aab is for"
             echo "store distribution and is not installable directly."
+            echo
+            echo "### Verify your download"
+            echo "\`SHA256SUMS.txt\` is attached:"
+            echo '```bash'
+            echo 'sha256sum -c SHA256SUMS.txt'
+            echo '```'
             echo
             echo "### Changes"
             git log $RANGE --no-merges --pretty='- %s' -- ../android ../shared . | head -100

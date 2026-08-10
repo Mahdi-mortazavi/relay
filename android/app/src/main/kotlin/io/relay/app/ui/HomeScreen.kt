@@ -2,6 +2,7 @@ package io.relay.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.InfiniteRepeatableSpec
 import androidx.compose.animation.core.RepeatMode
@@ -10,6 +11,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,20 +24,26 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -43,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -59,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.ErrorCode
+import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
@@ -67,6 +78,7 @@ import io.relay.app.ui.theme.LocalGlass
 import io.relay.app.ui.theme.glassPanel
 import java.util.Locale
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun HomeScreen(
     state: ConnectionState,
@@ -74,6 +86,7 @@ fun HomeScreen(
     warnings: Set<WarningCode>,
     themeMode: String,
     transportMode: TransportMode,
+    fullModeAvailable: Boolean,
     preferredPort: Int,
     logs: List<LocalLog.Entry>,
     onStart: () -> Unit,
@@ -93,6 +106,10 @@ fun HomeScreen(
                 .widthIn(max = 440.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                // enableEdgeToEdge() draws behind the system bars, so the content
+                // has to inset itself: without this the header sits under the
+                // status bar and the Advanced panel under the navigation bar.
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -101,17 +118,24 @@ fun HomeScreen(
 
             WarningBanners(warnings, onDismissWarning)
 
-            Crossfade(
-                targetState = state,
+            // Key the crossfade on the state *name*, not the state value.
+            // Connected is a data class carrying byte counters that change every
+            // second, and the plain Crossfade overload keys on the value itself:
+            // the whole panel became a new entry once a second, so the card
+            // visibly re-faded and the QR was re-encoded from scratch (ZXing plus
+            // a 1.6 MB bitmap, on the main thread) for the entire session.
+            // Same-name updates now reuse the subtree and just re-render.
+            updateTransition(targetState = state, label = "state").Crossfade(
                 animationSpec = tween(320),
-                label = "state",
+                contentKey = { it.stateName },
             ) { current ->
                 when (current) {
-                    is ConnectionState.Idle -> IdlePanel(transportMode, onSetMode, onStart)
+                    is ConnectionState.Idle ->
+                        IdlePanel(transportMode, fullModeAvailable, onSetMode, onStart)
                     is ConnectionState.Preparing -> PreparingPanel()
                     is ConnectionState.Advertising ->
                         PairingPanel(
-                            QrPayloadCodec.encodeForQr(current.payload), current.typedCode,
+                            rememberQrText(current.payload), current.typedCode,
                             subtitle = stringResource(
                                 if (current.reconnecting) R.string.status_reconnecting
                                 else R.string.status_waiting
@@ -121,7 +145,7 @@ fun HomeScreen(
                         )
                     is ConnectionState.Connected ->
                         PairingPanel(
-                            QrPayloadCodec.encodeForQr(current.payload), current.typedCode,
+                            rememberQrText(current.payload), current.typedCode,
                             subtitle = if (current.reconnecting)
                                 stringResource(R.string.status_reconnecting)
                             else pluralStringResource(
@@ -164,21 +188,33 @@ private fun Header(state: ConnectionState) {
 @Composable
 private fun StatusDot(state: ConnectionState) {
     val glass = LocalGlass.current
-    val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = InfiniteRepeatableSpec(tween(1200), RepeatMode.Reverse),
-        label = "pulseAlpha",
-    )
     val reconnecting = (state as? ConnectionState.Connected)?.reconnecting == true ||
         (state as? ConnectionState.Advertising)?.reconnecting == true
-    val (targetColor, alpha) = when {
-        reconnecting -> glass.warning to pulse
-        state is ConnectionState.Idle -> glass.textTertiary to 1f
-        state is ConnectionState.Preparing -> glass.warning to pulse
-        state is ConnectionState.Advertising -> glass.accent to pulse
-        state is ConnectionState.Connected -> glass.accent to 1f
-        else -> glass.error to 1f
+    val targetColor = when {
+        reconnecting -> glass.warning
+        state is ConnectionState.Idle -> glass.textTertiary
+        state is ConnectionState.Preparing -> glass.warning
+        state is ConnectionState.Advertising -> glass.accent
+        state is ConnectionState.Connected -> glass.accent
+        else -> glass.error
+    }
+    // Only run the pulse in the states that actually pulse. It used to be
+    // started unconditionally, including in Idle and steady Connected where the
+    // alpha it produced was discarded for a constant — an animation nobody can
+    // see, invalidating a frame forever, for the life of the screen.
+    val pulsing = reconnecting ||
+        state is ConnectionState.Preparing ||
+        state is ConnectionState.Advertising
+    val alpha = if (pulsing) {
+        val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = InfiniteRepeatableSpec(tween(1200), RepeatMode.Reverse),
+            label = "pulseAlpha",
+        )
+        pulse
+    } else {
+        1f
     }
     val color by animateColorAsState(targetColor, tween(300), label = "dotColor")
     Box(
@@ -219,7 +255,10 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
                 text = stringResource(R.string.action_dismiss),
                 style = MaterialTheme.typography.labelSmall,
                 color = glass.accent,
-                modifier = Modifier.clickable { onDismiss(code) }.padding(4.dp),
+                modifier = Modifier
+                    .clickable(role = Role.Button) { onDismiss(code) }
+                    .minimumInteractiveComponentSize()
+                    .padding(4.dp),
             )
         }
     }
@@ -227,9 +266,15 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
 
 // --- panels ------------------------------------------------------------------
 
+/** The exact QR string, recomputed only when the payload itself changes. */
+@Composable
+private fun rememberQrText(payload: QrPayload): String =
+    remember(payload) { QrPayloadCodec.encodeForQr(payload) }
+
 @Composable
 private fun IdlePanel(
     transportMode: TransportMode,
+    fullModeAvailable: Boolean,
     onSetMode: (TransportMode) -> Unit,
     onStart: () -> Unit,
 ) {
@@ -241,12 +286,17 @@ private fun IdlePanel(
             color = glass.textSecondary,
         )
         Spacer(Modifier.height(20.dp))
-        ModeToggle(transportMode, onSetMode)
+        ModeToggle(transportMode, fullModeAvailable, onSetMode)
         Spacer(Modifier.height(8.dp))
         Text(
             text = stringResource(
-                if (transportMode == TransportMode.FAST) R.string.mode_fast_desc
-                else R.string.mode_full_desc
+                when {
+                    transportMode == TransportMode.FULL -> R.string.mode_full_desc
+                    fullModeAvailable -> R.string.mode_fast_desc
+                    // Say plainly why the other segment can't be picked instead
+                    // of letting the user tap it and hit an error.
+                    else -> R.string.mode_full_unavailable
+                }
             ),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
@@ -265,30 +315,48 @@ private fun IdlePanel(
 
 /** Segmented Fast/Full selector — one glass pill with the active segment in accent. */
 @Composable
-private fun ModeToggle(mode: TransportMode, onSet: (TransportMode) -> Unit) {
+private fun ModeToggle(mode: TransportMode, fullModeAvailable: Boolean, onSet: (TransportMode) -> Unit) {
     Row(
-        modifier = Modifier.clip(RoundedCornerShape(999.dp)).glassPanel(radius = 999.dp).padding(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .glassPanel(radius = 999.dp)
+            .padding(4.dp)
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        ModeSegment(stringResource(R.string.mode_fast), mode == TransportMode.FAST) { onSet(TransportMode.FAST) }
-        ModeSegment(stringResource(R.string.mode_full), mode == TransportMode.FULL) { onSet(TransportMode.FULL) }
+        ModeSegment(
+            label = stringResource(R.string.mode_fast),
+            selected = mode == TransportMode.FAST,
+            enabled = true,
+        ) { onSet(TransportMode.FAST) }
+        ModeSegment(
+            label = stringResource(R.string.mode_full),
+            selected = mode == TransportMode.FULL,
+            enabled = fullModeAvailable,
+        ) { onSet(TransportMode.FULL) }
     }
 }
 
 @Composable
-private fun ModeSegment(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ModeSegment(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val glass = LocalGlass.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) glass.accent else Color.Transparent)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 22.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) glass.onAccent else glass.textSecondary,
+            color = when {
+                selected -> glass.onAccent
+                enabled -> glass.textSecondary
+                else -> glass.textTertiary
+            },
         )
     }
 }
@@ -344,18 +412,28 @@ private fun PairingPanel(
         Spacer(Modifier.height(20.dp))
 
         val qr = rememberQrBitmap(qrContent)
-        Image(
-            bitmap = qr,
-            contentDescription = stringResource(R.string.scan_hint),
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .alpha(if (reconnecting) 0.4f else 1f)
-                .clip(RoundedCornerShape(glass.radiusMd))
-                .background(Color.White)
-                .padding(12.dp),
-        )
+        val qrFrame = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .alpha(if (reconnecting) 0.4f else 1f)
+            .clip(RoundedCornerShape(glass.radiusMd))
+            .background(Color.White)
+            .padding(12.dp)
+        if (qr != null) {
+            Image(
+                bitmap = qr,
+                // The caption below says the same thing to sighted users; the QR
+                // itself is only meaningful to a camera, so describe what it is
+                // rather than repeating the instruction to a screen reader.
+                contentDescription = stringResource(R.string.qr_content_description),
+                contentScale = ContentScale.Fit,
+                modifier = qrFrame,
+            )
+        } else {
+            // One frame while the encode runs off-thread, or a payload that could
+            // not be encoded at all — the typed code below is still usable.
+            Box(modifier = qrFrame)
+        }
         Spacer(Modifier.height(12.dp))
         Text(
             text = stringResource(R.string.scan_hint),
@@ -454,13 +532,19 @@ private fun AdvancedSection(
     onClearLogs: () -> Unit,
 ) {
     val glass = LocalGlass.current
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = (if (expanded) "▾  " else "▸  ") + stringResource(R.string.advanced),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
-            modifier = Modifier.clickable { expanded = !expanded }.padding(8.dp),
+            modifier = Modifier
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.advanced),
+                ) { expanded = !expanded }
+                .minimumInteractiveComponentSize()
+                .padding(8.dp),
         )
         AnimatedVisibility(
             visible = expanded,
@@ -506,7 +590,10 @@ private fun AdvancedSection(
                             stringResource(R.string.advanced_logs_clear),
                             style = MaterialTheme.typography.labelSmall,
                             color = glass.accent,
-                            modifier = Modifier.clickable { onClearLogs() }.padding(4.dp),
+                            modifier = Modifier
+                                .clickable(role = Role.Button) { onClearLogs() }
+                                .minimumInteractiveComponentSize()
+                                .padding(4.dp),
                         )
                     }
                     Spacer(Modifier.height(6.dp))
@@ -556,7 +643,8 @@ private fun ThemeChip(value: String, labelRes: Int, current: String, onSet: (Str
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) glass.accentSubtle else Color.Transparent)
-            .clickable { onSet(value) }
+            .selectable(selected = selected, role = Role.RadioButton) { onSet(value) }
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Text(
@@ -570,16 +658,33 @@ private fun ThemeChip(value: String, labelRes: Int, current: String, onSet: (Str
 @Composable
 private fun PortField(preferredPort: Int, onSetPort: (Int) -> Unit) {
     val glass = LocalGlass.current
-    var text by remember(preferredPort) { mutableStateOf(if (preferredPort == 0) "" else preferredPort.toString()) }
+    // rememberSaveable: a half-typed port survived neither rotation nor the
+    // activity being recreated behind the battery-settings screen.
+    var text by rememberSaveable(preferredPort) {
+        mutableStateOf(if (preferredPort == 0) "" else preferredPort.toString())
+    }
+    var saved by rememberSaveable { mutableStateOf(false) }
+    // The field used to accept 65536-99999 and Save silently stored "automatic"
+    // (0) while the field went on displaying the rejected number — no error, no
+    // confirmation, and a value the user believed was applied. Out-of-range
+    // input is now rejected as it is typed, so what is on screen is always what
+    // will be saved.
+    val outOfRange = text.isNotEmpty() && (text.toIntOrNull() ?: 0) !in 1..65535
     Column {
         Text(stringResource(R.string.advanced_port), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextField(
                 value = text,
-                onValueChange = { if (it.length <= 5 && it.all(Char::isDigit)) text = it },
+                onValueChange = {
+                    if (it.length <= 5 && it.all(Char::isDigit)) {
+                        text = it
+                        saved = false
+                    }
+                },
                 placeholder = { Text(stringResource(R.string.advanced_port_hint), color = glass.textTertiary) },
                 singleLine = true,
+                isError = outOfRange,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = glass.fill,
@@ -591,9 +696,25 @@ private fun PortField(preferredPort: Int, onSetPort: (Int) -> Unit) {
             )
             SubtleButton(
                 text = stringResource(R.string.advanced_port_save),
-                onClick = { onSetPort(text.toIntOrNull() ?: 0) },
+                enabled = !outOfRange,
+                onClick = {
+                    onSetPort(text.toIntOrNull() ?: 0)
+                    saved = true
+                },
             )
         }
+        Spacer(Modifier.height(6.dp))
+        // Saving used to be entirely silent, so there was no way to tell whether
+        // anything had happened.
+        Text(
+            text = when {
+                outOfRange -> stringResource(R.string.advanced_port_invalid)
+                saved -> stringResource(R.string.advanced_port_saved)
+                else -> stringResource(R.string.advanced_port_hint)
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (outOfRange) glass.error else glass.textTertiary,
+        )
     }
 }
 
@@ -606,7 +727,8 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(glass.accent)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 32.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -615,13 +737,15 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SubtleButton(text: String, onClick: () -> Unit) {
+private fun SubtleButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val glass = LocalGlass.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .glassPanel(radius = 999.dp)
-            .clickable(onClick = onClick)
+            .alpha(if (enabled) 1f else 0.5f)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 24.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
