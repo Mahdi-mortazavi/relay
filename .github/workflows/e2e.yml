@@ -197,7 +197,7 @@ jobs:
             if ($pri) { Copy-Item $pri.FullName "$pub\resources.pri" }
           }
           if (-not (Test-Path "$pub\resources.pri")) {
-            Write-Error "resources.pri missing — the app would crash at launch."
+            Write-Error "resources.pri missing - the app would crash at launch."
             exit 1
           }
 

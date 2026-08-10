@@ -153,7 +153,7 @@ if (Test-Path $exe) {
     if ($restore.ExitCode -eq 0) {
         Record 'app.restore-proxy' 'PASS' 'exit code 0'
     } else {
-        Record 'app.restore-proxy' 'FAIL' "exit code $($restore.ExitCode) — uninstall relies on this path"
+        Record 'app.restore-proxy' 'FAIL' "exit code $($restore.ExitCode) -- uninstall relies on this path"
     }
     Assert-ProxyUnchanged $baseline 'restore-proxy.leaves-proxy-alone'
 }
@@ -196,6 +196,6 @@ Write-Host ("{0} passed, {1} failed, {2} blocked" -f `
     $blocked)
 
 if ($script:failed) {
-    Write-Error 'Windows app E2E failed — see the evidence artifact.'
+    Write-Error 'Windows app E2E failed -- see the evidence artifact.'
     exit 1
 }
