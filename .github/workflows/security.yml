@@ -81,7 +81,13 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
+      # Soft until the repository's Dependency graph is switched on
+      # (Settings -> Code security -> Dependency graph). Without it the action
+      # cannot run at all and fails every PR for a reason no code change can
+      # fix. Once it is enabled, delete continue-on-error and this becomes a
+      # real gate.
       - uses: actions/dependency-review-action@v4
+        continue-on-error: true
         with:
           # Relay ships to end users; a known-vulnerable transitive dependency is
           # not something to merge and fix later.

@@ -188,21 +188,33 @@ private fun Header(state: ConnectionState) {
 @Composable
 private fun StatusDot(state: ConnectionState) {
     val glass = LocalGlass.current
-    val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = InfiniteRepeatableSpec(tween(1200), RepeatMode.Reverse),
-        label = "pulseAlpha",
-    )
     val reconnecting = (state as? ConnectionState.Connected)?.reconnecting == true ||
         (state as? ConnectionState.Advertising)?.reconnecting == true
-    val (targetColor, alpha) = when {
-        reconnecting -> glass.warning to pulse
-        state is ConnectionState.Idle -> glass.textTertiary to 1f
-        state is ConnectionState.Preparing -> glass.warning to pulse
-        state is ConnectionState.Advertising -> glass.accent to pulse
-        state is ConnectionState.Connected -> glass.accent to 1f
-        else -> glass.error to 1f
+    val targetColor = when {
+        reconnecting -> glass.warning
+        state is ConnectionState.Idle -> glass.textTertiary
+        state is ConnectionState.Preparing -> glass.warning
+        state is ConnectionState.Advertising -> glass.accent
+        state is ConnectionState.Connected -> glass.accent
+        else -> glass.error
+    }
+    // Only run the pulse in the states that actually pulse. It used to be
+    // started unconditionally, including in Idle and steady Connected where the
+    // alpha it produced was discarded for a constant — an animation nobody can
+    // see, invalidating a frame forever, for the life of the screen.
+    val pulsing = reconnecting ||
+        state is ConnectionState.Preparing ||
+        state is ConnectionState.Advertising
+    val alpha = if (pulsing) {
+        val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = InfiniteRepeatableSpec(tween(1200), RepeatMode.Reverse),
+            label = "pulseAlpha",
+        )
+        pulse
+    } else {
+        1f
     }
     val color by animateColorAsState(targetColor, tween(300), label = "dotColor")
     Box(

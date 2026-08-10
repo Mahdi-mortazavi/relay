@@ -90,7 +90,12 @@ long-term-support branches.
 
 ## Automated checks
 
-Every pull request runs static analysis and dependency review
+Every pull request runs CodeQL over both languages and a dependency review
 ([`.github/workflows/security.yml`](.github/workflows/security.yml)), alongside
 the unit, device and cross-platform test suites described in
 [`docs/testing.md`](docs/testing.md).
+
+> **Maintainer note:** dependency review is currently advisory because the
+> repository's **Dependency graph** is not enabled (Settings → Code security).
+> Turning it on also enables Dependabot alerts; after that, remove
+> `continue-on-error` from that job so a vulnerable dependency blocks the merge.
