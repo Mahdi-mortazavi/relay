@@ -57,7 +57,7 @@ jobs:
       # WinUI 3 projects need Visual Studio MSBuild: the PRI packaging tasks
       # (ExpandPriContent) are not shipped with the dotnet CLI's MSBuild.
       - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Build app (x64)
         run: msbuild windows/Relay.App/Relay.App.csproj /restore /p:Configuration=Release /p:Platform=x64 /v:minimal
