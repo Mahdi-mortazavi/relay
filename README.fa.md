@@ -15,6 +15,12 @@
 
 [English](README.md) · [فارسی](README.fa.md)
 
+### دانلود
+
+[**⬇ نصب‌کنندهٔ ویندوز**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) &nbsp;·&nbsp; [**⬇ فایل APK اندروید**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+
+<sub>همیشه آخرین نسخه · [همهٔ فایل‌ها و توضیحات نسخه](https://github.com/Mahdi-mortazavi/relay/releases/latest)</sub>
+
 <p>
 <img src="docs/assets/android-idle.png" alt="برنامهٔ رله روی اندروید، آمادهٔ اشتراک‌گذاری" width="230">
 &nbsp;&nbsp;
@@ -74,12 +80,16 @@
 
 ## نصب
 
-آخرین نسخه را از [**صفحهٔ Releases**](https://github.com/Mahdi-mortazavi/relay/releases) بگیر. چیزی برای کامپایل کردن وجود ندارد.
+دو فایل، بدون نیاز به کامپایل. این لینک‌ها همیشه به جدیدترین نسخه اشاره می‌کنند:
 
-| | فایل | توضیح |
+| | دانلود | نیازمندی |
 |---|---|---|
-| **ویندوز** | `Relay-Setup-x64-<version>.exe` | ویندوز ۱۰ یا ۱۱. نسخهٔ x86 را فقط اگر مطمئنی لازم داری انتخاب کن. نصب برای کاربر جاری، بدون نیاز به دسترسی مدیر. |
-| **اندروید** | `relay-arm64-v8a-<version>.apk` | اندروید ۸ به بالا. «نصب از منابع ناشناس» را برای مرورگر یا فایل‌منیجرت فعال کن. |
+| **ویندوز** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | ویندوز ۱۰ یا ۱۱. نصب برای کاربر جاری، بدون دسترسی مدیر. |
+| ویندوز ۳۲ بیتی | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | فقط اگر مطمئنی لازم داری. |
+| **اندروید** | [**Relay-android-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | اندروید ۸ به بالا. «نصب از منابع ناشناس» را فعال کن. |
+| اندروید (فروشگاه) | [Relay-android.aab](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android.aab) | بستهٔ فروشگاهی، مستقیم نصب نمی‌شود. |
+
+هر نسخه فایل `SHA256SUMS.txt` هم دارد تا بتوانی صحت دانلودت را بررسی کنی.
 
 نصب‌کنندهٔ ویندوز هنوز امضای دیجیتال ندارد، بنابراین SmartScreen در اجرای اول هشدار می‌دهد — **More info → Run anyway**. برای هر انتشار checksum منتشر می‌شود؛ کار امضا در [`docs/release.md`](docs/release.md) پیگیری می‌شود.
 

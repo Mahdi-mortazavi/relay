@@ -23,6 +23,16 @@ Ideas and known follow-ups that are **not** in the current phase. Nothing here m
 - x64 and x86 installers share one `AppId` and install directory, so running the
   wrong one over an existing install is treated as an upgrade. Fixing it means
   changing `AppId`, which orphans existing installs — needs a migration plan.
+- **Toolchain upgrade: compileSdk 37 + a newer AGP + Kotlin 2.4.** Verified by
+  building each Dependabot bump locally rather than guessing, so the chain is
+  known rather than suspected:
+  `androidx.core 1.19.0`, `lifecycle 2.11.0`, `activity 1.13.0` and
+  `compose-bom 2026.06.01` all fail `checkDebugAarMetadata` — they require
+  compileSdk 37, and AGP 8.7.3 tops out at 35. `kotlinx-coroutines 1.11.0`
+  needs Kotlin 2.2+, and Kotlin 2.4 additionally removes the `kotlinOptions`
+  DSL (migrate to `kotlin { compilerOptions { } }`). So this is one upgrade,
+  not five bumps, and it changes the SDK the app compiles against — it needs
+  the device lab run against it, not a rubber-stamped merge.
 - Windows code-signing certificate → signed installers, no SmartScreen warning (see `docs/release.md`).
 - OEM-specific battery-manager guidance (Xiaomi/MIUI, Samsung, Huawei aggressive killers) beyond the stock exemption flow.
 - Bytes-transferred counter in the Android status view (Phase 1 marks it nice-to-have).

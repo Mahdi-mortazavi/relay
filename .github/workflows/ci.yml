@@ -21,16 +21,16 @@ jobs:
       run:
         working-directory: android
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Build and run unit tests
         run: ./gradlew assembleDebug testDebugUnitTest
@@ -47,7 +47,7 @@ jobs:
     name: Windows (build + test)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
@@ -57,7 +57,7 @@ jobs:
       # WinUI 3 projects need Visual Studio MSBuild: the PRI packaging tasks
       # (ExpandPriContent) are not shipped with the dotnet CLI's MSBuild.
       - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Build app (x64)
         run: msbuild windows/Relay.App/Relay.App.csproj /restore /p:Configuration=Release /p:Platform=x64 /v:minimal

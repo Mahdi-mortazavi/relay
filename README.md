@@ -12,6 +12,12 @@
 
 [English](README.md) · [فارسی](README.fa.md)
 
+### Download
+
+[**⬇ Windows installer**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) &nbsp;·&nbsp; [**⬇ Android APK**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+
+<sub>Always the latest release · [all files and release notes](https://github.com/Mahdi-mortazavi/relay/releases/latest)</sub>
+
 <p>
 <img src="docs/assets/android-idle.png" alt="The Relay app on Android, ready to share" width="230">
 &nbsp;&nbsp;
@@ -65,12 +71,16 @@ Read more in [`docs/architecture.md`](docs/architecture.md).
 
 ## Install
 
-Grab the latest build from the [**Releases page**](https://github.com/Mahdi-mortazavi/relay/releases). There is nothing to compile.
+Two files, nothing to compile. These links always resolve to the newest release:
 
-| | File | Notes |
+| | Download | Requirements |
 |---|---|---|
-| **Windows** | `Relay-Setup-x64-<version>.exe` | Windows 10 or 11. Pick x86 only if you know you need it. Installs per-user, no administrator prompt. |
-| **Android** | `relay-arm64-v8a-<version>.apk` | Android 8.0 or newer. Enable "install from unknown sources" for your browser or file manager. |
+| **Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10 or 11. Per-user install, no administrator prompt. |
+| Windows 32-bit | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | Only if you know you need it. |
+| **Android** | [**Relay-android-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+. Enable "install from unknown sources" for your browser or file manager. |
+| Android (stores) | [Relay-android.aab](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android.aab) | App-store bundle, not directly installable. |
+
+Every release also carries `SHA256SUMS.txt` so you can verify what you downloaded.
 
 The Windows installer is not code-signed yet, so SmartScreen will show a warning on first run — **More info → Run anyway**. Checksums are published with every release; [`docs/release.md`](docs/release.md) tracks the signing work.
 
