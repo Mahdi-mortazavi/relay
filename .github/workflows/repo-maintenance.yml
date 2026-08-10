@@ -1,0 +1,117 @@
+# One-shot repository housekeeping, run by hand from the Actions tab.
+#
+# This deletes things permanently, so it is deliberately awkward to fire:
+# it never runs on a push, and it refuses to do anything unless you type
+# DELETE into the confirmation box.
+#
+# What it will and will not touch is fixed in the rules below rather than
+# inferred at runtime — "everything except the newest" is the kind of rule that
+# deletes the wrong thing the one time the ordering surprises you.
+#
+#   keeps    the `main` branch, every `v*` release and tag (the unified scheme)
+#   deletes  legacy `android-v*` / `windows-v*` releases and tags,
+#            and every branch other than `main`
+name: Repository maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DELETE to confirm. Anything else aborts.'
+        required: true
+        type: string
+      legacy_releases:
+        description: 'Delete legacy android-v* / windows-v* releases and their tags'
+        required: false
+        default: true
+        type: boolean
+      stale_branches:
+        description: 'Delete every branch except main'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  maintenance:
+    name: Housekeeping
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "DELETE" ]; then
+            echo "::error::Confirmation not given (expected DELETE). Nothing was changed."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Delete legacy releases and tags
+        if: inputs.legacy_releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "::group::Releases"
+          # Only the legacy per-platform scheme. A v* release is never touched,
+          # so this cannot remove the current one no matter when it is run.
+          gh release list --limit 200 --json tagName \
+            --jq '.[] | select(.tagName | test("^(android|windows)-v")) | .tagName' > legacy.txt || true
+          if [ ! -s legacy.txt ]; then
+            echo "No legacy releases found."
+          else
+            while read -r tag; do
+              [ -n "$tag" ] || continue
+              echo "deleting release $tag"
+              # --cleanup-tag removes the tag along with the release.
+              gh release delete "$tag" --yes --cleanup-tag
+            done < legacy.txt
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Tags without a release"
+          # Legacy tags that never had a release attached.
+          for tag in $(git tag -l 'android-v*' 'windows-v*'); do
+            if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+              echo "deleting tag $tag"
+              git push origin --delete "$tag" || echo "  (already gone)"
+            fi
+          done
+          echo "::endgroup::"
+
+      - name: Delete branches other than main
+        if: inputs.stale_branches
+        run: |
+          set -euo pipefail
+          git fetch --prune origin
+          for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin \
+                        | grep -v 'origin/HEAD' | sed 's|^origin/||'); do
+            if [ "$ref" = "main" ]; then continue; fi
+            echo "deleting branch $ref"
+            git push origin --delete "$ref" || echo "  (could not delete $ref; it may be protected)"
+          done
+
+      - name: Summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### Repository state"
+            echo
+            echo "**Branches**"
+            echo '```'
+            git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||'
+            echo '```'
+            echo "**Tags**"
+            echo '```'
+            git ls-remote --tags origin | awk '{print $2}' | sed 's|refs/tags/||' | grep -v '\^{}' || echo "(none)"
+            echo '```'
+            echo "**Releases**"
+            echo '```'
+            gh release list --limit 50 || echo "(none)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
