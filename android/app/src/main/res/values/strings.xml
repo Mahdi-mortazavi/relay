@@ -36,6 +36,8 @@
     <string name="advanced_ip">Hotspot address</string>
     <string name="advanced_port">Preferred port</string>
     <string name="advanced_port_hint">0 = automatic</string>
+    <string name="advanced_port_saved">Saved. Applies the next time you start sharing.</string>
+    <string name="advanced_port_invalid">Enter a port between 1 and 65535.</string>
     <string name="advanced_port_save">Save</string>
     <string name="advanced_theme">Appearance</string>
     <string name="theme_system">System</string>

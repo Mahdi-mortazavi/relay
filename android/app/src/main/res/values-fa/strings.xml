@@ -36,6 +36,8 @@
     <string name="advanced_ip">نشانی هات‌اسپات</string>
     <string name="advanced_port">پورت ترجیحی</string>
     <string name="advanced_port_hint">۰ = خودکار</string>
+    <string name="advanced_port_saved">ذخیره شد. از دفعهٔ بعدِ شروع اشتراک‌گذاری اعمال می‌شود.</string>
+    <string name="advanced_port_invalid">پورتی بین ۱ تا ۶۵۵۳۵ وارد کنید.</string>
     <string name="advanced_port_save">ذخیره</string>
     <string name="advanced_theme">ظاهر</string>
     <string name="theme_system">سیستم</string>

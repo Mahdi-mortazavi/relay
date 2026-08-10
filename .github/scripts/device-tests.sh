@@ -19,6 +19,9 @@ echo "::endgroup::"
 collect() {
   echo "::group::Collect evidence"
   adb pull "$EVIDENCE" "$OUT" >/dev/null 2>&1 || echo "no device evidence directory"
+  # Inside the script, so the device is still up. Run after the emulator is torn
+  # down and adb blocks forever on the stale offline device instead of failing.
+  timeout 120 adb logcat -d > "${OUT}/logcat.txt" 2>/dev/null || echo "logcat unavailable"
   ls -R "$OUT" || true
   echo "::endgroup::"
 }

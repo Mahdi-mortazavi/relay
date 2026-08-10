@@ -53,7 +53,9 @@ class GoldenJourneyTest {
     fun tearDown() {
         sockets.forEach { runCatching { it.close() } }
         destinations.forEach { runCatching { it.close() } }
-        SharingService.stop(compose.activity)
+        // Teardown must never be the thing that fails a run: startService throws
+        // if the activity has already been stopped by the time we get here.
+        runCatching { SharingService.stop(compose.activity) }
         runCatching { awaitState<ConnectionState.Idle>(timeoutMs = 10_000) }
     }
 

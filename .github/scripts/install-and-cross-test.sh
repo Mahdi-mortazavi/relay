@@ -13,6 +13,9 @@ mkdir -p "$OUT"
 
 collect() {
   adb pull "$EVIDENCE" "$OUT" >/dev/null 2>&1 || true
+  # See device-tests.sh: adb blocks forever once the emulator is gone, so the
+  # log has to be pulled while the device is still alive.
+  timeout 120 adb logcat -d > "${OUT}/logcat.txt" 2>/dev/null || true
 }
 trap collect EXIT
 

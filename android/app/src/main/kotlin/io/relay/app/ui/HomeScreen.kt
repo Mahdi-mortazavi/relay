@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -242,7 +243,10 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
                 text = stringResource(R.string.action_dismiss),
                 style = MaterialTheme.typography.labelSmall,
                 color = glass.accent,
-                modifier = Modifier.clickable { onDismiss(code) }.padding(4.dp),
+                modifier = Modifier
+                    .clickable(role = Role.Button) { onDismiss(code) }
+                    .minimumInteractiveComponentSize()
+                    .padding(4.dp),
             )
         }
     }
@@ -516,13 +520,19 @@ private fun AdvancedSection(
     onClearLogs: () -> Unit,
 ) {
     val glass = LocalGlass.current
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = (if (expanded) "▾  " else "▸  ") + stringResource(R.string.advanced),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
-            modifier = Modifier.clickable { expanded = !expanded }.padding(8.dp),
+            modifier = Modifier
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.advanced),
+                ) { expanded = !expanded }
+                .minimumInteractiveComponentSize()
+                .padding(8.dp),
         )
         AnimatedVisibility(
             visible = expanded,
@@ -568,7 +578,10 @@ private fun AdvancedSection(
                             stringResource(R.string.advanced_logs_clear),
                             style = MaterialTheme.typography.labelSmall,
                             color = glass.accent,
-                            modifier = Modifier.clickable { onClearLogs() }.padding(4.dp),
+                            modifier = Modifier
+                                .clickable(role = Role.Button) { onClearLogs() }
+                                .minimumInteractiveComponentSize()
+                                .padding(4.dp),
                         )
                     }
                     Spacer(Modifier.height(6.dp))
@@ -618,7 +631,8 @@ private fun ThemeChip(value: String, labelRes: Int, current: String, onSet: (Str
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) glass.accentSubtle else Color.Transparent)
-            .clickable { onSet(value) }
+            .selectable(selected = selected, role = Role.RadioButton) { onSet(value) }
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Text(
@@ -632,16 +646,33 @@ private fun ThemeChip(value: String, labelRes: Int, current: String, onSet: (Str
 @Composable
 private fun PortField(preferredPort: Int, onSetPort: (Int) -> Unit) {
     val glass = LocalGlass.current
-    var text by remember(preferredPort) { mutableStateOf(if (preferredPort == 0) "" else preferredPort.toString()) }
+    // rememberSaveable: a half-typed port survived neither rotation nor the
+    // activity being recreated behind the battery-settings screen.
+    var text by rememberSaveable(preferredPort) {
+        mutableStateOf(if (preferredPort == 0) "" else preferredPort.toString())
+    }
+    var saved by rememberSaveable { mutableStateOf(false) }
+    // The field used to accept 65536-99999 and Save silently stored "automatic"
+    // (0) while the field went on displaying the rejected number — no error, no
+    // confirmation, and a value the user believed was applied. Out-of-range
+    // input is now rejected as it is typed, so what is on screen is always what
+    // will be saved.
+    val outOfRange = text.isNotEmpty() && (text.toIntOrNull() ?: 0) !in 1..65535
     Column {
         Text(stringResource(R.string.advanced_port), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextField(
                 value = text,
-                onValueChange = { if (it.length <= 5 && it.all(Char::isDigit)) text = it },
+                onValueChange = {
+                    if (it.length <= 5 && it.all(Char::isDigit)) {
+                        text = it
+                        saved = false
+                    }
+                },
                 placeholder = { Text(stringResource(R.string.advanced_port_hint), color = glass.textTertiary) },
                 singleLine = true,
+                isError = outOfRange,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = glass.fill,
@@ -653,9 +684,25 @@ private fun PortField(preferredPort: Int, onSetPort: (Int) -> Unit) {
             )
             SubtleButton(
                 text = stringResource(R.string.advanced_port_save),
-                onClick = { onSetPort(text.toIntOrNull() ?: 0) },
+                enabled = !outOfRange,
+                onClick = {
+                    onSetPort(text.toIntOrNull() ?: 0)
+                    saved = true
+                },
             )
         }
+        Spacer(Modifier.height(6.dp))
+        // Saving used to be entirely silent, so there was no way to tell whether
+        // anything had happened.
+        Text(
+            text = when {
+                outOfRange -> stringResource(R.string.advanced_port_invalid)
+                saved -> stringResource(R.string.advanced_port_saved)
+                else -> stringResource(R.string.advanced_port_hint)
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (outOfRange) glass.error else glass.textTertiary,
+        )
     }
 }
 
@@ -668,7 +715,8 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(glass.accent)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 32.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -677,13 +725,15 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SubtleButton(text: String, onClick: () -> Unit) {
+private fun SubtleButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val glass = LocalGlass.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .glassPanel(radius = 999.dp)
-            .clickable(onClick = onClick)
+            .alpha(if (enabled) 1f else 0.5f)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .minimumInteractiveComponentSize()
             .padding(horizontal = 24.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {

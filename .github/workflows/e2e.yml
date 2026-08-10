@@ -92,10 +92,6 @@ jobs:
           disable-animations: true
           script: .github/scripts/device-tests.sh "${{ github.workspace }}/e2e-out"
 
-      - name: Collect the device log
-        if: always()
-        run: adb logcat -d > e2e-out/logcat.txt 2>/dev/null || true
-
       - name: Upload the evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -153,10 +149,6 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: .github/scripts/install-and-cross-test.sh "${{ github.workspace }}/e2e-out"
-
-      - name: Collect the device log
-        if: always()
-        run: adb logcat -d > e2e-out/logcat.txt 2>/dev/null || true
 
       - name: Upload the evidence
         if: always()

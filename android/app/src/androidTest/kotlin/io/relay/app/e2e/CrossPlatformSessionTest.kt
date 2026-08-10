@@ -43,7 +43,7 @@ class CrossPlatformSessionTest {
 
     @After
     fun tearDown() {
-        SharingService.stop(compose.activity)
+        runCatching { SharingService.stop(compose.activity) }
         runCatching { awaitState<ConnectionState.Idle>(15_000) }
     }
 

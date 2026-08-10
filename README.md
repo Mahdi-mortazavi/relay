@@ -5,6 +5,7 @@
 **Share your connection. Instantly.**
 
 [![CI](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml)
+[![E2E](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml)
 [![Latest release](https://img.shields.io/github/v/release/Mahdi-mortazavi/relay?sort=semver)](https://github.com/Mahdi-mortazavi/relay/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
@@ -34,7 +35,38 @@ Relay is an open-source, privacy-first utility that shares one personal device's
 - **Android:** `relay-arm64-v8a-<version>.apk` — enable "install from unknown sources" and install. (An `.aab` is also attached for store distribution.)
 - **Windows:** `Relay-Setup-x64-<version>.exe` or `Relay-Setup-x86-<version>.exe` — pick the one matching your system (x64 for almost all modern PCs).
 
-Screenshots are coming with the first feature release.
+Screenshots are coming with the first feature release. In the meantime, every
+[E2E run](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml)
+uploads real screenshots of each state, captured on an emulator during the
+automated journey.
+
+## How it is tested
+
+Relay changes your operating system's network settings, so "it worked on my
+machine" is not good enough. Every pull request runs a test lab that GitHub
+provisions from scratch:
+
+- the **real APK** on a **real Android emulator** (API 30 and 34), driven
+  through the real UI — start sharing, show a QR, accept a client, relay real
+  HTTP traffic, then verify that **Stop** tears down the live tunnel too;
+- the **Windows client's own code against a live phone** over `adb`, so the
+  shipping decoder reads the phone's actual QR payload and real bytes cross
+  between the two platforms;
+- the **real Windows installer** — install, launch, restore, uninstall — with
+  the system proxy registry read back and compared after every stage.
+
+What the lab *cannot* reach (a physical camera scanning a screen, WinUI control
+automation, Windows sleep) is listed as blocked in
+[`docs/testing.md`](docs/testing.md) rather than quietly skipped.
+
+## Security and privacy
+
+Relay makes no network connections other than relaying your own traffic, keeps
+no accounts and collects nothing. Its transport is an unauthenticated SOCKS5
+proxy, which is safe on your own hotspot and **is an open proxy on a shared
+café or office network** — [`SECURITY.md`](SECURITY.md) explains exactly what
+that means, why it is currently a constraint of Windows' proxy support, and how
+to report a vulnerability privately.
 
 ## Design
 
