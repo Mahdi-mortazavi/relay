@@ -7,6 +7,16 @@ Releases are **tag-triggered only** — an ordinary push can never publish anyth
 | Android | `android-v*.*.*` | `android-release.yml` | `relay-arm64-v8a-<version>.apk` (signed, primary sideload artifact) + `relay-<version>.aab` |
 | Windows | `windows-v*.*.*` | `windows-release.yml` | `Relay-Setup-x64-<version>.exe` + `Relay-Setup-x86-<version>.exe` |
 
+Every release also carries **`SHA256SUMS.txt`**, generated in the same job that
+builds the artifacts. Until the Windows installer is code-signed it is the only
+integrity check a user has, so it is not optional:
+
+```bash
+sha256sum -c SHA256SUMS.txt          # Linux/macOS
+Get-FileHash .\Relay-Setup-x64-<version>.exe -Algorithm SHA256   # Windows
+```
+
+
 Each release body gets an auto-generated changelog (commits since the previous tag of the same platform) plus a short "How to install" note.
 
 ## Android signing
