@@ -317,18 +317,35 @@ public sealed partial class MainWindow : Window
         }
         _lastPreviewTicks = now;
 
-        DispatcherQueue.TryEnqueue(async () =>
+        // A DispatcherQueueHandler returns void, so this lambda is an async void
+        // running ten times a second for the whole scan: SetBitmapAsync is a
+        // WinRT call that throws while the XAML core is tearing down, and an
+        // escape would reach App.UnhandledException and kill the process
+        // mid-scan. The old frame is also disposed *after* the new one is in
+        // place, rather than from a stale local that two interleaved callbacks
+        // could both read as null (which leaked the unmanaged bitmap).
+        var queued = DispatcherQueue.TryEnqueue(async () =>
         {
-            using (bitmap)
+            try
             {
-                if (_mode != InputMode.Scanning) return;
-                var previous = PreviewImage.Source as SoftwareBitmapSource;
-                var source = new SoftwareBitmapSource();
-                await source.SetBitmapAsync(bitmap);
-                PreviewImage.Source = source;
-                previous?.Dispose();
+                using (bitmap)
+                {
+                    if (_mode != InputMode.Scanning) return;
+                    var source = new SoftwareBitmapSource();
+                    await source.SetBitmapAsync(bitmap);
+                    var previous = PreviewImage.Source as SoftwareBitmapSource;
+                    PreviewImage.Source = source;
+                    previous?.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                LocalLog.Add($"Preview frame dropped: {ex.Message}");
             }
         });
+        // The queue refuses work once it is shutting down; that frame still owns
+        // an unmanaged bitmap nobody else will free.
+        if (!queued) bitmap.Dispose();
     }
 
     private void OnQrDecoded(string text)

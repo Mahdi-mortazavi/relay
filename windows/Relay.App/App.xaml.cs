@@ -56,7 +56,18 @@ public partial class App : Application
             }
 
             // Safety invariant #2: undo a crashed session before anything else.
-            AppController.Instance.RecoverIfCrashed();
+            // Guarded: this is the very first thing that runs, and a single
+            // unreadable or ACL-locked backup file used to throw out of
+            // OnLaunched on *every* launch, leaving the user with no window, no
+            // tray icon, no way to disconnect, and a stale proxy forever.
+            try
+            {
+                AppController.Instance.RecoverIfCrashed();
+            }
+            catch (Exception ex)
+            {
+                LogStartupError(ex);
+            }
 
             _window = new MainWindow();
             _window.ShowNearTray();
@@ -135,6 +146,15 @@ public partial class App : Application
         exit.Click += async (_, _) =>
         {
             await AppController.Instance.DisconnectAsync();
+            // Exiting after a failed rollback would strand the system proxy
+            // pointing at a phone that is gone, with the app that could undo it
+            // now closed. Show the window instead so the user sees the error and
+            // its retry, and stay running.
+            if (AppController.Instance.ErrorCode == "ERR_ROLLBACK_INCOMPLETE")
+            {
+                _window?.ShowNearTray();
+                return;
+            }
             _tray?.Dispose();
             // Exit() works by closing the app's windows, so the popover has to
             // stop cancelling its own close first (issue #18).
