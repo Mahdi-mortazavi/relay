@@ -60,11 +60,19 @@ android {
     }
 
     // The primary sideload artifact is the arm64-v8a APK (docs/release.md).
+    //
+    // The device lab additionally needs an x86_64 APK: a GitHub emulator is
+    // x86_64, and while the Google APIs images can translate arm64, the AOSP
+    // images cannot — `installDebug` there fails with "Could not find build of
+    // variant which supports ... an ABI in x86_64, x86" and no test runs at all.
+    // Gated behind a property so release builds are completely unaffected and
+    // keep shipping exactly one APK.
     splits {
         abi {
             isEnable = true
             reset()
             include("arm64-v8a")
+            if (project.findProperty("relayTestAbis") == "true") include("x86_64")
             isUniversalApk = false
         }
     }

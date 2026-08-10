@@ -14,22 +14,25 @@ OUT="${1:?usage: cross-platform-e2e.sh <output-directory>}"
 PKG=io.relay.app
 TEST_PKG="${PKG}.test"
 RUNNER="androidx.test.runner.AndroidJUnitRunner"
-EVIDENCE="/sdcard/Android/data/${PKG}/files/e2e"
+# App-internal, reached with run-as (see device-tests.sh).
+EVIDENCE="files/e2e"
 HOST_PORT=11080
 
 mkdir -p "$OUT"
 
-device_has() { adb shell "[ -f '$1' ] && echo yes" 2>/dev/null | tr -d '\r' | grep -q yes; }
+device_has() {
+  adb shell run-as "$PKG" sh -c "[ -f '$1' ] && echo yes" 2>/dev/null | tr -d '\r' | grep -q yes
+}
 
 # The device test blocks on this marker. Always release it, even when the host
 # side fails, so the emulator job reports the real failure instead of a timeout.
 release_device() {
-  adb shell "touch ${EVIDENCE}/host-done" >/dev/null 2>&1 || true
+  adb shell run-as "$PKG" touch "${EVIDENCE}/host-done" >/dev/null 2>&1 || true
 }
 trap release_device EXIT
 
 echo "::group::Start the phone's sharing session"
-adb shell "rm -f ${EVIDENCE}/ready ${EVIDENCE}/host-done" >/dev/null 2>&1 || true
+adb shell run-as "$PKG" rm -f "${EVIDENCE}/ready" "${EVIDENCE}/host-done" >/dev/null 2>&1 || true
 adb shell am instrument -w \
   -e annotation io.relay.app.e2e.HostHarness \
   "${TEST_PKG}/${RUNNER}" > "${OUT}/device-harness.log" 2>&1 &
@@ -52,13 +55,13 @@ if ! device_has "${EVIDENCE}/ready"; then
   exit 1
 fi
 
-ENDPOINT="$(adb shell cat "${EVIDENCE}/ready" | tr -d '\r')"
+ENDPOINT="$(adb exec-out run-as "$PKG" cat "${EVIDENCE}/ready" | tr -d '\r')"
 DEVICE_PORT="${ENDPOINT##*:}"
 echo "Phone is advertising on ${ENDPOINT}"
 echo "::endgroup::"
 
 echo "::group::Bridge the host to the phone"
-adb pull "${EVIDENCE}/pairing.json" "${OUT}/pairing.json"
+adb exec-out run-as "$PKG" cat "${EVIDENCE}/pairing.json" > "${OUT}/pairing.json"
 adb forward "tcp:${HOST_PORT}" "tcp:${DEVICE_PORT}"
 echo "adb forward localhost:${HOST_PORT} -> device:${DEVICE_PORT}"
 echo "::endgroup::"

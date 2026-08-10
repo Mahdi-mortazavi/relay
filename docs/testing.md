@@ -43,6 +43,16 @@ check.
 Every run uploads an artifact with a screenshot of each state, the exact
 pairing payload the app issued, a journal of what the test did, and `logcat`.
 
+Two notes on how the lab is wired, both of which cost a debugging round:
+
+- The APK is built with `-PrelayTestAbis=true`, which adds an **x86_64** split.
+  Releases still ship arm64-v8a only; without the extra split `installDebug`
+  fails outright on an AOSP emulator image, which has no ARM translation.
+- Evidence is written to the app's **internal** files directory and retrieved
+  with `run-as`. Scoped storage hides `/sdcard/Android/data/<pkg>` from the
+  shell user on API 30+, so `adb pull` returns nothing and the artifact arrives
+  empty with no error.
+
 ## Rung 3 — the cross-platform leg (`e2e.yml` → `cross-platform`)
 
 The only test where both platforms' real code meets. The device holds a live

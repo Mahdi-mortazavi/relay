@@ -2,9 +2,11 @@ package io.relay.app.e2e
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.relay.app.MainActivity
 import io.relay.app.R
@@ -73,10 +75,16 @@ class GoldenJourneyTest {
 
         // 3. The phone reaches Advertising and shows a scannable QR.
         val advertising = awaitState<ConnectionState.Advertising>()
-        compose.waitForIdle()
-        compose.onNodeWithContentDescription(
-            compose.activity.getString(R.string.qr_content_description)
-        ).assertIsDisplayed()
+        // The QR is encoded off the main thread, so the node appears a frame or
+        // two after the state does. Wait for it rather than racing it.
+        val qrDescription = compose.activity.getString(R.string.qr_content_description)
+        compose.waitUntil(timeoutMillis = 15_000) {
+            compose.onAllNodesWithContentDescription(qrDescription)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription(qrDescription)
+            .performScrollTo()
+            .assertIsDisplayed()
         DeviceEvidence.screenshot("advertising-qr")
 
         val payload = advertising.payload
@@ -124,7 +132,9 @@ class GoldenJourneyTest {
         // 7. Stop means stop: the state returns to Idle, the tunnel is torn down,
         //    and the port stops accepting. (Regression: stop() used to leave
         //    established tunnels relaying.)
-        compose.onNodeWithText(compose.activity.getString(R.string.action_stop)).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.action_stop))
+            .performScrollTo()
+            .performClick()
         awaitState<ConnectionState.Idle>()
         DeviceEvidence.screenshot("stopped")
 

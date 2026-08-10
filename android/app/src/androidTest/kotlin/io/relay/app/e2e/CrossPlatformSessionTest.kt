@@ -4,7 +4,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import io.relay.app.MainActivity
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
@@ -50,10 +49,7 @@ class CrossPlatformSessionTest {
     @HostHarness
     @Test
     fun holdsASessionWhileTheHostClientConnects() {
-        val evidence = File(
-            InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null),
-            "e2e",
-        ).apply { mkdirs() }
+        val evidence = DeviceEvidence.directory
         File(evidence, "ready").delete()
         File(evidence, "host-done").delete()
 

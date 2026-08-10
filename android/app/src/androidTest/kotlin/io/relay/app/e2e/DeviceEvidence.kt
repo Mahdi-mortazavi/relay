@@ -15,9 +15,16 @@ import java.io.File
  */
 object DeviceEvidence {
 
-    private val directory: File by lazy {
+    /**
+     * The app's *internal* files directory, not external storage: since API 30
+     * scoped storage hides `/sdcard/Android/data/<pkg>` from the shell user, so
+     * `adb pull` came back with nothing and every run uploaded an empty evidence
+     * artifact. The workflow reads this through `run-as`, which works because
+     * the debug APK is debuggable.
+     */
+    val directory: File by lazy {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        File(context.getExternalFilesDir(null), "e2e").apply { mkdirs() }
+        File(context.filesDir, "e2e").apply { mkdirs() }
     }
 
     /** Screenshot of whatever is on screen, named `NN-label.png` in capture order. */

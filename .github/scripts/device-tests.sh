@@ -7,7 +7,10 @@ set -euo pipefail
 
 OUT="${1:?usage: device-tests.sh <output-directory>}"
 PKG=io.relay.app
-EVIDENCE="/sdcard/Android/data/${PKG}/files/e2e"
+# Internal storage, read through run-as: scoped storage hides an app's external
+# files directory from the shell user on API 30+, so adb pull silently returned
+# nothing and every artifact came back empty.
+EVIDENCE="files/e2e"
 
 mkdir -p "$OUT"
 
@@ -18,7 +21,10 @@ echo "::endgroup::"
 
 collect() {
   echo "::group::Collect evidence"
-  adb pull "$EVIDENCE" "$OUT" >/dev/null 2>&1 || echo "no device evidence directory"
+  if adb exec-out run-as "$PKG" tar c "$EVIDENCE" 2>/dev/null > "${OUT}/evidence.tar"; then
+    tar xf "${OUT}/evidence.tar" -C "$OUT" --strip-components=1 2>/dev/null || true
+  fi
+  rm -f "${OUT}/evidence.tar"
   # Inside the script, so the device is still up. Run after the emulator is torn
   # down and adb blocks forever on the stale offline device instead of failing.
   timeout 120 adb logcat -d > "${OUT}/logcat.txt" 2>/dev/null || echo "logcat unavailable"
@@ -28,11 +34,11 @@ collect() {
 trap collect EXIT
 
 echo "::group::Install"
-( cd android && ./gradlew --no-daemon installDebug installDebugAndroidTest )
+( cd android && ./gradlew --no-daemon -PrelayTestAbis=true installDebug installDebugAndroidTest )
 # Pre-granted so the journey test measures the app, not the platform's
 # permission dialog. Absent below API 33, where the grant simply fails.
 adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS 2>/dev/null || true
-adb shell "rm -rf ${EVIDENCE}" 2>/dev/null || true
+adb shell run-as "$PKG" rm -rf "$EVIDENCE" 2>/dev/null || true
 echo "::endgroup::"
 
 echo "::group::Instrumented tests"
