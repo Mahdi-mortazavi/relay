@@ -10,7 +10,7 @@ androidxTest = "1.6.2"
 androidxTestCore = "1.6.1"
 androidxTestExtJunit = "1.2.1"
 kotlinxSerialization = "1.7.3"
-kotlinxCoroutines = "1.9.0"
+kotlinxCoroutines = "1.11.0"
 zxing = "3.5.3"
 wireguard = "1.0.20230706"
 
