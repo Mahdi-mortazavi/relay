@@ -14,6 +14,11 @@ EVIDENCE="files/e2e"
 
 mkdir -p "$OUT"
 
+# Applies to *every* Gradle invocation below, not just the install: passing it
+# with -P on one command and not the next made Gradle rebuild the APK arm64-only
+# for the test task, and AGP then reported "0 of 1 connected devices compatible".
+export ORG_GRADLE_PROJECT_relayTestAbis=true
+
 echo "::group::Device under test"
 adb shell getprop ro.build.version.release | tr -d '\r' | sed 's/^/Android /'
 adb shell getprop ro.build.version.sdk | tr -d '\r' | sed 's/^/API /'
@@ -34,7 +39,7 @@ collect() {
 trap collect EXIT
 
 echo "::group::Install"
-( cd android && ./gradlew --no-daemon -PrelayTestAbis=true installDebug installDebugAndroidTest )
+( cd android && ./gradlew --no-daemon installDebug installDebugAndroidTest )
 # Pre-granted so the journey test measures the app, not the platform's
 # permission dialog. Absent below API 33, where the grant simply fails.
 adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS 2>/dev/null || true

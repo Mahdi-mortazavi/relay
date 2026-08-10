@@ -134,9 +134,12 @@ jobs:
 
       - name: Build the app and the test APK
         working-directory: android
-        # -PrelayTestAbis adds the x86_64 split the emulator needs; see
-        # android/app/build.gradle.kts.
-        run: ./gradlew -PrelayTestAbis=true assembleDebug assembleDebugAndroidTest
+        # The x86_64 split the emulator needs; see android/app/build.gradle.kts.
+        # Set as an environment property so it cannot drift from the value the
+        # emulator script uses when it rebuilds.
+        env:
+          ORG_GRADLE_PROJECT_relayTestAbis: 'true'
+        run: ./gradlew assembleDebug assembleDebugAndroidTest
 
       - name: Restore the host client
         run: dotnet restore windows/Relay.E2E.Tests/Relay.E2E.Tests.csproj
