@@ -26,6 +26,9 @@ android {
         targetSdk = 35
         versionCode = relayVersionCode
         versionName = relayVersion
+        // Instrumented tests are the device half of the test pyramid: they run
+        // the real app on a real Android image in CI (.github/workflows/e2e.yml).
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Signing material lives only in GitHub Secrets (docs/release.md); local and
@@ -103,4 +106,13 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.core.ktx)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

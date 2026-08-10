@@ -1,0 +1,223 @@
+# The device lab (docs/testing.md → "Automated device lab").
+#
+# GitHub provisions everything: an Android emulator built from scratch on every
+# run, and a clean Windows machine. Nothing here depends on a maintainer's
+# hardware, and nothing is mocked at the transport layer — the tests drive the
+# real APK and the real installer, and push real bytes through the real SOCKS5
+# server.
+#
+# Three jobs:
+#   android-device  the golden user journey on a real Android image
+#   cross-platform  the Windows-side client against a live phone, over adb
+#   windows-app     the real installer: install, launch, restore, uninstall
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-device:
+    name: Android device (API ${{ matrix.api }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Two levels that behave differently in ways Relay depends on, rather
+          # than a wide matrix that costs CI time and proves little:
+          #   30 — no POST_NOTIFICATIONS, no typed foreground services
+          #   34 — runtime notification permission + specialUse FGS type
+          - api: 30
+            target: default
+          - api: 34
+            target: google_apis
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Without KVM the emulator falls back to software rendering and the job
+      # times out instead of testing anything.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Cache the AVD
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api }}-${{ matrix.target }}
+
+      - name: Create the AVD snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "AVD created"
+
+      - name: Run the device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: .github/scripts/device-tests.sh "${{ github.workspace }}/e2e-out"
+
+      - name: Collect the device log
+        if: always()
+        run: adb logcat -d > e2e-out/logcat.txt 2>/dev/null || true
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-android-api${{ matrix.api }}
+          path: |
+            e2e-out/**
+            android/app/build/reports/androidTests/**
+            android/app/build/outputs/androidTest-results/**
+          if-no-files-found: warn
+
+  cross-platform:
+    name: Cross-platform (host client ↔ live phone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The host half of this test is the Windows client's own code.
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build the app and the test APK
+        working-directory: android
+        run: ./gradlew assembleDebug assembleDebugAndroidTest
+
+      - name: Restore the host client
+        run: dotnet restore windows/Relay.E2E.Tests/Relay.E2E.Tests.csproj
+
+      - name: Host client against a live phone
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: .github/scripts/install-and-cross-test.sh "${{ github.workspace }}/e2e-out"
+
+      - name: Collect the device log
+        if: always()
+        run: adb logcat -d > e2e-out/logcat.txt 2>/dev/null || true
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-cross-platform
+          path: e2e-out/**
+          if-no-files-found: warn
+
+  windows-app:
+    name: Windows app (installer → launch → uninstall)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Publish the app (x64, self-contained)
+        shell: pwsh
+        run: |
+          $proj = "windows/Relay.App/Relay.App.csproj"
+          $pub = "$env:GITHUB_WORKSPACE\publish-x64"
+          $props = "/p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true"
+          msbuild $proj /restore /t:Build /v:minimal $props.Split(' ')
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          msbuild $proj /t:Publish /v:minimal $props.Split(' ') /p:PublishDir="$pub\"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if (-not (Test-Path "$pub\resources.pri")) {
+            $bin = "windows/Relay.App/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64"
+            $pri = Get-ChildItem $bin -Filter resources.pri -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($pri) { Copy-Item $pri.FullName "$pub\resources.pri" }
+          }
+          if (-not (Test-Path "$pub\resources.pri")) {
+            Write-Error "resources.pri missing — the app would crash at launch."
+            exit 1
+          }
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc /DAppVersion=0.0.0-e2e /DAppPlatform=x64 `
+            "/DSourceDir=$env:GITHUB_WORKSPACE\publish-x64" windows/installer/relay.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install, launch, restore, uninstall
+        # Windows PowerShell, not pwsh: the evidence screenshot needs WinForms.
+        shell: powershell
+        run: .\.github\scripts\windows-app-e2e.ps1 -EvidenceDir "$env:GITHUB_WORKSPACE\e2e-out"
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-windows
+          path: e2e-out/**
+          if-no-files-found: warn
