@@ -1,11 +1,11 @@
-using Relay.App.Services;
+using Relay.Core;
 using Xunit;
 
 namespace Relay.App.Tests;
 
 public class DiagnosticReportTests
 {
-    private static LocalLog.Entry Entry(double at, string message) => new(at, message);
+    private static (double, string) Entry(double at, string message) => (at, message);
 
     [Fact]
     public void Includes_the_state_and_the_log()

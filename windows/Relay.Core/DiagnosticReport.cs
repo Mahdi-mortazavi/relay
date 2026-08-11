@@ -1,7 +1,6 @@
-using System.Reflection;
 using System.Text;
 
-namespace Relay.App.Services;
+namespace Relay.Core;
 
 /// <summary>
 /// Turns "it doesn't work" into something a developer can act on.
@@ -12,6 +11,11 @@ namespace Relay.App.Services;
 /// log has always made — that it stays on this machine unless its owner decides
 /// otherwise. Where it goes is the person's choice: the clipboard, or a GitHub
 /// issue with the body already filled in.
+///
+/// Lives in Core rather than beside the log it formats, because it is string
+/// building with no UI in it, and the tests run against Core alone. Taking the
+/// log as (seconds, message) pairs keeps it from depending on the app project
+/// for a type it only reads two fields from.
 /// </summary>
 public static class DiagnosticReport
 {
@@ -19,13 +23,19 @@ public static class DiagnosticReport
     private const string IssuesUrl = "https://github.com/Mahdi-mortazavi/relay/issues";
 
     /// <summary>Assembles the report from what this machine knows.</summary>
-    public static string Build(string stateSummary, IReadOnlyList<LocalLog.Entry> entries)
+    public static string Build(
+        string stateSummary,
+        IReadOnlyList<(double Seconds, string Message)> entries,
+        // Passed in rather than read from the executing assembly, which after
+        // this class moved into Core would report Core's version instead of the
+        // app's -- a wrong number in a bug report is worse than none.
+        string appVersion = "unknown")
     {
         var report = new StringBuilder();
         report.AppendLine("Relay diagnostic report");
         report.AppendLine("=======================");
         report.AppendLine();
-        report.AppendLine($"App:      {Version()}");
+        report.AppendLine($"App:      {appVersion}");
         report.AppendLine($"Windows:  {Environment.OSVersion.VersionString}");
         report.AppendLine($"Arch:     {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
         report.AppendLine($"64-bit:   {Environment.Is64BitOperatingSystem}");
@@ -41,7 +51,7 @@ public static class DiagnosticReport
         {
             foreach (var entry in entries)
             {
-                report.AppendLine($"{entry.ElapsedSeconds,8:F2}  {entry.Message}");
+                report.AppendLine($"{entry.Seconds,8:F2}  {entry.Message}");
             }
         }
         report.AppendLine();
@@ -65,10 +75,4 @@ public static class DiagnosticReport
     }
 
     private static string Encode(string text) => Uri.EscapeDataString(text);
-
-    private static string Version()
-    {
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        return version is null ? "unknown" : $"{version.Major}.{version.Minor}.{version.Build}";
-    }
 }
