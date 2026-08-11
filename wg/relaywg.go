@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -110,6 +112,59 @@ func (e *Endpoint) Stop() {
 		e.dev = nil
 	}
 	e.tun = nil
+}
+
+// LastHandshakeUnix reports when the peer last completed a handshake, in
+// seconds since the epoch, or 0 if it never has.
+//
+// This is how the phone knows a laptop actually arrived. Fast Mode counts
+// accepted sockets; Full Mode has none to count — the peer's traffic is UDP to
+// a port that answers whether anyone is there or not — so without asking the
+// device, the screen would sit on "waiting for a PC" through an entire
+// download. WireGuard rekeys every two minutes while traffic flows, so a recent
+// handshake is a live peer, not merely one that once connected.
+//
+// Read from the device rather than remembered here: a second copy of this state
+// is a second thing that can disagree with the tunnel.
+func (e *Endpoint) LastHandshakeUnix() int64 {
+	return e.statValue("last_handshake_time_sec")
+}
+
+// BytesReceived and BytesSent are counted from the phone's point of view:
+// received is what the laptop sent up, sent is what went back down.
+func (e *Endpoint) BytesReceived() int64 { return e.statValue("rx_bytes") }
+func (e *Endpoint) BytesSent() int64     { return e.statValue("tx_bytes") }
+
+// statValue pulls one number out of the device's IPC status. Returns 0 for
+// anything it cannot read: this is called once a second to drive a label, and
+// an error path there would be noise, not information.
+func (e *Endpoint) statValue(name string) int64 {
+	if e == nil {
+		return 0
+	}
+	e.mu.Lock()
+	dev := e.dev
+	e.mu.Unlock()
+	if dev == nil {
+		return 0
+	}
+
+	status, err := dev.IpcGet()
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(status, "\n") {
+		key, value, found := strings.Cut(strings.TrimSpace(line), "=")
+		if !found || key != name {
+			continue
+		}
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	}
+	return 0
 }
 
 // forward splices two connections and returns when either side is done.

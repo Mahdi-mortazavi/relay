@@ -72,6 +72,19 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # Full Mode's forwarder is built here rather than pulled from another
+      # job's artifact: what ships has to come from the tagged commit, and an
+      # artifact is a promise about a different run.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: wg/go.sum
+
+      - name: Build the Full Mode library
+        working-directory: .
+        run: scripts/build-wg-aar.sh
+
       - name: Restore signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -88,7 +101,9 @@ jobs:
           RELAY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           RELAY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           RELAY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease bundleRelease -PrelayVersion=${{ needs.version.outputs.version }}
+        # -PrelayRequireWg: a release that quietly lacks Full Mode while the app
+        # still offers it in the UI is the exact failure this guard exists for.
+        run: ./gradlew assembleRelease bundleRelease -PrelayVersion=${{ needs.version.outputs.version }} -PrelayRequireWg=true
 
       - name: Collect artifacts
         run: |

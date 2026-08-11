@@ -268,6 +268,73 @@ func wireguardClient(t *testing.T, privateKey, serverPublic string, port int) (*
 	return dev, tunNet
 }
 
+func TestReportsThePeerOnceItHasArrived(t *testing.T) {
+	// The phone's screen depends on this. A UDP port answers the same whether
+	// or not a laptop is behind it, so "someone connected" can only come from
+	// the handshake -- and if it never appears, Full Mode says "waiting for a
+	// PC" through an entire download.
+	destination := httpServer(t, "counted")
+
+	serverPrivate, serverPublic := keyPair(t)
+	clientPrivate, clientPublic := keyPair(t)
+	port := freeUDPPort(t)
+
+	endpoint, err := Start(fmt.Sprintf(
+		"private_key=%s\nlisten_port=%d\npublic_key=%s\nallowed_ip=10.13.37.2/32\n",
+		serverPrivate, port, clientPublic))
+	if err != nil {
+		t.Fatalf("endpoint did not start: %v", err)
+	}
+	defer endpoint.Stop()
+
+	if got := endpoint.LastHandshakeUnix(); got != 0 {
+		t.Errorf("claimed a handshake at %d before any client existed", got)
+	}
+
+	client, clientNet := wireguardClient(t, clientPrivate, serverPublic, port)
+	defer client.Close()
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{DialContext: clientNet.DialContext},
+		Timeout:   15 * time.Second,
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		if response, err := httpClient.Get("http://" + destination + "/"); err == nil {
+			io.Copy(io.Discard, response.Body)
+			response.Body.Close()
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	if endpoint.LastHandshakeUnix() <= 0 {
+		t.Error("traffic crossed the tunnel and no handshake was reported")
+	}
+	if endpoint.BytesReceived() <= 0 || endpoint.BytesSent() <= 0 {
+		t.Errorf("counters stayed empty after a transfer: rx=%d tx=%d",
+			endpoint.BytesReceived(), endpoint.BytesSent())
+	}
+
+	// After teardown there is nothing to report, and asking must not panic --
+	// the poll that drives the screen runs on its own thread and can easily
+	// arrive one tick after Stop.
+	endpoint.Stop()
+	if got := endpoint.LastHandshakeUnix(); got != 0 {
+		t.Errorf("a stopped endpoint reported a handshake at %d", got)
+	}
+}
+
+func TestPeerCountersAreSafeWhenNothingIsRunning(t *testing.T) {
+	// The gomobile wrappers read through a nil *Endpoint whenever the phone
+	// polls between sessions; that has to be a zero, not a crash inside the
+	// app's own process.
+	StopEndpoint()
+	if LastHandshakeUnix() != 0 || BytesReceived() != 0 || BytesSent() != 0 {
+		t.Error("a stopped session reported traffic")
+	}
+}
+
 func TestStartEndpointReplacesTheRunningOne(t *testing.T) {
 	// A network change restarts sharing. If the old endpoint were left running
 	// it would hold the UDP port and the new one would fail to bind, which

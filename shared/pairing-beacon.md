@@ -106,6 +106,14 @@ Approval state is per sharing session and never persisted: stopping and starting
 sharing asks again. This is deliberate — a remembered decision on a network you
 have since left is a decision made on the wrong network.
 
+**Fast Mode only.** This whole mechanism exists because Fast Mode's transport is
+an unauthenticated SOCKS5 port: anything that can reach it can use it, so the
+only thing standing between a stranger and your data is the person holding the
+phone. Full Mode's client authenticates with a 32-byte private key that existed
+nowhere but inside one QR code, so a peer that completes a WireGuard handshake
+*is* the device that was shown that code. There is nothing left for a prompt to
+establish, and one would only teach people to tap Allow without reading it.
+
 ## Compatibility
 
 The eight-character typed code stays supported for one release: a Windows build

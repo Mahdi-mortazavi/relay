@@ -94,7 +94,7 @@ after uninstall.
 |---|---|---|
 | Physical camera scanning a QR off a real screen | No camera on either runner; `-camera-back none` | **BLOCKED — infrastructure** |
 | The WinUI window's own controls (clicking Connect, reading the popover) | No reliable UI automation for unpackaged WinUI 3 on a GitHub runner | **BLOCKED — infrastructure** |
-| Full Mode / WireGuard | Not implemented yet (Phase 3); the UI does not offer it | **NOT TESTED** |
+| Full Mode's *Windows* client | Creating a WinTun adapter needs elevation and a real machine; the hosted runner has neither | **BLOCKED — infrastructure** |
 | Real Wi-Fi/hotspot radio behaviour, screen-off survival, battery | Emulated networking only | **Manual matrix below** |
 | Windows sleep/resume | Not available on a hosted runner | **BLOCKED — infrastructure** |
 | Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |

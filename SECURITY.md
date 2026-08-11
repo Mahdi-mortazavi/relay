@@ -38,8 +38,11 @@ applied, Relay registers a one-shot recovery entry so a sign-out, shutdown or
 force-kill is repaired at next sign-in instead of leaving you with a dead proxy.
 
 **Per-pairing key material.** Full Mode's WireGuard keys are generated fresh for
-each pairing and discarded on disconnect. (Full Mode is not implemented yet —
-see below.)
+each pairing, held only in memory, and discarded on disconnect. This is also why
+Full Mode has no approval prompt where Fast Mode does: its client authenticates
+with a 32-byte private key that existed only inside one QR code, so a peer that
+completes a handshake is the device that was shown that code. Fast Mode's SOCKS
+port has no such proof and therefore asks.
 
 ## Threat model, stated honestly
 

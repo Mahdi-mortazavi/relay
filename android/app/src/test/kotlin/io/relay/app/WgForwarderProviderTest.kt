@@ -11,28 +11,31 @@ import org.junit.Test
 
 class WgForwarderProviderTest {
 
+    // These run on the JVM. The AAR is on the classpath now that the app ships
+    // it, but its native half cannot load off a device -- which makes this the
+    // honest stand-in for the case that actually bites a user: the library is
+    // there, and it will not load on their ABI. Availability has to be decided
+    // by whether the native side comes up, never by whether a class exists.
+
     @Test
-    fun `full mode is unavailable when the go library is absent`() {
-        // The bridge class ships in every build; the Go library does not. If
-        // availability were decided by the bridge, this build would offer Full
-        // Mode and every attempt would end in WG_START_FAILED -- which is the
-        // exact defect the mode toggle was fixed for once already.
-        //
-        // These unit tests run on the JVM with no AAR, so the honest answer
-        // here is false.
+    fun `full mode is unavailable when the go library cannot load`() {
+        // If availability were decided by the Kotlin bridge class -- which ships
+        // in every build -- this build would offer Full Mode and every attempt
+        // would end in WG_START_FAILED. That is the exact defect the mode
+        // toggle was fixed for once already.
         assertFalse(
-            "Full Mode must not be offered by a build with no relaywg library",
+            "Full Mode must not be offered where relaywg cannot run",
             WgForwarderProvider.isAvailable,
         )
     }
 
     @Test
-    fun `create returns nothing when the library is missing`() {
+    fun `create returns nothing when the library cannot load`() {
         assertNull(WgForwarderProvider.create())
     }
 
     @Test
-    fun `constructing the bridge without the library fails with a readable reason`() {
+    fun `constructing the bridge without a working library fails with a readable reason`() {
         // "ClassNotFoundException: relaywg.Relaywg" tells a user nothing. The
         // message has to say what is missing and why the mode cannot run.
         val failure = assertThrows(WgForwarderException::class.java) { GoWgForwarder() }

@@ -37,7 +37,16 @@ jobs:
           cache-dependency-path: wg/go.sum
 
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          # gofmt is not cosmetic here: this package is read by whoever is
+          # debugging a tunnel that will not come up, and two files had already
+          # drifted before anyone checked.
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would change: $unformatted"
+            exit 1
+          fi
 
       - name: Test the tunnel end to end
         # -race because the forwarders, the packet pump and teardown all touch
@@ -45,36 +54,58 @@ jobs:
         # would show up in the field as an occasional dead tunnel.
         run: go test -race -count=1 ./...
 
-      # The runner image already ships an NDK. An action that downloads another
-      # one restored a half-extracted copy from its cache -- clang itself was
-      # missing -- and the bind failed after the tests had already passed, which
-      # reads as "the endpoint is broken" when the endpoint was fine.
+      # The same script a developer runs, so the library the app ships is built
+      # the way the one on a desk is. The NDK comes from the runner image; an
+      # action that downloads another one restored a half-extracted copy from
+      # its cache -- clang itself was missing -- and the bind failed after the
+      # tests had already passed, which reads as "the endpoint is broken" when
+      # the endpoint was fine.
       - name: Build the Android library
+        working-directory: .
+        run: scripts/build-wg-aar.sh
+
+      # Android 15 can run with 16 KB memory pages, and a shared library whose
+      # segments are aligned for 4 KB simply will not load there: the app
+      # installs, then dies on first use of Full Mode. Emulator images still
+      # use 4 KB pages, so no test in this repo would notice. Checking the
+      # ELF headers does.
+      - name: Check the native libraries are 16 KB aligned
+        working-directory: .
         run: |
           set -euo pipefail
-          export ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
-          echo "Using NDK at $ANDROID_NDK_HOME"
-          test -x "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" \
-            || { echo "::error::That NDK has no clang; gomobile cannot build."; exit 1; }
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          go install golang.org/x/mobile/cmd/gobind@latest
-          gomobile init
-          # arm64 first: it is what nearly every phone runs. The other three
-          # ride along so the universal APK keeps working everywhere.
-          gomobile bind -target=android/arm64,android/arm,android/amd64,android/386 \
-            -androidapi 26 -o relaywg.aar .
-          ls -l relaywg.aar
+          work="$(mktemp -d)"
+          unzip -q android/app/libs/relaywg.aar -d "$work"
+          readelf=$(command -v readelf || echo "$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf")
+          status=0
+          while IFS= read -r so; do
+            # 64-bit ABIs only. 32-bit Android has no 16 KB page mode, and armv7
+            # is built with 4 KB alignment by design.
+            case "$so" in *"/arm64-v8a/"*|*"/x86_64/"*) ;; *) continue ;; esac
+            aligns="$("$readelf" -lW "$so" | awk '$1=="LOAD" {print $NF}')"
+            for align in $aligns; do
+              if [ "$align" != "0x4000" ] && [ "$align" != "0x10000" ]; then
+                echo "::error::$(basename "$(dirname "$so")")/$(basename "$so") has LOAD alignment $align; 16 KB devices need 0x4000 or more"
+                status=1
+              fi
+            done
+            echo "$(basename "$(dirname "$so")")/$(basename "$so"): $aligns"
+          done < <(find "$work" -name '*.so')
+          exit $status
 
       - name: Upload the library
         uses: actions/upload-artifact@v7
         with:
           name: relaywg-aar
-          path: wg/relaywg.aar
+          path: android/app/libs/relaywg.aar
           if-no-files-found: error
 
   android:
     name: Android (build + test)
     runs-on: ubuntu-latest
+    # Waits on the Go job for the Full Mode library. Costs a couple of minutes
+    # of wall clock and buys the thing this project kept getting wrong: the APK
+    # under test is the APK that ships, Full Mode included.
+    needs: wireguard
     defaults:
       run:
         working-directory: android
@@ -90,8 +121,16 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Take the Full Mode library
+        uses: actions/download-artifact@v4
+        with:
+          name: relaywg-aar
+          path: android/app/libs
+
       - name: Build and run unit tests
-        run: ./gradlew assembleDebug testDebugUnitTest
+        # -PrelayRequireWg: fail rather than quietly build an app without Full
+        # Mode. The download above can succeed and leave nothing usable behind.
+        run: ./gradlew assembleDebug testDebugUnitTest -PrelayRequireWg=true
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7

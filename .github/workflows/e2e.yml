@@ -23,10 +23,97 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Full Mode's forwarder, built once and handed to every job that installs the
+  # app. Built here rather than downloaded from the CI workflow because a job
+  # must not depend on another *workflow* having run: the APK these tests
+  # exercise has to contain the same library the release will ship, or the lab
+  # proves the mode works in a build nobody gets.
+  wg-library:
+    name: Full Mode library
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: wg/go.sum
+
+      - name: Build it
+        run: scripts/build-wg-aar.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: relaywg-aar-e2e
+          path: android/app/libs/relaywg.aar
+          if-no-files-found: error
+
+  # The endpoint itself, on Android. The Go job runs this suite against glibc on
+  # the runner; this runs the same binary, cross-compiled for bionic, on a real
+  # Android image. Full Mode is the one part of Relay that is almost entirely
+  # system calls — raw UDP, a userspace network stack, sockets dialled out of it
+  # — and "it works on Linux" is not what anyone downloads the app for.
+  wg-on-device:
+    name: Full Mode endpoint (on a device)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: wg/go.sum
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Cross-compile the suite for Android
+        working-directory: wg
+        run: |
+          set -euo pipefail
+          ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          # CGO is not optional here: without it Go cannot use bionic's
+          # resolver, and the build would not be the one that ships.
+          export CGO_ENABLED=1
+          export CC="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang"
+          test -x "$CC" || { echo "::error::No NDK clang at $CC"; exit 1; }
+          GOOS=android GOARCH=amd64 go test -c -o "$RUNNER_TEMP/relaywg.test" .
+          ls -l "$RUNNER_TEMP/relaywg.test"
+
+      - name: Run it on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: .github/scripts/wg-device-test.sh "${{ runner.temp }}/relaywg.test" "${{ github.workspace }}/e2e-out"
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-wg-on-device
+          path: e2e-out/**
+          if-no-files-found: warn
+
   android-device:
     name: Android device (API ${{ matrix.api }})
     runs-on: ubuntu-latest
+    needs: wg-library
     timeout-minutes: 45
+    env:
+      ORG_GRADLE_PROJECT_relayRequireWg: 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +137,12 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Take the Full Mode library
+        uses: actions/download-artifact@v4
+        with:
+          name: relaywg-aar-e2e
+          path: android/app/libs
 
       # Without KVM the emulator falls back to software rendering and the job
       # times out instead of testing anything.
@@ -111,7 +204,13 @@ jobs:
   universal-apk:
     name: Universal APK (x86_64 device)
     runs-on: ubuntu-latest
+    needs: wg-library
     timeout-minutes: 45
+    # Applies to every Gradle call in the job, including the ones inside the
+    # scripts, so a missing Full Mode library fails here instead of quietly
+    # producing an APK the lab then declares fit to ship.
+    env:
+      ORG_GRADLE_PROJECT_relayRequireWg: 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -123,6 +222,12 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Take the Full Mode library
+        uses: actions/download-artifact@v4
+        with:
+          name: relaywg-aar-e2e
+          path: android/app/libs
 
       - name: Enable KVM
         run: |
@@ -186,7 +291,10 @@ jobs:
   cross-platform:
     name: Cross-platform (host client ↔ live phone)
     runs-on: ubuntu-latest
+    needs: wg-library
     timeout-minutes: 45
+    env:
+      ORG_GRADLE_PROJECT_relayRequireWg: 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -198,6 +306,12 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Take the Full Mode library
+        uses: actions/download-artifact@v4
+        with:
+          name: relaywg-aar-e2e
+          path: android/app/libs
 
       # The host half of this test is the Windows client's own code.
       - name: Set up .NET 8

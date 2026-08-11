@@ -11,6 +11,27 @@ Releases are cut per platform (`android-vX.Y.Z`, `windows-vX.Y.Z`) — see
 
 ### Added
 
+- **Full Mode works on Android and can be switched on.** The phone runs a
+  userspace WireGuard endpoint that carries the PC's TCP *and* UDP (ADR-0008).
+  Three separate things had to be fixed before it could work at all, and none of
+  them had a test:
+  - the forwarder library was never put into the APK, so the mode was offered by
+    a build that did not contain it;
+  - the configuration the app assembled was `wg-quick` INI, while wireguard-go's
+    IPC only reads flat hex — every attempt failed as "rejected configuration";
+  - the phone routed its peer at `10.7.0.2` while the client and the endpoint
+    both use `10.13.37.2`, which would have given a tunnel that handshakes and
+    then carries nothing.
+  The exact configuration string now lives in `/shared/test-vectors.json`,
+  asserted by the Android suite and applied to a real device by the Go suite,
+  and the endpoint's own test suite is cross-compiled for Android and run on an
+  emulator.
+- Full Mode reports its connected peer, so the phone shows **Connected** and
+  holds the transfer wake lock while a laptop is actually using the tunnel,
+  instead of sitting on "waiting for a PC" through a whole download.
+- `scripts/build-wg-aar.sh` builds the forwarder library; CI, the release
+  workflow and a developer's machine all use it.
+
 - **A device lab that GitHub provisions itself** (`.github/workflows/e2e.yml`).
   Every pull request now runs the real APK on a real Android emulator (API 30
   and 34), drives the golden journey through the real UI, and relays real HTTP
@@ -30,6 +51,15 @@ Releases are cut per platform (`android-vX.Y.Z`, `windows-vX.Y.Z`) — see
 
 ### Fixed
 
+- **Full Mode's native library would not have loaded on Android 15's 16 KB-page
+  devices.** gomobile aligns for 4 KB pages by default and every emulator image
+  uses 4 KB pages, so the app would have installed, offered the mode, and died
+  the moment anyone on a new phone turned it on — with nothing in CI to notice.
+  The library is now linked with `max-page-size=16384` and the build checks the
+  ELF headers rather than trusting the flag.
+- The APK no longer carries `com.wireguard.android`'s `GoBackend` natives: a
+  second, complete copy of wireguard-go for running a *client* tunnel, which
+  this app never constructs. 3.5 MB per ABI, 14 MB off the universal APK.
 - **"Stop sharing" did not stop the traffic.** Closing the listening socket and
   cancelling the coroutine scope cannot interrupt a blocking read; only closing
   the socket can. The notification and wake lock went away while the laptop kept

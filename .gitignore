@@ -23,6 +23,11 @@ android/.kotlin/
 *.aab
 *.keystore
 *.jks
+# Full Mode's forwarder, built from /wg by scripts/build-wg-aar.sh. A build
+# output, not a source: ~10 MB of compiled Go per checkout, and a committed copy
+# would drift from /wg the first time anyone changed it. The whole directory,
+# because gomobile drops a sources jar beside the AAR.
+android/app/libs/
 
 # --- Windows / .NET ---
 windows/**/bin/
