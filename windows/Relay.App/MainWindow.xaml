@@ -205,8 +205,12 @@
                 <Grid>
                     <TextBlock x:Name="AdvancedLogsLabel" Style="{StaticResource CaptionText}"
                                VerticalAlignment="Center" />
-                    <HyperlinkButton x:Name="AdvancedLogsClear" HorizontalAlignment="Right"
-                                     Padding="0" Click="OnClearLogsClick" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                        <HyperlinkButton x:Name="AdvancedLogsShare" Padding="0"
+                                         Click="OnShareLogsClick" />
+                        <HyperlinkButton x:Name="AdvancedLogsClear" Padding="0"
+                                         Click="OnClearLogsClick" />
+                    </StackPanel>
                 </Grid>
                 <Border CornerRadius="{StaticResource SunkenCorner}"
                         Background="{StaticResource FillSunken}" Padding="12,10">

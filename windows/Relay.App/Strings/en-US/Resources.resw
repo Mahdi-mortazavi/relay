@@ -126,4 +126,7 @@
   <data name="ErrCodeAmbiguous" xml:space="preserve">
     <value>Two phones are using that code. Stop sharing on one of them and try again.</value>
   </data>
+  <data name="AdvancedLogsShare" xml:space="preserve">
+    <value>Share report</value>
+  </data>
 </root>

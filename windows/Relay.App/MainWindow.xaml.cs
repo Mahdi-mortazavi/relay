@@ -356,6 +356,7 @@ public sealed partial class MainWindow : Window
         AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
         AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
         AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
+        AdvancedLogsShare.Content = Strings.Get("AdvancedLogsShare");
     }
 
     /// <summary>
@@ -394,6 +395,36 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnClearLogsClick(object sender, RoutedEventArgs e) => LocalLog.Clear();
+
+    /// <summary>
+    /// Puts the report on the clipboard and opens a GitHub issue with it
+    /// already in the body. Two steps rather than one because the clipboard
+    /// copy is what saves the report if the browser fails to open, and because
+    /// a person who would rather send it somewhere else -- Telegram, mail --
+    /// now has it in hand without being routed through GitHub first.
+    /// </summary>
+    private async void OnShareLogsClick(object sender, RoutedEventArgs e)
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        var entries = LocalLog.Snapshot()
+            .Select(entry => (entry.ElapsedSeconds, entry.Message))
+            .ToList();
+        var report = DiagnosticReport.Build(
+            StateSummary(),
+            entries,
+            version is null ? "unknown" : $"{version.Major}.{version.Minor}.{version.Build}");
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(report);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        LocalLog.Add("Diagnostic report copied to the clipboard");
+
+        await Windows.System.Launcher.LaunchUriAsync(new Uri(DiagnosticReport.IssueUrl(report)));
+    }
+
+    /// <summary>One line saying what went wrong, not just which screen is up.</summary>
+    private string StateSummary() =>
+        _localError is not null ? $"Error: {_localError}" : _controller.State.ToString();
 
     // --- state projection ----------------------------------------------------
 

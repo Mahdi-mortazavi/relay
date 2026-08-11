@@ -126,4 +126,7 @@
   <data name="ErrCodeAmbiguous" xml:space="preserve">
     <value>دو گوشی از این کد استفاده می‌کنند. روی یکی‌شان اشتراک‌گذاری را متوقف کنید و دوباره تلاش کنید.</value>
   </data>
+  <data name="AdvancedLogsShare" xml:space="preserve">
+    <value>ارسال گزارش</value>
+  </data>
 </root>
