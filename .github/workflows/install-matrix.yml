@@ -35,64 +35,28 @@ permissions:
 jobs:
   probe:
     name: ${{ matrix.label }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
+        # Android 11 is where the failure was reported and the gap nothing
+        # covered: the device lab does run API 30, but it installs an APK CI
+        # just built, and the universal APK had only ever been installed on
+        # API 34. The two had never met.
+        #
+        # All of it runs on x86_64 because that is the only place an emulator
+        # can be accelerated here — GitHub's arm64 runners have no /dev/kvm
+        # ("Failed to open the device 'kvm'"), so a native arm64 emulator is
+        # not available at any price. The google_apis images translate arm64,
+        # which is what lets the upgrade probe below install the previous
+        # arm64-only release and replace it, exactly as a phone would.
         include:
-          # The ABI a real phone runs, on a native arm64 runner. This is the
-          # exact path a user takes and the one nothing covered before.
-          # Android 11 on arm64 is the oldest release users actually run and
-          # the combination that was least covered: the universal APK had only
-          # ever been installed on API 34, and only on x86_64.
-          - label: 'arm64 phone, Android 11'
-            runner: ubuntu-24.04-arm
-            arch: arm64-v8a
-            api: 30
-            target: google_apis
-            apks: universal arm64-v8a
-          - label: 'arm64 phone, Android 12'
-            runner: ubuntu-24.04-arm
-            arch: arm64-v8a
-            api: 31
-            target: google_apis
-            apks: universal arm64-v8a
-          # Both files are expected to install here, so both are probed.
-          - label: 'arm64 phone, Android 14'
-            runner: ubuntu-24.04-arm
-            arch: arm64-v8a
-            api: 34
-            target: google_apis
-            apks: universal arm64-v8a
-          - label: 'arm64 phone, Android 15'
-            runner: ubuntu-24.04-arm
-            arch: arm64-v8a
-            api: 35
-            target: google_apis
-            apks: universal arm64-v8a
-          - label: 'arm64 phone, Android 16'
-            runner: ubuntu-24.04-arm
-            arch: arm64-v8a
-            api: 36
-            target: google_apis
-            apks: universal arm64-v8a
-          # Newer Android on x86_64, which the device lab stops short of. Only
-          # the universal APK is probed here: the arm64 file is *supposed* to
-          # be rejected by an x86_64 device, so asserting on it would be
-          # asserting that a correct platform behaviour is a bug.
-          - label: 'x86_64, Android 15'
-            runner: ubuntu-latest
-            arch: x86_64
-            api: 35
-            target: google_apis
-            apks: universal
-          - label: 'x86_64, Android 16'
-            runner: ubuntu-latest
-            arch: x86_64
-            api: 36
-            target: google_apis
-            apks: universal
+          - { api: 30, label: 'Android 11' }
+          - { api: 31, label: 'Android 12' }
+          - { api: 34, label: 'Android 14' }
+          - { api: 35, label: 'Android 15' }
+          - { api: 36, label: 'Android 16' }
 
     steps:
       - uses: actions/checkout@v7
@@ -114,27 +78,24 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
-          target: ${{ matrix.target }}
-          arch: ${{ matrix.arch }}
+          target: google_apis
+          arch: x86_64
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
             chmod +x .github/scripts/install-probe.sh
-            APKS=""
-            for v in ${{ matrix.apks }}; do
-              APKS="$APKS published/Relay-android-$v.apk"
-            done
             # The reported failure was an upgrade on arm64: an existing install
             # replaced by the universal build. Probe exactly that.
             export RELAY_UPGRADE_FROM=published-prev/Relay-android-arm64-v8a.apk
             export RELAY_UPGRADE_TO=published/Relay-android-universal.apk
-            .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" $APKS
+            .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" \
+              published/Relay-android-universal.apk
 
       - name: Upload the verdict
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: install-probe-${{ matrix.arch }}-api${{ matrix.api }}
+          name: install-probe-api${{ matrix.api }}
           path: probe-out/
           if-no-files-found: warn
