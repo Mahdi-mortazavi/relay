@@ -140,6 +140,32 @@ if ($size -lt 1MB) {
     exit 1
 }
 
+# ------------------------------------------------------------------- space
+# Android needs room for the APK plus the code it optimises out of it, so a
+# phone can have more free bytes than the file and still refuse. Checking here
+# turns a stack trace after a 15 MB download into a number beforehand.
+$free = 0
+$dfLine = & $adb -s $serial shell df /data 2>$null | Select-Object -Last 1
+if ($dfLine) {
+    $columns = ([string]$dfLine -split '\s+') | Where-Object { $_ -match '^\d+$' }
+    # df reports 1K blocks; the available column is the third number.
+    if ($columns.Count -ge 3) { $free = [int64]$columns[2] * 1024 }
+}
+if ($free -gt 0) {
+    Info ("free space on /data: {0:N0} bytes" -f $free)
+    if ($free -lt ($size * 2)) {
+        Bad 'Not enough free space for this install.'
+        Info ("The APK is {0:N0} bytes and Android needs roughly twice that." -f $size)
+        if ($abis -match 'arm64') {
+            Info 'This phone is arm64, so the smaller build fits where this one'
+            Info 'does not - about a third of the size:'
+            Say  '  https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk' 'Yellow'
+        }
+        Say  '  FIX: free up some space, or install the smaller APK above.' 'Yellow'
+        Info 'Continuing anyway so you can see what the platform says.'
+    }
+}
+
 # ------------------------------------------------- what is already installed
 Say ''
 Say 'Checking what is already on the phone' 'Cyan'
@@ -200,6 +226,24 @@ if (-not $shown) { $shown = $out }
 Bad "Install failed: $shown"
 Say ''
 Say 'What that means' 'Cyan'
+
+# Checked before the switch because it does not always arrive as an
+# INSTALL_FAILED_* code: on Android 11 a full partition comes back as a raw
+# java.io.IOException, so there is no reason string to match on.
+if ($out -match 'not enough space|Requested internal only') {
+    Info 'The phone does not have room for this app. "Requested internal only"'
+    Info 'means Android was not allowed to fall back to any other storage.'
+    if ($abis -match 'arm64') {
+        Info ''
+        Info 'This phone is arm64, so the smaller build is the quickest fix -'
+        Info 'the same app, about a third of the size:'
+        Say  '  https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk' 'Yellow'
+    }
+    Say  '  FIX: free up a few hundred MB, or install the smaller APK above.' 'Yellow'
+    Say ''
+    Say 'More detail: docs/install-troubleshooting.md' 'DarkGray'
+    exit 1
+}
 
 switch -Regex ($reason) {
     'UPDATE_INCOMPATIBLE|ALREADY_EXISTS' {
