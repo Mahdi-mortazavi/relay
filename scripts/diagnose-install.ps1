@@ -1,4 +1,4 @@
-# Find out why an Android install failed, on the phone in front of you.
+﻿# Find out why an Android install failed, on the phone in front of you.
 #
 # "App not installed" is the only thing Android tells most people, and it
 # covers several unrelated causes. This asks the phone directly and names the
@@ -10,6 +10,10 @@
 #
 # It changes nothing on the phone unless you pass -Fix, which uninstalls the
 # copy that is already there before installing.
+#
+# Written for Windows PowerShell 5.1, the one that ships with Windows: no
+# null-conditionals, no ternaries, and ASCII only, because 5.1 reads a
+# BOM-less .ps1 as ANSI and would mangle anything else.
 
 [CmdletBinding()]
 param(
@@ -19,7 +23,11 @@ param(
     [switch]$Fix
 )
 
-$ErrorActionPreference = 'Stop'
+# Deliberately not 'Stop'. adb writes ordinary progress to stderr, and with
+# 'Stop' plus the 2>&1 further down PowerShell turns that into a terminating
+# error -- so the script would die on a failed install, which is the exact
+# moment it exists to explain. Every call below is checked by hand instead.
+$ErrorActionPreference = 'Continue'
 $Package = 'io.relay.app'
 
 function Say([string]$Text, [string]$Colour = 'Gray') { Write-Host $Text -ForegroundColor $Colour }
@@ -32,12 +40,15 @@ Say 'Relay install diagnosis' 'Cyan'
 Say '=======================' 'Cyan'
 
 # --------------------------------------------------------------------- adb
-$adb = (Get-Command adb -ErrorAction SilentlyContinue)?.Source
+$adbCommand = Get-Command adb -ErrorAction SilentlyContinue
+$adb = $null
+if ($adbCommand) { $adb = $adbCommand.Source }
 if (-not $adb) {
     foreach ($candidate in @(
         "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe",
         "$env:ProgramFiles\Android\platform-tools\adb.exe",
-        "$env:USERPROFILE\platform-tools\adb.exe")) {
+        "$env:USERPROFILE\platform-tools\adb.exe",
+        "$env:USERPROFILE\Downloads\platform-tools\adb.exe")) {
         if (Test-Path $candidate) { $adb = $candidate; break }
     }
 }
@@ -64,15 +75,25 @@ if (-not $ready) {
     }
     exit 2
 }
-$serial  = ($ready[0] -split '\s+')[0]
-$release = (& $adb -s $serial shell getprop ro.build.version.release).Trim()
-$sdk     = (& $adb -s $serial shell getprop ro.build.version.sdk).Trim()
-$abis    = (& $adb -s $serial shell getprop ro.product.cpu.abilist).Trim()
-$model   = (& $adb -s $serial shell getprop ro.product.model).Trim()
-Ok "phone: $model — Android $release (API $sdk)"
+$serial = ($ready[0] -split '\s+')[0]
+
+function Prop([string]$Name) {
+    # A failed getprop returns nothing, and .Trim() on that throws -- which
+    # would end the run with a PowerShell stack trace instead of an answer.
+    $v = & $adb -s $serial shell getprop $Name 2>$null
+    if ($null -eq $v) { return '' }
+    return ([string]$v).Trim()
+}
+$release = Prop 'ro.build.version.release'
+$sdk     = Prop 'ro.build.version.sdk'
+$abis    = Prop 'ro.product.cpu.abilist'
+$model   = Prop 'ro.product.model'
+Ok "phone: $model - Android $release (API $sdk)"
 Info "CPU: $abis"
 
-if ([int]$sdk -lt 26) {
+$sdkNumber = 0
+[void][int]::TryParse($sdk, [ref]$sdkNumber)
+if ($sdkNumber -gt 0 -and $sdkNumber -lt 26) {
     Bad "Relay needs Android 8.0 (API 26). This phone is API $sdk."
     Info 'No build of Relay can install here. This is the whole answer.'
     exit 1
@@ -84,7 +105,16 @@ if (-not $Apk) {
     Say ''
     Say 'Downloading the latest universal APK...' 'Cyan'
     $url = 'https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk'
-    Invoke-WebRequest -Uri $url -OutFile $Apk -UseBasicParsing
+    try {
+        # 5.1 defaults to TLS 1.0, which GitHub refuses.
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $url -OutFile $Apk -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Bad "Could not download the APK: $($_.Exception.Message)"
+        Info 'Download it by hand from the releases page and pass it in:'
+        Info '  diagnose-install.ps1 -Apk C:\path\to\Relay-android-universal.apk'
+        exit 2
+    }
 }
 if (-not (Test-Path $Apk)) { Bad "No such file: $Apk"; exit 2 }
 $size = (Get-Item $Apk).Length
@@ -92,7 +122,7 @@ Ok ("apk: {0} ({1:N0} bytes)" -f (Split-Path $Apk -Leaf), $size)
 
 # A truncated download is indistinguishable from a corrupt APK until you look.
 if ($size -lt 1MB) {
-    Bad 'That file is too small to be an APK — the download was interrupted.'
+    Bad 'That file is too small to be an APK - the download was interrupted.'
     Info 'Delete it and download it again.'
     exit 1
 }
@@ -100,13 +130,13 @@ if ($size -lt 1MB) {
 # ------------------------------------------------- what is already installed
 Say ''
 Say 'Checking what is already on the phone' 'Cyan'
-$installed = (& $adb -s $serial shell pm list packages $Package) -match $Package
+$installed = (& $adb -s $serial shell pm list packages $Package 2>$null) -match $Package
 if ($installed) {
-    $versionLine = (& $adb -s $serial shell dumpsys package $Package |
-                    Select-String -Pattern 'versionName=' | Select-Object -First 1).ToString().Trim()
-    $installer   = (& $adb -s $serial shell pm list packages -i $Package).ToString().Trim()
-    Bad "Relay is already installed — $versionLine"
-    Info $installer
+    $match = & $adb -s $serial shell dumpsys package $Package 2>$null |
+             Select-String -Pattern 'versionName=' | Select-Object -First 1
+    $versionLine = 'version unknown'
+    if ($match) { $versionLine = $match.ToString().Trim() }
+    Bad "Relay is already installed - $versionLine"
     Info ''
     Info 'This is the most common cause of "App not installed": Android refuses'
     Info 'to replace an app unless the new file carries the same signing key,'
@@ -114,13 +144,13 @@ if ($installed) {
     if ($Fix) {
         Say ''
         Say 'Removing it (-Fix was passed)...' 'Yellow'
-        & $adb -s $serial uninstall $Package | Out-Null
+        & $adb -s $serial uninstall $Package 2>&1 | Out-Null
         Ok 'Removed.'
     } else {
         Info 'Re-run with -Fix to remove it and install cleanly.'
     }
 } else {
-    Ok 'No existing copy — a signature clash cannot be the cause.'
+    Ok 'No existing copy - a signature clash cannot be the cause.'
 }
 
 # ----------------------------------------------------------------- install
@@ -132,28 +162,35 @@ if ($out -match 'Success') {
     Ok 'Installed.'
     & $adb -s $serial shell monkey -p $Package -c android.intent.category.LAUNCHER 1 2>&1 | Out-Null
     Start-Sleep -Seconds 4
-    $pid_ = (& $adb -s $serial shell pidof $Package).Trim()
-    if ($pid_) { Ok 'Launched and still running.' }
-    else {
+    # pidof is missing on some builds, so fall back to the process list.
+    $alive = & $adb -s $serial shell pidof $Package 2>$null
+    if (-not $alive) {
+        $alive = & $adb -s $serial shell ps -A 2>$null | Select-String $Package
+    }
+    if ($alive) {
+        Ok 'Launched and still running.'
+    } else {
         Bad 'It installed but the process died on launch.'
         Info 'Crash log:'
-        & $adb -s $serial logcat -d -b crash | Select-Object -Last 30 | ForEach-Object { Info $_ }
+        & $adb -s $serial logcat -d -b crash 2>$null | Select-Object -Last 30 | ForEach-Object { Info $_ }
         exit 1
     }
     Say ''
-    Say 'Nothing is wrong with the download — it installs and runs here.' 'Green'
+    Say 'Nothing is wrong with the download - it installs and runs here.' 'Green'
     exit 0
 }
 
 # ------------------------------------------------- name the failure exactly
 $reason = ([regex]::Match($out, 'INSTALL_[A-Z_]+')).Value
-Bad "Install failed: $(if ($reason) { $reason } else { $out })"
+$shown = $reason
+if (-not $shown) { $shown = $out }
+Bad "Install failed: $shown"
 Say ''
 Say 'What that means' 'Cyan'
 
 switch -Regex ($reason) {
     'UPDATE_INCOMPATIBLE|ALREADY_EXISTS' {
-        Info 'A copy is installed that was signed with a different key — almost'
+        Info 'A copy is installed that was signed with a different key - almost'
         Info 'always one built from source. Android will not replace it.'
         Say  '  FIX: re-run this script with -Fix, or: adb uninstall io.relay.app' 'Yellow'
     }
@@ -171,21 +208,21 @@ switch -Regex ($reason) {
         Say  '  FIX: free up a few hundred MB and try again.' 'Yellow'
     }
     'PARSE_FAILED|INVALID_APK' {
-        Info 'The file is not a valid APK — usually a truncated download, or the'
+        Info 'The file is not a valid APK - usually a truncated download, or the'
         Info '.aab bundle, which is not installable by design.'
         Say  '  FIX: download Relay-android-universal.apk again and check it against' 'Yellow'
         Say  '       SHA256SUMS.txt on the release page.' 'Yellow'
     }
-    'FAILED_OLDER_SDK' {
+    'OLDER_SDK' {
         Info "Relay needs Android 8.0; this phone is API $sdk."
-        Say  '  FIX: none — the phone is too old for this app.' 'Yellow'
+        Say  '  FIX: none - the phone is too old for this app.' 'Yellow'
     }
     default {
         Info 'Not a failure this script knows about. The full output was:'
         $out -split "`n" | ForEach-Object { Info $_ }
         Info ''
         Info 'Please open an issue with these lines, the phone model and Android'
-        Info 'version above — that is enough to identify it.'
+        Info 'version above - that is enough to identify it.'
     }
 }
 Say ''
