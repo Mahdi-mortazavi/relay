@@ -85,6 +85,49 @@ for APK in "$@"; do
   echo | tee -a "$RESULTS"
 done
 
+# ------------------------------------------------------------- the upgrade path
+# Almost nobody installs onto a clean phone. They already have the previous
+# version and tap the new file on top of it, which is a different code path:
+# the platform now has to reconcile signatures, version codes and the native
+# ABI it picked last time. RELAY_UPGRADE_FROM/RELAY_UPGRADE_TO name the two
+# files; both must be present for the probe to mean anything.
+if [ -n "${RELAY_UPGRADE_FROM:-}" ] && [ -f "${RELAY_UPGRADE_FROM}" ] \
+   && [ -n "${RELAY_UPGRADE_TO:-}" ] && [ -f "${RELAY_UPGRADE_TO}" ]; then
+  echo "upgrade: $(basename "$RELAY_UPGRADE_FROM") -> $(basename "$RELAY_UPGRADE_TO")" \
+    | tee -a "$RESULTS"
+
+  adb uninstall "$PKG" >/dev/null 2>&1 || true
+  if adb install "$RELAY_UPGRADE_FROM" 2>&1 | grep -qi "^Success"; then
+    note "  └ previous version installs" "PASS"
+
+    OLD_ABI=$(adb shell pm dump "$PKG" 2>/dev/null | grep -m1 -o 'primaryCpuAbi=[a-z0-9_-]*' | cut -d= -f2 | tr -d '\r')
+
+    # -r is what the package installer does for an upgrade: keep the data,
+    # replace the code. Without it the platform refuses outright.
+    OUT_UP=$(adb install -r "$RELAY_UPGRADE_TO" 2>&1)
+    if grep -qi "^Success" <<<"$OUT_UP"; then
+      NEW_ABI=$(adb shell pm dump "$PKG" 2>/dev/null | grep -m1 -o 'primaryCpuAbi=[a-z0-9_-]*' | cut -d= -f2 | tr -d '\r')
+      note "  └ upgrade installs over it" "PASS" "abi $OLD_ABI -> $NEW_ABI"
+
+      adb shell am start -W -n "$PKG/.MainActivity" >/dev/null 2>&1
+      sleep 4
+      if adb shell pidof "$PKG" >/dev/null 2>&1; then
+        note "  └ upgraded app still runs" "PASS"
+      else
+        note "  └ upgraded app still runs" "FAIL" "process gone after upgrade"
+        adb logcat -d -b crash 2>/dev/null | tail -40 > "$OUT/crash-upgrade.txt"
+      fi
+    else
+      REASON=$(grep -o 'INSTALL_[A-Z_]*' <<<"$OUT_UP" | head -1)
+      note "  └ upgrade installs over it" "FAIL" "${REASON:-$(tr '\n' ' ' <<<"$OUT_UP" | cut -c1-120)}"
+    fi
+  else
+    note "  └ previous version installs" "FAIL" "cannot set up the upgrade probe"
+  fi
+  adb uninstall "$PKG" >/dev/null 2>&1 || true
+  echo | tee -a "$RESULTS"
+fi
+
 echo "--- summary ---" | tee -a "$RESULTS"
 if grep -q "FAIL" "$RESULTS"; then
   echo "FAILURES on API $SDK ($ABIS)" | tee -a "$RESULTS"

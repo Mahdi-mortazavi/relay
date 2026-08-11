@@ -43,6 +43,21 @@ jobs:
         include:
           # The ABI a real phone runs, on a native arm64 runner. This is the
           # exact path a user takes and the one nothing covered before.
+          # Android 11 on arm64 is the oldest release users actually run and
+          # the combination that was least covered: the universal APK had only
+          # ever been installed on API 34, and only on x86_64.
+          - label: 'arm64 phone, Android 11'
+            runner: ubuntu-24.04-arm
+            arch: arm64-v8a
+            api: 30
+            target: google_apis
+            apks: universal arm64-v8a
+          - label: 'arm64 phone, Android 12'
+            runner: ubuntu-24.04-arm
+            arch: arm64-v8a
+            api: 31
+            target: google_apis
+            apks: universal arm64-v8a
           # Both files are expected to install here, so both are probed.
           - label: 'arm64 phone, Android 14'
             runner: ubuntu-24.04-arm
@@ -93,7 +108,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-        run: python3 .github/scripts/fetch-release-apks.py "$GITHUB_REPOSITORY" "$TAG" published
+        run: python3 .github/scripts/fetch-release-apks.py "$GITHUB_REPOSITORY" "$TAG" published published-prev
 
       - name: Install the published APKs on a device
         uses: reactivecircus/android-emulator-runner@v2
@@ -110,6 +125,10 @@ jobs:
             for v in ${{ matrix.apks }}; do
               APKS="$APKS published/Relay-android-$v.apk"
             done
+            # The reported failure was an upgrade on arm64: an existing install
+            # replaced by the universal build. Probe exactly that.
+            export RELAY_UPGRADE_FROM=published-prev/Relay-android-arm64-v8a.apk
+            export RELAY_UPGRADE_TO=published/Relay-android-universal.apk
             .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" $APKS
 
       - name: Upload the verdict
