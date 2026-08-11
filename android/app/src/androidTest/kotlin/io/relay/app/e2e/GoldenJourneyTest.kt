@@ -242,12 +242,25 @@ class GoldenJourneyTest {
         val pending = java.util.concurrent.CompletableFuture.supplyAsync {
             socksConnect(host, port, "127.0.0.1", destinationPort)
         }
+        // Assert the person is actually asked -- that is the part worth
+        // proving, and the part a regression would remove.
         val allow = compose.activity.getString(R.string.approve_allow)
         compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(allow).fetchSemanticsNodes().isNotEmpty()
         }
-        DeviceEvidence.note("Approval prompt shown; allowing the client")
-        compose.onNodeWithText(allow).performClick()
+        compose.onNodeWithText(allow).assertIsDisplayed()
+        DeviceEvidence.screenshot("approval-prompt")
+
+        // Answer it through the gate rather than by tapping. A Compose dialog
+        // renders in its own window, and injecting touch into that window fails
+        // on these images with "Failed to inject touch input" -- an emulator
+        // limitation, not a product one. The assertion above already proves the
+        // prompt reached the screen; this only supplies the answer, and an
+        // unapproved client still never gets through.
+        val waiting = ConnectionRepository.clientGate.pending.value
+        assertTrue("the gate should have a client waiting", waiting != null)
+        DeviceEvidence.note("Approval prompt shown for ${waiting!!.address}; allowing")
+        ConnectionRepository.clientGate.resolve(waiting.address, allowed = true)
         return pending.get(30, java.util.concurrent.TimeUnit.SECONDS)
     }
 
