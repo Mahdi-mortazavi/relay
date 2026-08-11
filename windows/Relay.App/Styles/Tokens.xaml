@@ -23,6 +23,13 @@
     <Color x:Key="ScrimTopColor">#40101318</Color>
     <Color x:Key="ScrimBottomColor">#59080A0E</Color>
 
+    <!-- The solid fallback for the one glass surface in the app. Every glass
+         token needs one: with transparency effects turned off there is no
+         backdrop behind the scrim, and a 25%-alpha gradient over nothing is a
+         window you can see the desktop through. Darker than the scrim on
+         purpose, so the same foreground pairs keep their contrast. -->
+    <SolidColorBrush x:Key="WindowSolidBrush" Color="#FF12161D" />
+
     <SolidColorBrush x:Key="LabelPrimary"   Color="#F5FFFFFF" />
     <SolidColorBrush x:Key="LabelSecondary" Color="#B8FFFFFF" />
     <SolidColorBrush x:Key="LabelTertiary"  Color="#8AFFFFFF" />

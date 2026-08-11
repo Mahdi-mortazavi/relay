@@ -118,10 +118,24 @@ that waits for the click to complete reads as lag however fast the rest is. Ever
 animation starts from the property's current value, so interrupting one continues
 from where it visibly is instead of snapping back.
 
-All of it is off when Windows has animation effects disabled — `Motion.Enabled`
-reads `UISettings.AnimationsEnabled`, and each entry point returns the end state
+All of it is off when Windows has animation effects disabled —
+`SystemPreferences.AnimationsEnabled`, and each entry point returns the end state
 directly. That switch is how a Windows user asks for reduced motion; it is a code
 path, not a preference read and ignored.
+
+## 7a. Reduced transparency was ignored
+
+**Before.** The acrylic backdrop was applied unconditionally, and the window's
+background was a 25%-alpha gradient over it.
+
+**After.** `ApplyMaterial()` checks `UISettings.AdvancedEffectsEnabled`. With
+transparency off, the backdrop is skipped and the scrim is replaced by a solid
+surface (`WindowSolidBrush`), darker than the scrim so the existing foreground
+pairs keep their contrast. The same path runs if acrylic simply isn't available.
+
+**Why.** A translucent scrim with nothing behind it isn't a subtle effect — it is
+a window you can see the desktop through, which is the precise problem someone
+turning transparency off is trying to solve. Every glass token needs a solid one.
 
 ## 8. Keyboard users could not see where they were
 
@@ -212,8 +226,9 @@ from an unattended runner.
 - **Light theme.** The palette is dark-only by choice (see above), but a Windows
   user in light mode gets a dark popover. Making it theme-following means a
   second full palette validated against a light scrim.
-- **Increased contrast / reduced transparency.** `UISettings.AnimationsEnabled`
-  is honoured; `AdvancedEffectsEnabled` (the transparency switch) and the
-  high-contrast themes are not yet handled — the acrylic backdrop should become
-  solid and the hairlines should become defined borders.
+- **High contrast.** The animation and transparency switches are honoured (§7,
+  §7a). The high-contrast themes are not: doing that properly means drawing from
+  the system's high-contrast brushes rather than this palette, and the hairlines
+  becoming defined borders. Right now a high-contrast user gets the ordinary
+  dark window.
 - **Narrator.** No `AutomationProperties` pass has been done on the new panels.

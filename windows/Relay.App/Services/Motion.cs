@@ -1,7 +1,6 @@
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
-using Windows.UI.ViewManagement;
 
 namespace Relay.App.Services;
 
@@ -23,17 +22,8 @@ namespace Relay.App.Services;
 /// </summary>
 internal static class Motion
 {
-    private static readonly UISettings Settings = new();
-
     /// <summary>False when the user has turned animation effects off in Windows.</summary>
-    public static bool Enabled
-    {
-        get
-        {
-            try { return Settings.AnimationsEnabled; }
-            catch { return true; }
-        }
-    }
+    public static bool Enabled => SystemPreferences.AnimationsEnabled;
 
     // Response / damping pairs. Standard is the workhorse; Snappy is for direct
     // manipulation feedback that must feel attached to the pointer; Gentle

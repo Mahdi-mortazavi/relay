@@ -75,9 +75,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // Acrylic gives the glass look; set it in code so an unsupported backdrop
-        // degrades to the solid scrim instead of failing the XAML load.
-        try { SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop(); } catch { }
+        ApplyMaterial();
         Title = Strings.Get("AppName");
         ConfigureAppWindow();
         ApplyStrings();
@@ -89,6 +87,37 @@ public sealed partial class MainWindow : Window
         AttachKeyboard();
         RefreshLogs();
         Render();
+    }
+
+    /// <summary>
+    /// Picks the window's material from the system transparency setting. Acrylic
+    /// is the glass; with transparency effects off there is nothing behind the
+    /// scrim, and a 25%-alpha gradient over nothing is a window you can see the
+    /// desktop through — so the scrim is replaced by a solid surface rather than
+    /// left to sit on air.
+    ///
+    /// Reduced transparency is an accessibility setting, not a performance one:
+    /// honouring it is the difference between text over a controlled background
+    /// and text over whatever wallpaper happens to be there.
+    /// </summary>
+    private void ApplyMaterial()
+    {
+        if (SystemPreferences.TransparencyEnabled)
+        {
+            // Set in code so an unsupported backdrop degrades to the scrim
+            // instead of failing the XAML load.
+            try
+            {
+                SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop();
+                return;
+            }
+            catch
+            {
+                // No acrylic available: fall through to the solid surface, which
+                // is the same thing the user would have asked for anyway.
+            }
+        }
+        Root.Background = ThemeBrush("WindowSolidBrush");
     }
 
     private void ConfigureAppWindow()
@@ -322,6 +351,9 @@ public sealed partial class MainWindow : Window
             "DangerBrush" => ((byte)0xFF, (byte)0xFF, (byte)0x7A, (byte)0x75),
             "WarningBrush" => ((byte)0xFF, (byte)0xF5, (byte)0xB9, (byte)0x5F),
             "LabelSecondary" => ((byte)0xB8, (byte)0xFF, (byte)0xFF, (byte)0xFF),
+            // Opaque on purpose: this one is a window background, and the
+            // translucent default below would leave the desktop showing through.
+            "WindowSolidBrush" => ((byte)0xFF, (byte)0x12, (byte)0x16, (byte)0x1D),
             _ => ((byte)0x5C, (byte)0xFF, (byte)0xFF, (byte)0xFF),
         };
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
