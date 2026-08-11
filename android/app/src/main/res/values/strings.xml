@@ -77,4 +77,11 @@
     </plurals>
     <string name="notification_error">Sharing stopped — open Relay for details</string>
     <string name="notification_reconnecting">Reconnecting…</string>
+    <string name="short_code_label">Type this on your PC</string>
+    <string name="short_code_hint">Open Relay on your PC and enter these two digits.</string>
+    <string name="or_scan_qr">or scan the QR code</string>
+    <string name="approve_title">Allow this computer?</string>
+    <string name="approve_body">%1$s wants to share your connection.</string>
+    <string name="approve_allow">Allow</string>
+    <string name="approve_deny">Deny</string>
 </resources>

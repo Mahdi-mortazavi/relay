@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import io.relay.app.service.ConnectionRepository
 import io.relay.app.ui.HomeScreen
 import io.relay.app.ui.MainViewModel
 import io.relay.app.ui.theme.RelayBackground
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val transportMode by viewModel.transportMode.collectAsState()
+                    val pendingClient by ConnectionRepository.clientGate.pending.collectAsState()
 
                     HomeScreen(
                         state = state,
@@ -79,6 +81,12 @@ class MainActivity : ComponentActivity() {
                         onSetMode = viewModel::setTransportMode,
                         onSetPort = viewModel::setPreferredPort,
                         onClearLogs = viewModel::clearLogs,
+                        pendingClient = pendingClient?.address,
+                        onApproveClient = { allowed ->
+                            pendingClient?.let {
+                                ConnectionRepository.clientGate.resolve(it.address, allowed)
+                            }
+                        },
                     )
                 }
             }

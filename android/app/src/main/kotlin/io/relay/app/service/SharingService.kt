@@ -24,6 +24,8 @@ import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
 import io.relay.app.core.WgConfig
 import io.relay.app.net.LocalAddress
+import io.relay.app.core.PairingCode
+import io.relay.app.net.Beacon
 import io.relay.app.net.Socks5Server
 import io.relay.app.net.VpnStatus
 import io.relay.app.net.wg.WgForwarder
@@ -52,6 +54,14 @@ class SharingService : Service() {
     private val pairing = DirectPairingStrategy()
     private val settings by lazy { Settings(this) }
     private var server: Socks5Server? = null
+    private var beacon: Beacon? = null
+    private var shortCode: String? = null
+
+    /**
+     * What actually protects a two-digit code: the person holding the phone.
+     * See /shared/pairing-beacon.md -- the code selects, the human consents.
+     */
+    private val clientGate get() = ConnectionRepository.clientGate
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastTrafficPush = 0L
     private var currentHost: String? = null
@@ -144,8 +154,28 @@ class SharingService : Service() {
         } ?: return // preparation dispatched the appropriate error
 
         currentHost = host
+
+        // Drawn once per sharing session and kept for its life, so the number on
+        // screen never changes under someone who is mid-way through typing it.
+        //
+        // Drawn blind: surveying the network for codes already in use would
+        // block this thread for over a second, and this runs on the main thread
+        // from onStartCommand. A collision is rare and already has an answer --
+        // the PC shows both device names and asks which one -- so paying an ANR
+        // risk to make it rarer is the wrong trade.
+        val code = PairingCode.draw()
+        shortCode = code
+        beacon = Beacon(
+            code = code,
+            mode = payload.mode,
+            host = payload.host,
+            port = payload.port,
+            deviceName = payload.name,
+        ).also { it.start() }
+        LocalLog.add("Pairing code: $code")
+
         ConnectionRepository.dispatch("ready") {
-            ConnectionState.Advertising(payload, pairing.issueTypedCode(payload))
+            ConnectionState.Advertising(payload, pairing.issueTypedCode(payload), code)
         }
         startHotspotWatcher()
     }
@@ -196,7 +226,7 @@ class SharingService : Service() {
             addAll(CANDIDATE_PORTS)
         }.distinct()
         for (candidate in candidates) {
-            val attempt = Socks5Server(candidate, serverListener)
+            val attempt = Socks5Server(candidate, serverListener, clientGate)
             try {
                 attempt.start()
                 server = attempt
@@ -314,6 +344,16 @@ class SharingService : Service() {
         hotspotWatcher = null
         server?.stop()
         server = null
+        // Announce the stop so a PC drops this phone at once rather than waiting
+        // out the staleness window, then forget who was approved: those answers
+        // were about this network, and the next session may be a different one.
+        // Fire and forget: the goodbye datagram is an optimisation, and blocking
+        // teardown on a socket write would freeze the main thread for a message
+        // the listener's staleness window already covers.
+        beacon?.let { b -> scope.launch { b.stop() } }
+        beacon = null
+        shortCode = null
+        clientGate.reset()
         // Full Mode: stop the endpoint and drop the per-pairing keys (§4.2).
         runCatching { wgForwarder?.stop() }
         wgKeys = null
@@ -331,7 +371,12 @@ class SharingService : Service() {
                 acquireWakeLock()
                 ConnectionRepository.dispatch("clientConnected") { current ->
                     val advertising = current as ConnectionState.Advertising
-                    ConnectionState.Connected(advertising.payload, advertising.typedCode, devices)
+                    ConnectionState.Connected(
+                        advertising.payload,
+                        advertising.typedCode,
+                        advertising.shortCode,
+                        devices,
+                    )
                 }
                 ConnectionRepository.dispatch("clientCountChanged") { current ->
                     (current as ConnectionState.Connected).copy(clientCount = devices)
@@ -340,7 +385,7 @@ class SharingService : Service() {
                 releaseWakeLock()
                 ConnectionRepository.dispatch("lastClientDisconnected") { current ->
                     val connected = current as ConnectionState.Connected
-                    ConnectionState.Advertising(connected.payload, connected.typedCode)
+                    ConnectionState.Advertising(connected.payload, connected.typedCode, connected.shortCode)
                 }
             }
         }

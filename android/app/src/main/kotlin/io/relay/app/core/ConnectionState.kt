@@ -18,6 +18,12 @@ sealed interface ConnectionState {
     data class Advertising(
         val payload: QrPayload,
         val typedCode: String?,
+        /**
+         * The two-digit code from /shared/pairing-beacon.md. Null when the
+         * phone could not announce itself, in which case the QR and the long
+         * typed code are the only ways in.
+         */
+        val shortCode: String? = null,
         /** True while the bounded reconnect policy is re-binding the hotspot (ADR-0007). */
         val reconnecting: Boolean = false,
     ) : ConnectionState {
@@ -27,7 +33,8 @@ sealed interface ConnectionState {
     data class Connected(
         val payload: QrPayload,
         val typedCode: String?,
-        val clientCount: Int,
+        val shortCode: String? = null,
+        val clientCount: Int = 0,
         val bytesUp: Long = 0,
         val bytesDown: Long = 0,
         /** True while the bounded reconnect policy is recovering a dropped hotspot (ADR-0007). */

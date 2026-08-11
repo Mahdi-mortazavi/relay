@@ -42,6 +42,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
@@ -62,6 +64,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -99,6 +103,9 @@ fun HomeScreen(
     onSetMode: (TransportMode) -> Unit,
     onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
+    /** The computer waiting on an answer, or null. /shared/pairing-beacon.md. */
+    pendingClient: String? = null,
+    onApproveClient: (Boolean) -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -135,7 +142,7 @@ fun HomeScreen(
                     is ConnectionState.Preparing -> PreparingPanel()
                     is ConnectionState.Advertising ->
                         PairingPanel(
-                            rememberQrText(current.payload), current.typedCode,
+                            rememberQrText(current.payload), current.typedCode, current.shortCode,
                             subtitle = stringResource(
                                 if (current.reconnecting) R.string.status_reconnecting
                                 else R.string.status_waiting
@@ -145,7 +152,7 @@ fun HomeScreen(
                         )
                     is ConnectionState.Connected ->
                         PairingPanel(
-                            rememberQrText(current.payload), current.typedCode,
+                            rememberQrText(current.payload), current.typedCode, current.shortCode,
                             subtitle = if (current.reconnecting)
                                 stringResource(R.string.status_reconnecting)
                             else pluralStringResource(
@@ -165,6 +172,12 @@ fun HomeScreen(
                 Spacer(Modifier.height(12.dp))
             }
             AdvancedSection(state, themeMode, preferredPort, logs, onSetTheme, onSetPort, onClearLogs)
+        }
+
+        // Inside the Box and after the scrolling Column, so it sits above the
+        // whole screen rather than scrolling away with the content.
+        if (pendingClient != null) {
+            ApprovalDialog(address = pendingClient, onAnswer = onApproveClient)
         }
     }
 }
@@ -378,10 +391,38 @@ private fun PreparingPanel() {
     )
 }
 
+/**
+ * The prompt that makes a two-digit code defensible: the code says which phone,
+ * this says whether that computer may actually use it.
+ *
+ * Deliberately not dismissible by tapping outside. A stray tap that silently
+ * means "no" is confusing; a stray tap that silently means "yes" is dangerous.
+ * The person has to choose, or let it time out, which the gate counts as no.
+ */
+@Composable
+private fun ApprovalDialog(address: String, onAnswer: (Boolean) -> Unit) {
+    AlertDialog(
+        onDismissRequest = { },
+        title = { Text(stringResource(R.string.approve_title)) },
+        text = { Text(stringResource(R.string.approve_body, address)) },
+        confirmButton = {
+            TextButton(onClick = { onAnswer(true) }) {
+                Text(stringResource(R.string.approve_allow))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onAnswer(false) }) {
+                Text(stringResource(R.string.approve_deny))
+            }
+        },
+    )
+}
+
 @Composable
 private fun PairingPanel(
     qrContent: String,
     typedCode: String?,
+    shortCode: String?,
     subtitle: String,
     reconnecting: Boolean,
     traffic: String?,
@@ -411,6 +452,46 @@ private fun PairingPanel(
         }
         Spacer(Modifier.height(20.dp))
 
+        // The two digits come first and come biggest. Reading eight characters
+        // off a screen and typing them was the slowest part of setup; this is
+        // the part a person should see without looking for it. The QR stays,
+        // one scroll down, for anyone who would rather point a camera.
+        if (shortCode != null) {
+            Text(
+                text = stringResource(R.string.short_code_label),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textTertiary,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = shortCode,
+                style = MaterialTheme.typography.displayLarge,
+                color = glass.textPrimary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (reconnecting) 0.4f else 1f)
+                    // Digits read left-to-right in every locale this ships in;
+                    // without this they mirror under a right-to-left layout.
+                    .semantics { contentDescription = shortCode.toList().joinToString(" ") },
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.short_code_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textTertiary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.or_scan_qr),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textTertiary,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
         val qr = rememberQrBitmap(qrContent)
         val qrFrame = Modifier
             .fillMaxWidth()
@@ -422,27 +503,18 @@ private fun PairingPanel(
         if (qr != null) {
             Image(
                 bitmap = qr,
-                // The caption below says the same thing to sighted users; the QR
-                // itself is only meaningful to a camera, so describe what it is
-                // rather than repeating the instruction to a screen reader.
                 contentDescription = stringResource(R.string.qr_content_description),
                 contentScale = ContentScale.Fit,
                 modifier = qrFrame,
             )
         } else {
-            // One frame while the encode runs off-thread, or a payload that could
-            // not be encoded at all — the typed code below is still usable.
             Box(modifier = qrFrame)
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = stringResource(R.string.scan_hint),
-            style = MaterialTheme.typography.labelSmall,
-            color = glass.textTertiary,
-        )
 
-        Spacer(Modifier.height(20.dp))
-        if (typedCode != null) {
+        // The eight-character code stays available for one release, for a PC
+        // that is too old to listen for the beacon (/shared/pairing-beacon.md).
+        if (shortCode == null && typedCode != null) {
+            Spacer(Modifier.height(20.dp))
             Text(
                 text = stringResource(R.string.or_type_code),
                 style = MaterialTheme.typography.labelSmall,
@@ -454,9 +526,8 @@ private fun PairingPanel(
                 style = MaterialTheme.typography.headlineMedium,
                 color = glass.textPrimary,
             )
-        } else {
-            // Full Mode (key material doesn't fit) or a host outside 192.168.0.0/16.
-            // Say so — an unexplained gap here reads as a bug (issue #18).
+        } else if (shortCode == null) {
+            Spacer(Modifier.height(20.dp))
             Text(
                 text = stringResource(R.string.code_unavailable),
                 style = MaterialTheme.typography.labelSmall,

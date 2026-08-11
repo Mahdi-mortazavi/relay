@@ -77,4 +77,11 @@
     </plurals>
     <string name="notification_error">اشتراک‌گذاری متوقف شد — برای جزئیات، رله را باز کنید</string>
     <string name="notification_reconnecting">در حال اتصال مجدد…</string>
+    <string name="short_code_label">این را در رایانه وارد کنید</string>
+    <string name="short_code_hint">«رله» را روی رایانه باز کنید و این دو رقم را وارد کنید.</string>
+    <string name="or_scan_qr">یا کیو‌آر را اسکن کنید</string>
+    <string name="approve_title">به این رایانه اجازه می‌دهید؟</string>
+    <string name="approve_body">%1$s می‌خواهد از اتصال شما استفاده کند.</string>
+    <string name="approve_allow">اجازه بده</string>
+    <string name="approve_deny">رد کن</string>
 </resources>

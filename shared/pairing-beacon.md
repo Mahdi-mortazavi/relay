@@ -65,9 +65,14 @@ anywhere it could be executed.
   there is no "did I need to type the leading zero" moment.
 - Drawn with a cryptographically-seeded RNG at the start of each sharing
   session, and kept for the life of that session.
-- If a beacon from another phone with the same code is already on the network,
-  the phone MUST draw again — up to 5 attempts — so two phones sharing in the
-  same room do not both answer to `42`.
+- Drawn blind. The phone does not survey the network first: listening long
+  enough to be useful blocks the thread that starts sharing, and a frozen app
+  is a worse outcome than a rare collision. `PairingCode.draw` accepts a set of
+  codes to avoid, for a caller that already has that knowledge cheaply, but the
+  phone does not gather it on this path.
+- Two phones can therefore land on the same code. That case has an answer
+  already — see `ERR_CODE_AMBIGUOUS` below, where the PC shows both device
+  names and asks which one.
 
 ## Discovery, on the listener
 
@@ -78,8 +83,8 @@ anywhere it could be executed.
    - No match → `ERR_CODE_NOT_FOUND`: the phone is not sharing, or is on another
      network.
    - More than one match → `ERR_CODE_AMBIGUOUS`: show the device names and let
-     the user pick. This is what the redraw rule above exists to prevent, but a
-     phone that joined the network late can still collide for a second.
+     the user pick. Ninety codes and two phones collide about one time in
+     forty-five, so this is uncommon but not rare enough to leave unhandled.
 
 ## Approval
 
