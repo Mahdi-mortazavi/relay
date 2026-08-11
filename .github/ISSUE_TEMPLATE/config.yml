@@ -3,6 +3,8 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/Mahdi-mortazavi/relay/security/advisories/new
     about: Please report vulnerabilities privately, never as a public issue. See SECURITY.md.
-  - name: Question or idea
-    url: https://github.com/Mahdi-mortazavi/relay/discussions
-    about: For anything that is not a concrete bug or a specific feature request.
+  # Discussions is not enabled on this repository, so the community lives on
+  # Telegram. Pointing at /discussions sent people to a 404.
+  - name: Question, idea, or just want to talk
+    url: https://t.me/Startup_legend
+    about: Startup Legend — the maintainer's community. For anything that is not a concrete bug or a specific feature request.
