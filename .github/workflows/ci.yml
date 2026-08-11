@@ -31,7 +31,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          # golang.org/x/mobile requires 1.25; pinning it here rather than
+          # letting the toolchain directive download one mid-job.
+          go-version: '1.25'
           cache-dependency-path: wg/go.sum
 
       - name: Vet
@@ -43,7 +45,16 @@ jobs:
         # would show up in the field as an occasional dead tunnel.
         run: go test -race -count=1 ./...
 
+      - name: Set up the Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          local-cache: true
+
       - name: Build the Android library
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
           go install golang.org/x/mobile/cmd/gomobile@latest
