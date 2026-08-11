@@ -655,8 +655,16 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnCodeChanged(object sender, TextChangedEventArgs e)
     {
-        var raw = CodeBox.Text ?? string.Empty;
-        var clean = new string(raw.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        // Normalise exactly as TypedCode.Decode does, because that is what
+        // judges the code a moment later. This used to strip every character
+        // that was not a letter or digit, which is a wider rule than the
+        // contract's "whitespace and '-'". A code typed or pasted with any
+        // other separator — "ABCD.EFGH" — therefore passed this check with the
+        // dot quietly removed, turned the hint green, said "ready" and
+        // auto-connected, and the decoder then saw the raw nine characters and
+        // rejected them as ERR_CODE_INVALID. The code was correct; the app
+        // refused it and blamed the user.
+        var clean = TypedCode.Normalize(CodeBox.Text);
 
         if (clean.Length == 0)
         {
@@ -703,7 +711,7 @@ public sealed partial class MainWindow : Window
 
     private async void OnCodeConnectClick(object sender, RoutedEventArgs e)
     {
-        var decoded = TypedCode.Decode(CodeBox.Text);
+        var decoded = TypedCode.Decode(TypedCode.Normalize(CodeBox.Text));
         if (decoded is null)
         {
             ShowLocalError("ERR_CODE_INVALID");

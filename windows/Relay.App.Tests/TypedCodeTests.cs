@@ -41,6 +41,35 @@ public class TypedCodeTests
         Assert.Equal(TypedCode.Decode(code), TypedCode.Decode(relaxed));
     }
 
+    /// <summary>
+    /// The code box validates a keystroke and then hands the box to the decoder,
+    /// so whatever it normalises with has to agree with the decoder on every
+    /// input — including the ones neither of them accepts. It once stripped any
+    /// non-alphanumeric character, so "ABCD.EFGH" validated as ready and was
+    /// then rejected as invalid by the decoder a line later.
+    /// </summary>
+    [Fact]
+    public void Normalize_agrees_with_Decode_on_separators_outside_the_contract()
+    {
+        var code = TypedCodes.GetProperty("valid")[0].GetProperty("code").GetString()!;
+
+        // In the contract: stripped, so the code still decodes.
+        Assert.Equal(code, TypedCode.Normalize($" {code.ToLowerInvariant()} ".Insert(5, "-")));
+
+        // Outside it: kept, so the box sees a character the alphabet lacks and
+        // says so, instead of accepting a code the decoder will refuse.
+        foreach (var separator in new[] { '.', '_', '/', '+' })
+        {
+            var typed = code.Insert(4, separator.ToString());
+            var normalized = TypedCode.Normalize(typed);
+
+            Assert.Contains(separator, normalized);
+            Assert.Null(TypedCode.Decode(typed));
+            // The box's own verdict, reached the same way it reaches it.
+            Assert.Contains(normalized, c => !TypedCode.Alphabet.Contains(c));
+        }
+    }
+
     [Fact]
     public void Invalid_codes_are_rejected()
     {
