@@ -93,31 +93,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-        run: |
-          set -euo pipefail
-          mkdir -p published
-          if [ -z "${TAG:-}" ]; then
-            TAG=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
-              | python3 -c 'import sys,json; print(json.load(sys.stdin)["tag_name"])')
-          fi
-          echo "probing release $TAG"
-          echo "RELAY_TAG=$TAG" >> "$GITHUB_ENV"
-          curl -sS -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" \
-            | python3 -c '
-import json, sys, urllib.request, os
-rel = json.load(sys.stdin)
-for a in rel["assets"]:
-    if a["name"].endswith(".apk"):
-        print("fetching", a["name"], a["size"], "bytes")
-        req = urllib.request.Request(a["url"], headers={
-            "Authorization": "Bearer " + os.environ["GH_TOKEN"],
-            "Accept": "application/octet-stream"})
-        with urllib.request.urlopen(req) as r, open("published/" + a["name"], "wb") as f:
-            f.write(r.read())
-'
-          ls -l published/
+        run: python3 .github/scripts/fetch-release-apks.py "$GITHUB_REPOSITORY" "$TAG" published
 
       - name: Install the published APKs on a device
         uses: reactivecircus/android-emulator-runner@v2
