@@ -34,4 +34,42 @@ The release workflow signs with a keystore held only in GitHub Secrets:
 
 ## Windows signing
 
-We currently have **no code-signing certificate**, so Windows SmartScreen may warn on first run of the installer ("Windows protected your PC" → *More info* → *Run anyway*). This is a known trade-off of unsigned distribution, not a bug. Buying an OV/EV code-signing certificate and signing in CI would remove the warning; tracked in `docs/backlog.md`. This is also why we ship an EXE installer rather than MSIX — unsigned MSIX won't install at all (see ADR-0005).
+**The signing pipeline is built, automatic, and currently idle.** `release.yml`
+signs every installer with Authenticode and verifies the result — but only when
+a certificate is present. Add these two secrets and the very next release is
+signed, with no other change:
+
+| Secret | Meaning |
+|---|---|
+| `WINDOWS_CERT_BASE64` | The `.pfx` code-signing certificate, base64-encoded |
+| `WINDOWS_CERT_PASSWORD` | Its password |
+
+```bash
+base64 -w0 codesign.pfx    # Linux/macOS
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("codesign.pfx"))   # PowerShell
+```
+
+Until then the step emits a warning and ships unsigned, which is the honest
+status quo rather than a failure: `SHA256SUMS.txt` is the integrity check, and
+SmartScreen warns on first run ("Windows protected your PC" → *More info* →
+*Run anyway*). It is also why we ship an EXE installer rather than MSIX —
+unsigned MSIX will not install at all (ADR-0005).
+
+**The pipeline will not self-sign, deliberately.** A self-signed certificate
+still trips SmartScreen; all it would achieve is making an unsigned build look
+signed to anyone reading the workflow. Only a certificate chaining to a trusted
+root removes the warning.
+
+Signatures are RFC-3161 timestamped against DigiCert, falling back to Sectigo
+and GlobalSign. Timestamping is not optional: without it every signature becomes
+invalid the day the certificate expires — including on copies already
+downloaded.
+
+### Getting a certificate
+
+| Route | Cost | Notes |
+|---|---|---|
+| [SignPath Foundation](https://signpath.org/) | Free for OSS | Requires review; the usual path for a project like this |
+| [Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/) | ~$10/month | Microsoft-run, designed for CI; needs a different signtool invocation than the PFX path above |
+| OV certificate from a CA | ~$200–400/year | Works with the PFX path as written; SmartScreen reputation still builds over time |
+| EV certificate | ~$300–600/year | Immediate SmartScreen reputation; usually requires a hardware token, which complicates CI |

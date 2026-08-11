@@ -78,7 +78,12 @@ android {
             reset()
             include("arm64-v8a")
             if (project.findProperty("relayTestAbis") == "true") include("x86_64")
-            isUniversalApk = false
+            // Also emit an APK carrying every ABI. The arm64 split is the one
+            // most people want — it is a third of the size — but it silently
+            // fails to install on a 32-bit ARM phone, an x86 Chromebook, or an
+            // emulator. The universal build is the answer to "it says the app
+            // isn't compatible with my device".
+            isUniversalApk = true
         }
     }
 

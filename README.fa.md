@@ -138,7 +138,8 @@ flowchart TB
 |:---|:---|:---|
 | **💻 ویندوز** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | ویندوز ۱۰ یا ۱۱. نصب برای کاربر جاری — بدون دسترسی مدیر. |
 | 💻 ویندوز ۳۲ بیتی | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | فقط اگر مطمئنی لازم داری. |
-| **📱 اندروید** | [**Relay-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | اندروید ۸ به بالا. «نصب از منابع ناشناس» را فعال کن. |
+| **📱 اندروید** | [**Relay-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | اندروید ۸ به بالا، پردازندهٔ ۶۴ بیتی ARM — تقریباً هر گوشی بعد از ۲۰۱۷. «نصب از منابع ناشناس» را فعال کن. |
+| 📱 اندروید (هر دستگاهی) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | همان برنامه، برای همهٔ نوع پردازنده‌ها — ARM ۳۲ بیتی، کروم‌بوک x86، شبیه‌ساز. حجیم‌تر. **اگر بالایی گفت «برنامه سازگار نیست»، این را بگیر.** |
 | 📱 اندروید (فروشگاه) | [Relay-android.aab](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android.aab) | بستهٔ فروشگاهی — مستقیم نصب نمی‌شود. |
 
 > ⚠️ **در اجرای اول، SmartScreen هشدار می‌دهد.** نصب‌کنندهٔ ویندوز هنوز امضای دیجیتال ندارد، پس **More info → Run anyway** را بزن. هر نسخه فایل `SHA256SUMS.txt` هم دارد تا بتوانی دقیقاً بررسی کنی چه چیزی دانلود کرده‌ای. کار امضا در [`docs/release.md`](docs/release.md) پیگیری می‌شود.

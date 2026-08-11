@@ -124,7 +124,8 @@ Two files. Nothing to compile. These links always resolve to the newest release:
 |:---|:---|:---|
 | **💻 Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10 or 11. Per-user install — no admin prompt. |
 | 💻 Windows 32-bit | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | Only if you know you need it. |
-| **📱 Android** | [**Relay-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+. Enable "install from unknown sources". |
+| **📱 Android** | [**Relay-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+, 64-bit ARM — almost every phone since 2017. Enable "install from unknown sources". |
+| 📱 Android (any device) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Same app, every CPU type — 32-bit ARM, x86 Chromebooks, emulators. Larger. **Use this if the one above says "app not compatible".** |
 | 📱 Android (stores) | [Relay-android.aab](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android.aab) | App-store bundle — not directly installable. |
 
 > ⚠️ **SmartScreen will warn you on first run.** The Windows installer isn't code-signed yet, so click **More info → Run anyway**. Every release ships `SHA256SUMS.txt` so you can verify exactly what you downloaded. The signing work is tracked in [`docs/release.md`](docs/release.md).

@@ -102,12 +102,22 @@ jobs:
             find app/build/outputs/apk/release -name '*.apk' || true
             exit 1
           fi
+          # The fallback for every device the arm64 split cannot install on.
+          # Verified on an x86_64 emulator by the universal-apk E2E job before it
+          # ever gets here, so a missing one is a real failure, not a nicety.
+          UNIVERSAL=$(find app/build/outputs/apk/release -name '*universal*.apk' | head -1)
+          if [ -z "$UNIVERSAL" ]; then
+            echo "::error::No universal release APK was produced; refusing to publish."
+            find app/build/outputs/apk/release -name '*.apk' || true
+            exit 1
+          fi
           AAB=$(find app/build/outputs/bundle/release -name '*.aab' | head -1)
           # Deliberately unversioned: /releases/latest/download/<name> only
           # resolves a fixed filename, and that permalink is what the README
           # download buttons use. The version lives in the release title, the
           # notes, and the app itself.
           cp "$APK" "../dist/Relay-android-arm64-v8a.apk"
+          cp "$UNIVERSAL" "../dist/Relay-android-universal.apk"
           cp "$AAB" "../dist/Relay-android.aab"
           ls -la ../dist
 
@@ -178,6 +188,63 @@ jobs:
           }
           Get-ChildItem dist
 
+      # Authenticode signing. Wired end to end and fully automatic: the moment a
+      # certificate lands in the two secrets below, every release is signed with
+      # no further change here.
+      #
+      # It is deliberately a no-op when the secrets are absent rather than a
+      # failure, because unsigned distribution is the project's documented,
+      # honest status quo (docs/release.md, SECURITY.md) and SHA256SUMS.txt is
+      # the integrity story until that changes. What it will NOT do is
+      # self-sign: a self-signed binary still trips SmartScreen and would only
+      # make an unsigned build look signed.
+      - name: Sign the installers
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CERT_BASE64)) {
+            Write-Host "::warning::No WINDOWS_CERT_BASE64 secret - shipping unsigned installers. SmartScreen will warn on first run; see docs/release.md."
+            exit 0
+          }
+
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
+
+          # Newest signtool wins: older ones cannot do RFC-3161 timestamping.
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" `
+                      -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -Last 1
+          if (-not $signtool) { Write-Error "signtool.exe not found on this runner."; exit 1 }
+
+          # Timestamping is not optional: without it every signature turns
+          # invalid the day the certificate expires, including on copies people
+          # already downloaded.
+          $stamps = @(
+            "http://timestamp.digicert.com",
+            "http://timestamp.sectigo.com",
+            "http://timestamp.globalsign.com/tsa/r6advanced1"
+          )
+
+          foreach ($exe in (Get-ChildItem dist\*.exe)) {
+            $signed = $false
+            foreach ($ts in $stamps) {
+              & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD `
+                  /fd SHA256 /tr $ts /td SHA256 /d "Relay" $exe.FullName
+              if ($LASTEXITCODE -eq 0) { $signed = $true; break }
+              Write-Host "::warning::Timestamp authority $ts did not answer; trying the next one."
+            }
+            if (-not $signed) { Write-Error "Failed to sign $($exe.Name)."; exit 1 }
+
+            # Verify rather than trust the exit code: /pa checks the chain the
+            # way Windows itself will when the user double-clicks it.
+            & $signtool.FullName verify /pa /v $exe.FullName
+            if ($LASTEXITCODE -ne 0) { Write-Error "Signature on $($exe.Name) did not verify."; exit 1 }
+          }
+
+          Remove-Item $pfx -Force
+          Write-Host "Signed and verified $((Get-ChildItem dist\*.exe).Count) installer(s)."
+
       - uses: actions/upload-artifact@v7
         with:
           name: release-windows
@@ -223,7 +290,8 @@ jobs:
             echo "|---|---|---|"
             echo "| **Windows** | \`Relay-Setup-x64.exe\` | Windows 10/11. Per-user install, no admin prompt. |"
             echo "| Windows (32-bit) | \`Relay-Setup-x86.exe\` | Only if you know you need it. |"
-            echo "| **Android** | \`Relay-android-arm64-v8a.apk\` | Android 8.0+. Allow \"install from unknown sources\". |"
+            echo "| **Android** | \`Relay-android-arm64-v8a.apk\` | Android 8.0+, 64-bit ARM — almost every phone since 2017. |"
+            echo "| Android (any device) | \`Relay-android-universal.apk\` | Same app, every CPU type. Larger. Use this if the one above says \"app not compatible\". |"
             echo "| Android (stores) | \`Relay-android.aab\` | Not directly installable. |"
             echo
             echo "### Install"
