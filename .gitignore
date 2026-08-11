@@ -3,6 +3,10 @@
 Thumbs.db
 *.log
 
+# CPython caches the CI scripts next to them the first time they are imported.
+__pycache__/
+*.py[cod]
+
 # --- Android / Gradle ---
 android/.gradle/
 android/build/
