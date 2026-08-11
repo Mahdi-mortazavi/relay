@@ -36,11 +36,21 @@ import java.util.concurrent.atomic.AtomicLong
 class Socks5Server(
     private val port: Int,
     private val listener: Listener,
+    /**
+     * Consulted once per incoming connection, before anything is read from it.
+     * Null keeps the old behaviour of serving whoever connects, which is what
+     * the unit tests want and what a QR pairing already implies — the person
+     * pointed a camera at this phone, which is its own consent.
+     */
+    private val gate: ClientGate? = null,
 ) {
     interface Listener {
         /** [devices] = distinct client IPs with at least one open connection. */
         fun onClientsChanged(devices: Int)
         fun onTraffic(bytesUp: Long, bytesDown: Long)
+
+        /** A connection the person refused, or did not answer about in time. */
+        fun onClientRejected(address: String) {}
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -109,7 +119,22 @@ class Socks5Server(
             } catch (_: IOException) {
                 return // closed by stop()
             }
-            scope.launch { handleClient(client) }
+            scope.launch {
+                // Asking happens here rather than inside handleClient so the
+                // relay path stays exactly as it was: by the time a byte is
+                // forwarded, the answer is already in.
+                val clientIp = client.inetAddress.hostAddress ?: "?"
+                if (gate != null && !gate.authorize(clientIp)) {
+                    listener.onClientRejected(clientIp)
+                    try {
+                        client.close()
+                    } catch (_: IOException) {
+                        // Already gone; nothing to do and nothing to report.
+                    }
+                    return@launch
+                }
+                handleClient(client)
+            }
         }
     }
 
