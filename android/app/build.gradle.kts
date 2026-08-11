@@ -14,7 +14,11 @@ val relayVersionCode: Int = relayVersion.substringBefore("-").split(".").let { p
     val major = parts.getOrNull(0)?.toIntOrNull() ?: 0
     val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
     val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
-    major * 10_000 + minor * 100 + patch
+    // Floor at 1. release.yml's dry-run path builds "0.0.0-dry-run", which
+    // computes to 0 — and AGP 9 rejects versionCode 0 outright, so the
+    // workflow's own rehearsal path could not build. A dry run never
+    // publishes, so any valid number will do; a real tag never lands here.
+    (major * 10_000 + minor * 100 + patch).coerceAtLeast(1)
 }
 
 android {
