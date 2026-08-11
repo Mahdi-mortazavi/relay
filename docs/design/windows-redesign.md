@@ -123,6 +123,27 @@ All of it is off when Windows has animation effects disabled —
 directly. That switch is how a Windows user asks for reduced motion; it is a code
 path, not a preference read and ignored.
 
+## 6a. The app ran in light theme with a dark-only palette
+
+**Before.** Nothing declared the app's theme, so it inherited the desktop's.
+Found by looking at the E2E screenshot rather than by reading the code: the
+Expander chrome is light, and where acrylic cannot composite — a VM, a remote
+session, transparency turned off — `DesktopAcrylic` falls back to a colour drawn
+from the content's theme, so the window became **light grey with translucent
+white text on it**. "Not connected", the tagline and "Advanced" were all close to
+invisible.
+
+**After.** `RequestedTheme="Dark"` on the `Application`.
+
+**Why.** The palette is dark-only by choice, and until now the framework was
+never told. That left the stock controls drawing light-theme chrome under a dark
+design, and it made the acrylic fallback actively hostile on precisely the
+machines least able to render the effect. Declaring the theme is not a
+workaround; it is stating a fact the rest of the design already assumed.
+
+This one is worth recording as a process note: it was invisible in code review
+and obvious in a screenshot. The evidence artifact earned its place.
+
 ## 7a. Reduced transparency was ignored
 
 **Before.** The acrylic backdrop was applied unconditionally, and the window's
@@ -223,9 +244,11 @@ from an unattended runner.
 
 ## Not done
 
-- **Light theme.** The palette is dark-only by choice (see above), but a Windows
-  user in light mode gets a dark popover. Making it theme-following means a
-  second full palette validated against a light scrim.
+- **Light theme.** The palette is dark-only by choice (see above) and the app now
+  declares that (§6a), so a Windows user in light mode gets a deliberately dark
+  popover rather than an accidentally broken one. Making it genuinely
+  theme-following still means a second full palette validated against a light
+  scrim, and that has not been done.
 - **High contrast.** The animation and transparency switches are honoured (§7,
   §7a). The high-contrast themes are not: doing that properly means drawing from
   the system's high-contrast brushes rather than this palette, and the hairlines
