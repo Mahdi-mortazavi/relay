@@ -12,6 +12,9 @@ android/.idea/
 android/captures/
 android/.externalNativeBuild/
 android/.cxx/
+# AGP 9 / Kotlin 2.4 write compiler session files here. They are per-machine
+# build state and one of them was committed before this line existed.
+android/.kotlin/
 *.apk
 *.aab
 *.keystore
