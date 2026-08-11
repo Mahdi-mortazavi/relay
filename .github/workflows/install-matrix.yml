@@ -1,0 +1,145 @@
+# Can a person actually install what we published?
+#
+# The device lab proves the app works. It does not prove the *download* works,
+# because it installs an APK that CI just built, on x86_64, on two API levels.
+# A real user gets a different file (the release asset), on a different ABI
+# (arm64), on a newer Android than we test. Every one of those differences has
+# its own way of producing "App not installed", and none of them were covered.
+#
+# This workflow takes the published file and installs it, unmodified, across
+# the ABIs and Android versions real phones run.
+name: Install matrix
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to probe (default: latest)'
+        required: false
+        default: ''
+  schedule:
+    # New Android versions break sideloading in ways no code change of ours
+    # announces. Re-run monthly so the release page is checked against the
+    # platform as it is now, not as it was on release day.
+    - cron: '0 5 1 * *'
+
+concurrency:
+  group: install-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The ABI a real phone runs, on a native arm64 runner. This is the
+          # exact path a user takes and the one nothing covered before.
+          # Both files are expected to install here, so both are probed.
+          - label: 'arm64 phone, Android 14'
+            runner: ubuntu-24.04-arm
+            arch: arm64-v8a
+            api: 34
+            target: google_apis
+            apks: universal arm64-v8a
+          - label: 'arm64 phone, Android 15'
+            runner: ubuntu-24.04-arm
+            arch: arm64-v8a
+            api: 35
+            target: google_apis
+            apks: universal arm64-v8a
+          - label: 'arm64 phone, Android 16'
+            runner: ubuntu-24.04-arm
+            arch: arm64-v8a
+            api: 36
+            target: google_apis
+            apks: universal arm64-v8a
+          # Newer Android on x86_64, which the device lab stops short of. Only
+          # the universal APK is probed here: the arm64 file is *supposed* to
+          # be rejected by an x86_64 device, so asserting on it would be
+          # asserting that a correct platform behaviour is a bug.
+          - label: 'x86_64, Android 15'
+            runner: ubuntu-latest
+            arch: x86_64
+            api: 35
+            target: google_apis
+            apks: universal
+          - label: 'x86_64, Android 16'
+            runner: ubuntu-latest
+            arch: x86_64
+            api: 36
+            target: google_apis
+            apks: universal
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download the published APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p published
+          if [ -z "${TAG:-}" ]; then
+            TAG=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" \
+              | python3 -c 'import sys,json; print(json.load(sys.stdin)["tag_name"])')
+          fi
+          echo "probing release $TAG"
+          echo "RELAY_TAG=$TAG" >> "$GITHUB_ENV"
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" \
+            | python3 -c '
+import json, sys, urllib.request, os
+rel = json.load(sys.stdin)
+for a in rel["assets"]:
+    if a["name"].endswith(".apk"):
+        print("fetching", a["name"], a["size"], "bytes")
+        req = urllib.request.Request(a["url"], headers={
+            "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+            "Accept": "application/octet-stream"})
+        with urllib.request.urlopen(req) as r, open("published/" + a["name"], "wb") as f:
+            f.write(r.read())
+'
+          ls -l published/
+
+      - name: Install the published APKs on a device
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            chmod +x .github/scripts/install-probe.sh
+            APKS=""
+            for v in ${{ matrix.apks }}; do
+              APKS="$APKS published/Relay-android-$v.apk"
+            done
+            .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" $APKS
+
+      - name: Upload the verdict
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-probe-${{ matrix.arch }}-api${{ matrix.api }}
+          path: probe-out/
+          if-no-files-found: warn
