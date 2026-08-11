@@ -303,6 +303,14 @@ jobs:
             echo "Windows SmartScreen warns on first run because the installer is not"
             echo "code-signed yet: **More info -> Run anyway**. See \`docs/release.md\`."
             echo
+            echo "If Android says **\"App not installed\"**, that one message covers"
+            echo "several unrelated causes. The two most common: an older copy built"
+            echo "from source is still installed (uninstall it first - a different"
+            echo "signing key blocks the upgrade), or Play Protect blocked the"
+            echo "sideload (**Install anyway** in its dialog)."
+            echo "[docs/install-troubleshooting.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/install-troubleshooting.md)"
+            echo "covers the rest, starting with how to see the platform's real error."
+            echo
             echo "### Verify your download"
             echo
             echo "\`SHA256SUMS.txt\` is attached."

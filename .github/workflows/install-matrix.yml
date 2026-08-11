@@ -1,0 +1,101 @@
+# Can a person actually install what we published?
+#
+# The device lab proves the app works. It does not prove the *download* works,
+# because it installs an APK that CI just built, on x86_64, on two API levels.
+# A real user gets a different file (the release asset), on a different ABI
+# (arm64), on a newer Android than we test. Every one of those differences has
+# its own way of producing "App not installed", and none of them were covered.
+#
+# This workflow takes the published file and installs it, unmodified, across
+# the ABIs and Android versions real phones run.
+name: Install matrix
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to probe (default: latest)'
+        required: false
+        default: ''
+  schedule:
+    # New Android versions break sideloading in ways no code change of ours
+    # announces. Re-run monthly so the release page is checked against the
+    # platform as it is now, not as it was on release day.
+    - cron: '0 5 1 * *'
+
+concurrency:
+  group: install-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Android 11 is where the failure was reported and the gap nothing
+        # covered: the device lab does run API 30, but it installs an APK CI
+        # just built, and the universal APK had only ever been installed on
+        # API 34. The two had never met.
+        #
+        # All of it runs on x86_64 because that is the only place an emulator
+        # can be accelerated here — GitHub's arm64 runners have no /dev/kvm
+        # ("Failed to open the device 'kvm'"), so a native arm64 emulator is
+        # not available at any price. The google_apis images translate arm64,
+        # which is what lets the upgrade probe below install the previous
+        # arm64-only release and replace it, exactly as a phone would.
+        include:
+          - { api: 30, label: 'Android 11' }
+          - { api: 31, label: 'Android 12' }
+          - { api: 34, label: 'Android 14' }
+          - { api: 35, label: 'Android 15' }
+          - { api: 36, label: 'Android 16' }
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download the published APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+        run: python3 .github/scripts/fetch-release-apks.py "$GITHUB_REPOSITORY" "$TAG" published published-prev
+
+      - name: Install the published APKs on a device
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            chmod +x .github/scripts/install-probe.sh
+            # Every line here is its own `sh -c`, so the upgrade paths have to
+            # ride on the same command as the script or they never reach it.
+            # The reported failure was an upgrade — an install already on the
+            # phone, replaced by the universal build — so that is what this
+            # probes.
+            RELAY_UPGRADE_FROM=published-prev/Relay-android-arm64-v8a.apk RELAY_UPGRADE_TO=published/Relay-android-universal.apk .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" published/Relay-android-universal.apk
+
+      - name: Upload the verdict
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-probe-api${{ matrix.api }}
+          path: probe-out/
+          if-no-files-found: warn
