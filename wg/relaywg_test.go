@@ -200,8 +200,32 @@ func TestStopIsSafeTwiceAndOnNil(t *testing.T) {
 
 // nonLoopbackAddress finds an address on this machine that is routable from the
 // stack's point of view.
+//
+// The obvious way is to enumerate interfaces, and on Android that quietly finds
+// nothing: since API 30 the platform blocks netlink interface enumeration for
+// anything but system UIDs, so net.InterfaceAddrs returns loopback alone. This
+// suite is cross-compiled and run on a device precisely to prove the tunnel
+// works there — and with enumeration as the only route, the three tests that
+// carry real traffic skipped themselves on the device and the job went green
+// having proven nothing. A skip that reads as a pass is worse than a failure.
+//
+// Opening a UDP socket toward a routable address asks the kernel the same
+// question without netlink: nothing is sent, but the socket is bound to the
+// address the route would use.
 func nonLoopbackAddress(t *testing.T) string {
 	t.Helper()
+
+	// Any address off this machine will do; 192.0.2.1 is the reserved
+	// documentation range, so this cannot accidentally reach something real.
+	if conn, err := net.Dial("udp4", "192.0.2.1:9"); err == nil {
+		defer conn.Close()
+		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && !addr.IP.IsLoopback() {
+			if v4 := addr.IP.To4(); v4 != nil {
+				return v4.String()
+			}
+		}
+	}
+
 	interfaces, err := net.InterfaceAddrs()
 	if err != nil {
 		t.Fatalf("interfaces: %v", err)

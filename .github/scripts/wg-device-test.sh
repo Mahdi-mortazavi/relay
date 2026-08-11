@@ -58,9 +58,27 @@ if grep -q '^--- FAIL' "${OUT}/wg-device-test.log"; then
   exit 1
 fi
 
+# Naming the tests that this job exists for. A count is not enough: the first
+# run of this job was green while the only three tests that push traffic through
+# the tunnel had skipped themselves -- Android blocks the interface enumeration
+# they used to find a local address -- so ten lifecycle and parsing tests passed
+# and the job reported that Full Mode works on Android. It had proven nothing.
+must_pass="
+TestForwardsRealTrafficOutOfTheTunnel
+TestForwardsUdpOutOfTheTunnel
+TestReportsThePeerOnceItHasArrived
+TestTheConfigurationThePhoneSendsIsAccepted
+"
+missing=0
+for name in $must_pass; do
+  if ! grep -q -- "--- PASS: ${name}" "${OUT}/wg-device-test.log"; then
+    verdict=$(grep -o -- "--- [A-Z]*: ${name}" "${OUT}/wg-device-test.log" || echo "--- (never ran)")
+    echo "::error::${name} did not pass on the device (${verdict})."
+    missing=1
+  fi
+done
+[ "$missing" -eq 0 ] || exit 1
+
 ran=$(grep -c '^--- PASS' "${OUT}/wg-device-test.log" || true)
-if [ "${ran:-0}" -lt 5 ]; then
-  echo "::error::Only ${ran} tests ran on the device; the suite has more than that."
-  exit 1
-fi
-echo "PASS: ${ran} endpoint tests passed on Android (adb status ${status})."
+echo "PASS: ${ran} endpoint tests passed on Android (adb status ${status}),"
+echo "      including real TCP and UDP through a real WireGuard tunnel."
