@@ -21,6 +21,9 @@ class GoWgForwarder : WgForwarder {
     private val startEndpoint: Method
     private val stopEndpoint: Method
     private val isRunning: Method
+    private val lastHandshakeUnix: Method
+    private val bytesReceived: Method
+    private val bytesSent: Method
 
     init {
         val relaywg = try {
@@ -33,6 +36,9 @@ class GoWgForwarder : WgForwarder {
         startEndpoint = relaywg.getMethod("startEndpoint", String::class.java)
         stopEndpoint = relaywg.getMethod("stopEndpoint")
         isRunning = relaywg.getMethod("isRunning")
+        lastHandshakeUnix = relaywg.getMethod("lastHandshakeUnix")
+        bytesReceived = relaywg.getMethod("bytesReceived")
+        bytesSent = relaywg.getMethod("bytesSent")
     }
 
     override fun start(config: String) {
@@ -59,6 +65,19 @@ class GoWgForwarder : WgForwarder {
 
     /** True when the Go side has a live endpoint, asked rather than remembered. */
     fun running(): Boolean = runCatching { isRunning.invoke(null) as Boolean }.getOrDefault(false)
+
+    // Polled once a second to drive the screen. Every one of these answers 0
+    // rather than throwing: a session that has just been torn down is the
+    // normal case for the tick that arrives right after Stop, and an exception
+    // there would turn a stale label into a crash.
+    override fun lastHandshakeUnix(): Long = number(lastHandshakeUnix)
+
+    override fun bytesReceived(): Long = number(bytesReceived)
+
+    override fun bytesSent(): Long = number(bytesSent)
+
+    private fun number(method: Method): Long =
+        runCatching { method.invoke(null) as Long }.getOrDefault(0L)
 
     private companion object {
         /**

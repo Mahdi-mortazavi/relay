@@ -66,6 +66,7 @@ class SharingService : Service() {
     private var lastTrafficPush = 0L
     private var currentHost: String? = null
     private var hotspotWatcher: Job? = null
+    private var peerWatcher: Job? = null
 
     // Full Mode session (ADR-0008): the userspace forwarder + this pairing's keys.
     private var mode = TransportMode.FAST
@@ -213,6 +214,7 @@ class SharingService : Service() {
         }
         wgKeys = keys
         LocalLog.add("WireGuard endpoint up on $host:${keys.endpointPort}")
+        startPeerWatcher(forwarder)
         return pairing.issuePayload(
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
@@ -240,6 +242,46 @@ class SharingService : Service() {
             }
         }
         return -1
+    }
+
+    /**
+     * Turns the tunnel's handshake into the same "a PC is here" signal the
+     * SOCKS server raises, so Full Mode drives the screen, the wake lock and
+     * the notification through exactly one path rather than two that drift.
+     *
+     * Full Mode has nothing to count. Its endpoint is a UDP port, which answers
+     * identically whether or not a laptop is behind it, so without this the
+     * phone would say "waiting for a PC" through an entire download. WireGuard
+     * itself provides the answer: a peer that is really there rekeys, and the
+     * client's 25-second keepalive keeps that happening even while idle.
+     */
+    private fun startPeerWatcher(forwarder: WgForwarder) {
+        peerWatcher?.cancel()
+        peerWatcher = scope.launch {
+            var present = false
+            while (isActive) {
+                delay(PEER_POLL_MS)
+                val handshake = forwarder.lastHandshakeUnix()
+                val age = System.currentTimeMillis() / 1000 - handshake
+                // Three minutes is what wg(8)'s own tooling treats as alive:
+                // rekeying happens at two, so this leaves a minute of margin
+                // without holding "connected" on screen long after the laptop
+                // has closed its lid.
+                val nowPresent = handshake > 0 && age in 0..PEER_ALIVE_SECONDS
+                if (nowPresent != present) {
+                    present = nowPresent
+                    serverListener.onClientsChanged(if (nowPresent) 1 else 0)
+                }
+                if (nowPresent) {
+                    // Named from the phone's side: what the laptop sent up is
+                    // what this endpoint received.
+                    serverListener.onTraffic(
+                        bytesUp = forwarder.bytesReceived(),
+                        bytesDown = forwarder.bytesSent(),
+                    )
+                }
+            }
+        }
     }
 
     /**
@@ -354,7 +396,12 @@ class SharingService : Service() {
         beacon = null
         shortCode = null
         clientGate.reset()
-        // Full Mode: stop the endpoint and drop the per-pairing keys (§4.2).
+        // Full Mode: stop watching before stopping the endpoint, or the next
+        // tick reads a torn-down session and pushes a state change after the
+        // service has already said it is idle.
+        peerWatcher?.cancel()
+        peerWatcher = null
+        // Stop the endpoint and drop the per-pairing keys (§4.2).
         runCatching { wgForwarder?.stop() }
         wgKeys = null
         currentHost = null
@@ -473,6 +520,14 @@ class SharingService : Service() {
         const val CHANNEL_ID = "sharing"
         const val NOTIFICATION_ID = 1
         const val HOTSPOT_POLL_MS = 2000L
+        const val PEER_POLL_MS = 1000L
+
+        /**
+         * How stale a handshake may be before Full Mode stops calling the peer
+         * present. Matches what wg(8)'s own tooling treats as a live peer:
+         * rekeying happens at two minutes, so this leaves a minute of margin.
+         */
+        const val PEER_ALIVE_SECONDS = 180L
 
         /** Client discovers the port via the QR, so any of these is fine. */
         val CANDIDATE_PORTS = listOf(1080, 1081, 10800)

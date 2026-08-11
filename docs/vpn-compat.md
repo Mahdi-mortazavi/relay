@@ -37,13 +37,17 @@ Since there is no local device loop, run this from an installable CI artifact
 
 ## Matrix
 
-Fast Mode is testable now; Full Mode lands in Phase 3 and its column is filled then.
+Both modes are now buildable and testable on a phone. Neither column can be
+filled from CI: an emulator has no VPN app and no radio, so every cell here
+waits on someone with hardware. Full Mode's sockets leave the phone the same
+way Fast Mode's do — through the default network, and therefore through any
+active VPN — so the answers are expected to match, but expected is not tested.
 
 | VPN app | Fast Mode | Full Mode | Notes |
 |---|---|---|---|
-| Proton VPN | ⏳ pending hardware | — (Phase 3) | Free tier available for testing; check "permanent kill switch" off |
-| Cloudflare WARP (1.1.1.1) | ⏳ pending hardware | — (Phase 3) | Uses its own VpnService; verify LAN to the hotspot isn't blocked |
-| Mullvad VPN | ⏳ pending hardware | — (Phase 3) | "Local network sharing" toggle must be **on** for hotspot clients to reach the phone |
+| Proton VPN | ⏳ pending hardware | ⏳ pending hardware | Free tier available for testing; check "permanent kill switch" off |
+| Cloudflare WARP (1.1.1.1) | ⏳ pending hardware | ⏳ pending hardware | Uses its own VpnService; verify LAN to the hotspot isn't blocked |
+| Mullvad VPN | ⏳ pending hardware | ⏳ pending hardware | "Local network sharing" toggle must be **on** for hotspot clients to reach the phone |
 
 Legend: ✅ works · ⚠️ works with a noted setting · ❌ incompatible · ⏳ awaiting a
 hardware run from a CI artifact. Update this table from the checklist results;

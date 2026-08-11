@@ -21,6 +21,20 @@ val relayVersionCode: Int = relayVersion.substringBefore("-").split(".").let { p
     (major * 10_000 + minor * 100 + patch).coerceAtLeast(1)
 }
 
+// Full Mode's forwarder is an AAR built from /wg by gomobile. A checkout
+// without it builds fine and honestly reports Full Mode as unavailable — but a
+// *release* built that way would ship an app quietly missing a mode it
+// advertises, and nothing would have said so. Builds that ship, and the device
+// tests that prove the mode works, pass -PrelayRequireWg=true.
+val relayRequireWg: Boolean =
+    (project.findProperty("relayRequireWg") as String?)?.toBoolean() ?: false
+if (relayRequireWg && fileTree("libs") { include("*.aar") }.isEmpty) {
+    throw GradleException(
+        "No Full Mode library in android/app/libs. Build it with " +
+            "scripts/build-wg-aar.sh, or drop -PrelayRequireWg.",
+    )
+}
+
 android {
     namespace = "io.relay.app"
     compileSdk = 37
@@ -87,6 +101,24 @@ android {
         }
     }
 
+    packaging {
+        jniLibs {
+            // com.wireguard.android:tunnel is here for one class —
+            // com.wireguard.crypto.KeyPair, which is pure Java. The rest of it
+            // is GoBackend: a second, complete copy of wireguard-go for running
+            // a *client* tunnel through a VpnService, which is the opposite of
+            // what Relay does and which nothing in this app ever constructs.
+            // Left in, it costs 3.5 MB per ABI — 14 MB on the universal APK
+            // people download when the arm64 one says "not compatible" —
+            // to ship code that cannot execute.
+            excludes += listOf(
+                "**/libwg-go.so",
+                "**/libwg-quick.so",
+                "**/libwg.so",
+            )
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -124,9 +156,18 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.zxing.core)
-    // Official WireGuard key generation + crypto (Full Mode, ADR-0008). The
-    // userspace forwarder AAR is added by the wg-forwarder build in CI.
+    // Official WireGuard key generation + crypto (Full Mode, ADR-0008).
     implementation(libs.wireguard.tunnel)
+
+    // The userspace forwarder itself: /wg, built by gomobile. Picked up from a
+    // directory rather than declared as a coordinate because it is built by a
+    // Go toolchain and an NDK, which no Android developer should need installed
+    // to compile this app. CI builds it once and drops it here (see the
+    // wireguard job in ci.yml and `scripts/fetch-wg-aar.sh`); a checkout
+    // without it still builds, and Full Mode then reports itself unavailable
+    // instead of failing the build or -- worse -- offering a mode that cannot
+    // start. `relayRequireWg` turns that tolerance off for the builds that ship.
+    implementation(fileTree("libs") { include("*.aar") })
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

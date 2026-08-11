@@ -200,11 +200,62 @@ func TestStopIsSafeTwiceAndOnNil(t *testing.T) {
 
 // nonLoopbackAddress finds an address on this machine that is routable from the
 // stack's point of view.
+//
+// The obvious way is to enumerate interfaces, and on Android that quietly finds
+// nothing: since API 30 the platform blocks netlink interface enumeration for
+// anything but system UIDs, so net.InterfaceAddrs returns loopback alone. This
+// suite is cross-compiled and run on a device precisely to prove the tunnel
+// works there — and with enumeration as the only route, the three tests that
+// carry real traffic skipped themselves on the device and the job went green
+// having proven nothing. A skip that reads as a pass is worse than a failure.
+//
+// Opening a UDP socket toward a routable address asks the kernel the same
+// question without netlink: nothing is sent, but the socket is bound to the
+// address the route would use.
 func nonLoopbackAddress(t *testing.T) string {
 	t.Helper()
+
+	// Retried, because on a freshly booted emulator the default route appears a
+	// moment after the shell does, and the first attempt then fails with
+	// "network is unreachable". One run of this job passed and the next skipped
+	// all three traffic tests for exactly that reason.
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		if address := routableAddress(); address != "" {
+			return address
+		}
+		if time.Now().After(deadline) {
+			// Not t.Skip. A skip here reads as a pass, and these are the only
+			// tests in the suite that put real traffic through the tunnel:
+			// skipping them leaves a green run that has proven nothing about
+			// the thing it exists to prove.
+			t.Fatal("no routable IPv4 address after 20s — the tests that carry " +
+				"traffic cannot run, and a skipped run of them is not a passing one")
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+// routableAddress returns this machine's address as the routing table sees it,
+// or "" if there is none yet.
+func routableAddress() string {
+	// Opening a UDP socket toward a routable address asks the kernel the same
+	// question interface enumeration would, without netlink: nothing is sent,
+	// but the socket binds to the address the route would use. 192.0.2.1 is the
+	// reserved documentation range, so this cannot reach anything real.
+	if conn, err := net.Dial("udp4", "192.0.2.1:9"); err == nil {
+		defer conn.Close()
+		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && !addr.IP.IsLoopback() {
+			if v4 := addr.IP.To4(); v4 != nil {
+				return v4.String()
+			}
+		}
+	}
+
+	// Enumeration as a fallback, for anywhere the dial is refused.
 	interfaces, err := net.InterfaceAddrs()
 	if err != nil {
-		t.Fatalf("interfaces: %v", err)
+		return ""
 	}
 	for _, addr := range interfaces {
 		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
@@ -213,7 +264,6 @@ func nonLoopbackAddress(t *testing.T) string {
 			}
 		}
 	}
-	t.Skip("no non-loopback IPv4 address on this machine")
 	return ""
 }
 
@@ -266,6 +316,73 @@ func wireguardClient(t *testing.T, privateKey, serverPublic string, port int) (*
 		t.Fatalf("client did not come up: %v", err)
 	}
 	return dev, tunNet
+}
+
+func TestReportsThePeerOnceItHasArrived(t *testing.T) {
+	// The phone's screen depends on this. A UDP port answers the same whether
+	// or not a laptop is behind it, so "someone connected" can only come from
+	// the handshake -- and if it never appears, Full Mode says "waiting for a
+	// PC" through an entire download.
+	destination := httpServer(t, "counted")
+
+	serverPrivate, serverPublic := keyPair(t)
+	clientPrivate, clientPublic := keyPair(t)
+	port := freeUDPPort(t)
+
+	endpoint, err := Start(fmt.Sprintf(
+		"private_key=%s\nlisten_port=%d\npublic_key=%s\nallowed_ip=10.13.37.2/32\n",
+		serverPrivate, port, clientPublic))
+	if err != nil {
+		t.Fatalf("endpoint did not start: %v", err)
+	}
+	defer endpoint.Stop()
+
+	if got := endpoint.LastHandshakeUnix(); got != 0 {
+		t.Errorf("claimed a handshake at %d before any client existed", got)
+	}
+
+	client, clientNet := wireguardClient(t, clientPrivate, serverPublic, port)
+	defer client.Close()
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{DialContext: clientNet.DialContext},
+		Timeout:   15 * time.Second,
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		if response, err := httpClient.Get("http://" + destination + "/"); err == nil {
+			io.Copy(io.Discard, response.Body)
+			response.Body.Close()
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	if endpoint.LastHandshakeUnix() <= 0 {
+		t.Error("traffic crossed the tunnel and no handshake was reported")
+	}
+	if endpoint.BytesReceived() <= 0 || endpoint.BytesSent() <= 0 {
+		t.Errorf("counters stayed empty after a transfer: rx=%d tx=%d",
+			endpoint.BytesReceived(), endpoint.BytesSent())
+	}
+
+	// After teardown there is nothing to report, and asking must not panic --
+	// the poll that drives the screen runs on its own thread and can easily
+	// arrive one tick after Stop.
+	endpoint.Stop()
+	if got := endpoint.LastHandshakeUnix(); got != 0 {
+		t.Errorf("a stopped endpoint reported a handshake at %d", got)
+	}
+}
+
+func TestPeerCountersAreSafeWhenNothingIsRunning(t *testing.T) {
+	// The gomobile wrappers read through a nil *Endpoint whenever the phone
+	// polls between sessions; that has to be a zero, not a crash inside the
+	// app's own process.
+	StopEndpoint()
+	if LastHandshakeUnix() != 0 || BytesReceived() != 0 || BytesSent() != 0 {
+		t.Error("a stopped session reported traffic")
+	}
 }
 
 func TestStartEndpointReplacesTheRunningOne(t *testing.T) {

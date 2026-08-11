@@ -14,6 +14,21 @@ interface WgForwarder {
     fun start(config: String)
 
     fun stop()
+
+    /**
+     * When the peer last completed a handshake, in seconds since the epoch, or
+     * 0 if it never has.
+     *
+     * The only honest "is a PC there?" signal Full Mode has. Fast Mode counts
+     * accepted sockets; a UDP endpoint has none to count and answers the same
+     * whether or not anyone is on the far side.
+     */
+    fun lastHandshakeUnix(): Long
+
+    /** Tunnel byte counters, from the phone's point of view. */
+    fun bytesReceived(): Long
+
+    fun bytesSent(): Long
 }
 
 class WgForwarderException(message: String, cause: Throwable? = null) : Exception(message, cause)

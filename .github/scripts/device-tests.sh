@@ -73,3 +73,41 @@ echo "::group::Instrumented tests"
     -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     -Pandroid.testInstrumentationRunnerArguments.notAnnotation=io.relay.app.e2e.HostHarness )
 echo "::endgroup::"
+
+# A green Gradle run means "nothing failed", which is also what an empty run
+# looks like. The endpoint's own suite already went green on a device once
+# while the only tests that mattered had skipped themselves, so the classes
+# this job exists to run are named here and checked against the results.
+echo "::group::What actually ran"
+python3 - <<'PY'
+import glob, sys, xml.etree.ElementTree as ET
+
+required = {
+    "io.relay.app.e2e.GoldenJourneyTest",   # the journey a person takes
+    "io.relay.app.e2e.FullModeTest",        # Full Mode really starting on a device
+}
+
+files = glob.glob("android/app/build/outputs/androidTest-results/**/*.xml", recursive=True)
+if not files:
+    sys.exit("::error::No instrumented results were written at all.")
+
+ran, bad = {}, []
+for path in files:
+    for case in ET.parse(path).getroot().iter("testcase"):
+        name = case.get("classname", "")
+        ran[name] = ran.get(name, 0) + 1
+        if case.find("failure") is not None or case.find("error") is not None:
+            bad.append(f"{name}.{case.get('name')}")
+        if case.find("skipped") is not None:
+            bad.append(f"{name}.{case.get('name')} (skipped)")
+
+for name, count in sorted(ran.items()):
+    print(f"  {name}: {count}")
+
+problems = [f"::error::{case} did not pass." for case in bad]
+problems += [f"::error::{name} never ran on this device." for name in sorted(required - set(ran))]
+if problems:
+    sys.exit("\n".join(problems))
+print(f"OK: {sum(ran.values())} instrumented tests ran, including Full Mode.")
+PY
+echo "::endgroup::"

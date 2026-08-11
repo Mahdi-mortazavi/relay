@@ -5,8 +5,11 @@ import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.DecodeResult
 import io.relay.app.core.WgConfig
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,12 +33,35 @@ class WgConfigTest {
     }
 
     @Test
-    fun `server config lists the client peer at its tunnel ip`() {
-        val config = WgConfig.serverConfig(keys)
-        assertTrue(config.contains("PrivateKey = ${keys.serverPrivateKey}"))
-        assertTrue(config.contains("ListenPort = ${keys.endpointPort}"))
-        assertTrue(config.contains("PublicKey = ${keys.clientPublicKey}"))
-        assertTrue(config.contains("AllowedIPs = ${WgConfig.CLIENT_TUNNEL_IP}/32"))
+    fun `server config is exactly what the Go endpoint is given`() {
+        // Byte-for-byte against /shared/test-vectors.json, which the Go suite
+        // also feeds to a real wireguard-go device. Asserting "contains
+        // PrivateKey =" here is what let this ship as wg-quick INI: every
+        // assertion passed and no device would have taken the file.
+        val vector = SharedContracts.json("test-vectors.json")
+            .jsonObject.getValue("wgServerConfig").jsonObject
+        val expected = vector.getValue("ipc").jsonPrimitive.content
+        assertEquals(expected, WgConfig.serverConfig(keys))
+    }
+
+    @Test
+    fun `the tunnel addresses match the endpoint and the Windows client`() {
+        // Three copies of these two constants exist. When this file said
+        // 10.7.0.x, the peer's packets were dropped on cryptokey routing: a
+        // tunnel that handshakes and carries nothing.
+        val vector = SharedContracts.json("test-vectors.json")
+            .jsonObject.getValue("wgServerConfig").jsonObject
+        assertEquals(vector.getValue("serverTunnelIp").jsonPrimitive.content, WgConfig.SERVER_TUNNEL_IP)
+        assertEquals(vector.getValue("clientTunnelIp").jsonPrimitive.content, WgConfig.CLIENT_TUNNEL_IP)
+    }
+
+    @Test
+    fun `hex conversion refuses anything that is not a 32-byte key`() {
+        // A short key encodes happily and produces a device that never
+        // handshakes, so this has to fail loudly at assembly time.
+        assertThrows(IllegalArgumentException::class.java) { WgConfig.toHex("c2hvcnQ=") }
+        assertThrows(IllegalArgumentException::class.java) { WgConfig.toHex("not base64!") }
+        assertThrows(IllegalArgumentException::class.java) { WgConfig.toHex("") }
     }
 
     @Test

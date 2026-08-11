@@ -62,3 +62,30 @@ func IsRunning() bool {
 	defer activeMu.Unlock()
 	return active != nil
 }
+
+// LastHandshakeUnix is when the laptop last completed a handshake, in seconds
+// since the epoch; 0 when it never has, and 0 when nothing is running.
+//
+// The phone's screen is driven by this: it is the only honest signal that a PC
+// is really there, since a UDP port answers the same whether or not anyone is
+// listening on the far side.
+func LastHandshakeUnix() int64 {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	return active.LastHandshakeUnix()
+}
+
+// BytesReceived and BytesSent are the tunnel's counters, from the phone's point
+// of view. Exposed as int64 because gomobile carries that across unchanged and
+// a byte count on a long session does not fit in an int32.
+func BytesReceived() int64 {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	return active.BytesReceived()
+}
+
+func BytesSent() int64 {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	return active.BytesSent()
+}

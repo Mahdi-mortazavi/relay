@@ -185,12 +185,12 @@ func (d *netTun) Write(bufs [][]byte, offset int) (int, error) {
 	return written, nil
 }
 
-func (d *netTun) Flush() error           { return nil }
-func (d *netTun) MTU() (int, error)      { return d.mtu, nil }
-func (d *netTun) Name() (string, error)  { return "relay0", nil }
-func (d *netTun) File() *os.File         { return nil }
+func (d *netTun) Flush() error             { return nil }
+func (d *netTun) MTU() (int, error)        { return d.mtu, nil }
+func (d *netTun) Name() (string, error)    { return "relay0", nil }
+func (d *netTun) File() *os.File           { return nil }
 func (d *netTun) Events() <-chan tun.Event { return d.events }
-func (d *netTun) BatchSize() int         { return 1 }
+func (d *netTun) BatchSize() int           { return 1 }
 
 func (d *netTun) Close() error {
 	d.closeOnce.Do(func() {

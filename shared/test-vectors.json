@@ -135,5 +135,18 @@
     "attemptDelaysMs": [1000, 2000, 2000, 3000, 3000],
     "attempts": 5,
     "totalBoundMs": 11000
+  },
+  "wgServerConfig": {
+    "$comment": "The phone-side WireGuard configuration, in the flat IPC dialect wireguard-go's Device.IpcSet consumes: lowercase names, hex keys, and a peer section opened by public_key. Android asserts WgConfig.serverConfig produces exactly this; Go asserts a real device accepts it. Either check alone is worth little — one is agreement without validity, the other validity without agreement.",
+    "keys": {
+      "serverPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=",
+      "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=",
+      "clientPrivateKey": "6dE0jvo6/PbUqznG29Xkno78HyGGwtH1UYl3WXQEkZQ=",
+      "clientPublicKey": "alMc1KaITw/vbYW3PmNUub6swP8d+rw3I0fu01FVefc="
+    },
+    "endpointPort": 51820,
+    "serverTunnelIp": "10.13.37.1",
+    "clientTunnelIp": "10.13.37.2",
+    "ipc": "private_key=3f6189d5a5906f952bacb34b97f8b0617fc003c2ba0bf052f4bd5ed899dec29a\nlisten_port=51820\npublic_key=6a531cd4a6884f0fef6d85b73e6354b9beacc0ff1dfabc372347eed3515579f7\nallowed_ip=10.13.37.2/32\n"
   }
 }
