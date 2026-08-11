@@ -4,13 +4,19 @@
 # it never runs on a push, and it refuses to do anything unless you type
 # DELETE into the confirmation box.
 #
-# What it will and will not touch is fixed in the rules below rather than
-# inferred at runtime — "everything except the newest" is the kind of rule that
-# deletes the wrong thing the one time the ordering surprises you.
+# Each rule is a separate switch, so the destructive ones have to be asked for
+# rather than coming along for the ride:
 #
-#   keeps    the `main` branch, every `v*` release and tag (the unified scheme)
-#   deletes  legacy `android-v*` / `windows-v*` releases and tags,
-#            and every branch other than `main`
+#   always keeps  the `main` branch, and every tag
+#   legacy_releases           deletes legacy `android-v*` / `windows-v*`
+#                             releases and their tags. Never touches a `v*`
+#                             release, so it cannot remove the current one.
+#   stale_branches            deletes every branch except `main`
+#   keep_only_newest_release  deletes older `v*` releases, keeping the newest.
+#                             Off by default: this is the one rule that can
+#                             remove a release people are still downloading.
+#                             Tags survive it, so the commit behind any shipped
+#                             build stays identifiable.
 name: Repository maintenance
 
 on:
@@ -29,6 +35,11 @@ on:
         description: 'Delete every branch except main'
         required: false
         default: true
+        type: boolean
+      keep_only_newest_release:
+        description: 'Delete older v* releases, keeping only the newest'
+        required: false
+        default: false
         type: boolean
 
 permissions:
@@ -82,6 +93,35 @@ jobs:
             fi
           done
           echo "::endgroup::"
+
+      # Off by default and behind the same DELETE confirmation, because unlike
+      # the legacy rule above this one *can* remove a release someone is still
+      # downloading. The newest is identified by GitHub's own ordering of the
+      # release list, and the tag is kept: a tag costs nothing, and without it
+      # the commit a shipped build came from stops being identifiable.
+      - name: Keep only the newest release
+        if: inputs.keep_only_newest_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release list --limit 200 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[].tagName' > all.txt
+          NEWEST=$(head -1 all.txt || true)
+          if [ -z "$NEWEST" ]; then
+            echo "No releases at all; nothing to do."
+            exit 0
+          fi
+          echo "keeping $NEWEST"
+          COUNT=0
+          while read -r tag; do
+            [ -n "$tag" ] || continue
+            [ "$tag" = "$NEWEST" ] && continue
+            echo "deleting release $tag (tag kept)"
+            gh release delete "$tag" --yes
+            COUNT=$((COUNT + 1))
+          done < <(tail -n +2 all.txt)
+          echo "deleted $COUNT older release(s)."
 
       - name: Delete branches other than main
         if: inputs.stale_branches
