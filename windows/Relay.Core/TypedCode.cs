@@ -31,11 +31,23 @@ public static class TypedCode
         return new string(code);
     }
 
+    /// <summary>
+    /// The contract's input rule (/shared/typed-code.md): upper-case, with
+    /// whitespace and <c>-</c> stripped and nothing else.
+    ///
+    /// Public because anything that validates a code before handing it to
+    /// <see cref="Decode"/> has to see exactly the same string the decoder will.
+    /// The code box normalised more loosely than this and the two disagreed —
+    /// see the call site for what that cost the user.
+    /// </summary>
+    public static string Normalize(string? input) =>
+        new((input ?? string.Empty).ToUpperInvariant()
+            .Where(c => c != '-' && !char.IsWhiteSpace(c)).ToArray());
+
     /// <summary>Decodes user input (case-insensitive, separators tolerated); null on any failure.</summary>
     public static (string Host, int Port)? Decode(string input)
     {
-        var clean = new string(input.ToUpperInvariant()
-            .Where(c => c != '-' && !char.IsWhiteSpace(c)).ToArray());
+        var clean = Normalize(input);
         if (clean.Length != Length) return null;
 
         var value = 0L;
