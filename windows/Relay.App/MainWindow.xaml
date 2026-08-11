@@ -3,190 +3,215 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid x:Name="Root" Padding="22,18,22,20">
+    <!--
+        A tray popover. The window's DesktopAcrylic backdrop is the glass layer
+        and the only one: the scrim below sits directly on it, and nothing
+        inside is translucent over anything else. Nested glass is what turns a
+        material into mud.
+
+        Layout is three rows — header, the one state that is currently true, and
+        Advanced. The middle row sizes to its content and the window follows, so
+        the idle screen is a small card rather than a tall panel with a hole in
+        the middle of it.
+    -->
+    <Grid x:Name="Root" Padding="{StaticResource WindowPadding}" RowSpacing="0">
         <Grid.Background>
-            <!-- Light scrim over the acrylic backdrop: keeps text legible on any
-                 wallpaper while letting the frosted glass show through. -->
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#33121620" Offset="0" />
-                <GradientStop Color="#4D0A0C10" Offset="1" />
+                <GradientStop Color="{StaticResource ScrimTopColor}" Offset="0" />
+                <GradientStop Color="{StaticResource ScrimBottomColor}" Offset="1" />
             </LinearGradientBrush>
         </Grid.Background>
 
-        <Grid.Resources>
-            <!-- One pill-button look for the whole app. A white overlay brightens on
-                 hover (works for both the accent and the glass buttons); no theme
-                 resources are referenced, so it can't fault at load. -->
-            <Style x:Key="PillButton" TargetType="Button">
-                <Setter Property="CornerRadius" Value="23" />
-                <Setter Property="Height" Value="46" />
-                <Setter Property="HorizontalAlignment" Value="Stretch" />
-                <Setter Property="FontSize" Value="15" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" CornerRadius="{TemplateBinding CornerRadius}"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}">
-                                <Grid>
-                                    <Border x:Name="Hover" CornerRadius="{TemplateBinding CornerRadius}"
-                                            Background="Transparent" />
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                      Foreground="{TemplateBinding Foreground}"
-                                                      Content="{TemplateBinding Content}" />
-                                </Grid>
-                                <VisualStateManager.VisualStateGroups>
-                                    <VisualStateGroup x:Name="CommonStates">
-                                        <VisualState x:Name="Normal" />
-                                        <VisualState x:Name="PointerOver">
-                                            <VisualState.Setters>
-                                                <Setter Target="Hover.Background" Value="#22FFFFFF" />
-                                            </VisualState.Setters>
-                                        </VisualState>
-                                        <VisualState x:Name="Pressed">
-                                            <VisualState.Setters>
-                                                <Setter Target="Hover.Background" Value="#2E000000" />
-                                            </VisualState.Setters>
-                                        </VisualState>
-                                        <VisualState x:Name="Disabled">
-                                            <VisualState.Setters>
-                                                <Setter Target="Bd.Opacity" Value="0.4" />
-                                            </VisualState.Setters>
-                                        </VisualState>
-                                    </VisualStateGroup>
-                                </VisualStateManager.VisualStateGroups>
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-        </Grid.Resources>
-
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Grid Grid.Row="0" Margin="2,0,2,14">
-            <TextBlock x:Name="TitleText" Text="Relay" FontSize="22" FontWeight="SemiBold"
-                       FontFamily="Segoe UI Variable Display" Foreground="#F2FFFFFF" />
-            <Ellipse x:Name="StatusDot" Width="10" Height="10"
-                     HorizontalAlignment="Right" VerticalAlignment="Center" Fill="#66FFFFFF" />
+        <!-- ===== Header: identity on the left, live state on the right ===== -->
+        <Grid Grid.Row="0" Margin="2,0,2,18" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock x:Name="TitleText" Grid.Column="0" Text="Relay"
+                       Style="{StaticResource TitleText}" VerticalAlignment="Center" />
+
+            <!-- A dot alone says "something is a colour". Pairing it with a word
+                 means a glance answers "what is happening" without decoding hue,
+                 which also stops colour from being the only carrier of state. -->
+            <Border Grid.Column="1" x:Name="StatusChip"
+                    CornerRadius="{StaticResource PillCorner}"
+                    Background="{StaticResource FillTertiary}"
+                    Padding="10,5,12,5" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                    <Ellipse x:Name="StatusDot" Width="8" Height="8" VerticalAlignment="Center"
+                             Fill="{StaticResource LabelQuaternary}" />
+                    <TextBlock x:Name="StatusChipText" Style="{StaticResource CaptionText}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
         </Grid>
 
-        <!-- Idle -->
-        <StackPanel x:Name="IdlePanel" Grid.Row="1" VerticalAlignment="Center" Spacing="14">
-            <TextBlock x:Name="IdleStatusText" HorizontalAlignment="Center" FontSize="15"
-                       Foreground="#A8FFFFFF" Margin="0,0,0,4" />
-            <Button x:Name="ScanButton" Style="{StaticResource PillButton}"
-                    Background="#4ADFBF" Foreground="#05201B" BorderBrush="Transparent"
-                    Click="OnScanClick" />
-            <Button x:Name="EnterCodeButton" Style="{StaticResource PillButton}"
-                    Background="#16FFFFFF" Foreground="#F2FFFFFF" BorderBrush="#2AFFFFFF"
-                    Click="OnEnterCodeClick" />
-            <TextBlock x:Name="TaglineText" HorizontalAlignment="Center" Margin="0,6,0,0"
-                       FontSize="12" Foreground="#66FFFFFF" />
-        </StackPanel>
+        <!-- ===== State: exactly one of these is visible ===== -->
+        <Grid Grid.Row="1" x:Name="StateHost" MinHeight="212">
 
-        <!-- Scanning -->
-        <StackPanel x:Name="ScanPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="14"
-                    Visibility="Collapsed">
-            <Border CornerRadius="18" Background="#14171D" BorderBrush="#26FFFFFF" BorderThickness="1"
-                    Height="300" HorizontalAlignment="Stretch">
-                <Image x:Name="PreviewImage" Stretch="UniformToFill" Margin="1" />
-            </Border>
-            <TextBlock x:Name="ScanHintText" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="12.5" Foreground="#8AFFFFFF" />
-            <Button x:Name="ScanCancelButton" Style="{StaticResource PillButton}"
-                    Background="#16FFFFFF" Foreground="#F2FFFFFF" BorderBrush="#2AFFFFFF"
-                    Click="OnCancelClick" />
-        </StackPanel>
+            <!-- Idle ────────────────────────────────────────-->
+            <StackPanel x:Name="IdlePanel" VerticalAlignment="Center" Spacing="10">
+                <TextBlock x:Name="IdleHeadline" Style="{StaticResource HeadlineText}" />
+                <TextBlock x:Name="IdleBody" Style="{StaticResource FootnoteText}"
+                           Margin="6,0,6,6" />
 
-        <!-- Manual code entry -->
-        <StackPanel x:Name="CodePanel" Grid.Row="1" VerticalAlignment="Center" Spacing="14"
-                    Visibility="Collapsed">
-            <TextBox x:Name="CodeBox" PlaceholderText="XXXX-XXXX" FontSize="26" MaxLength="9"
-                     TextAlignment="Center" CharacterSpacing="180" CornerRadius="16" Height="66"
-                     Background="#16FFFFFF" Foreground="#F2FFFFFF" BorderBrush="#2AFFFFFF"
-                     VerticalContentAlignment="Center" FontFamily="Consolas" />
-            <TextBlock x:Name="CodeHintText" TextWrapping="Wrap" TextAlignment="Center"
-                       FontSize="12.5" Foreground="#8AFFFFFF" />
-            <Button x:Name="CodeConnectButton" Style="{StaticResource PillButton}"
-                    Background="#4ADFBF" Foreground="#05201B" BorderBrush="Transparent"
-                    Click="OnCodeConnectClick" />
-            <Button x:Name="CodeCancelButton" Style="{StaticResource PillButton}"
-                    Background="#16FFFFFF" Foreground="#F2FFFFFF" BorderBrush="#2AFFFFFF"
-                    Click="OnCancelClick" />
-        </StackPanel>
+                <!-- One accented action. Scanning is what almost everyone does,
+                     so typing a code is a quiet text action underneath rather
+                     than a second button of equal weight competing with it. -->
+                <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}"
+                        Click="OnScanClick" />
+                <Button x:Name="EnterCodeButton" Style="{StaticResource QuietButton}"
+                        Click="OnEnterCodeClick" />
+            </StackPanel>
 
-        <!-- Busy -->
-        <StackPanel x:Name="BusyPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="18"
-                    Visibility="Collapsed">
-            <ProgressRing IsActive="True" Width="40" Height="40" Foreground="#4ADFBF" />
-            <TextBlock x:Name="BusyText" HorizontalAlignment="Center" FontSize="15" Foreground="#A8FFFFFF" />
-        </StackPanel>
+            <!-- Scanning ────────────────────────────────────────-->
+            <StackPanel x:Name="ScanPanel" VerticalAlignment="Center" Spacing="12"
+                        Visibility="Collapsed">
+                <Grid Height="252">
+                    <Border CornerRadius="{StaticResource CardCorner}"
+                            Background="#14171D"
+                            BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="1">
+                        <Border CornerRadius="15">
+                            <Border.Clip>
+                                <RectangleGeometry Rect="0,0,340,250" />
+                            </Border.Clip>
+                            <Image x:Name="PreviewImage" Stretch="UniformToFill" />
+                        </Border>
+                    </Border>
 
-        <!-- Connected -->
-        <StackPanel x:Name="ConnectedPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="10"
-                    Visibility="Collapsed">
-            <Grid HorizontalAlignment="Center" Width="72" Height="72" Margin="0,0,0,6">
-                <Ellipse Width="72" Height="72" Fill="#1F4ADFBF" />
-                <Ellipse Width="44" Height="44" Fill="#334ADFBF" />
-                <Ellipse x:Name="ConnectedDot" Width="18" Height="18" Fill="#4ADFBF" />
-            </Grid>
-            <TextBlock x:Name="ConnectedText" HorizontalAlignment="Center" FontSize="17"
-                       FontWeight="SemiBold" Foreground="#F2FFFFFF" TextAlignment="Center"
-                       TextWrapping="Wrap" />
-            <TextBlock x:Name="ConnectedDetailText" HorizontalAlignment="Center" FontSize="12.5"
-                       FontFamily="Consolas" Foreground="#66FFFFFF" />
-            <TextBlock x:Name="ReconnectingText" HorizontalAlignment="Center" Visibility="Collapsed"
-                       FontSize="12.5" Foreground="#F0B45E" />
-            <Button x:Name="DisconnectButton" Style="{StaticResource PillButton}" Margin="0,14,0,0"
-                    Background="#16FFFFFF" Foreground="#F2FFFFFF" BorderBrush="#2AFFFFFF"
-                    Click="OnDisconnectClick" />
-        </StackPanel>
+                    <!-- An aiming frame. Without one the user has no idea how
+                         close to hold the phone, and a preview with nothing
+                         drawn on it looks like it is not doing anything. -->
+                    <Grid x:Name="Reticle" Width="150" Height="150"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          IsHitTestVisible="False">
+                        <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="2.5"
+                                CornerRadius="14" Opacity="0.9" />
+                    </Grid>
+                </Grid>
 
-        <!-- Error -->
-        <StackPanel x:Name="ErrorPanel" Grid.Row="1" VerticalAlignment="Center" Spacing="14"
-                    Visibility="Collapsed">
-            <Grid HorizontalAlignment="Center" Width="60" Height="60">
-                <Ellipse Width="60" Height="60" Fill="#1FFF6B66" />
-                <Ellipse Width="14" Height="14" Fill="#FF6B66" />
-            </Grid>
-            <TextBlock x:Name="ErrorText" TextWrapping="Wrap" TextAlignment="Center" FontSize="14"
-                       Foreground="#C8FFFFFF" LineHeight="20" />
-            <Button x:Name="ErrorDismissButton" Style="{StaticResource PillButton}" Margin="0,6,0,0"
-                    Background="#16FFFFFF" Foreground="#F2FFFFFF" BorderBrush="#2AFFFFFF"
-                    Click="OnDismissClick" />
-        </StackPanel>
+                <TextBlock x:Name="ScanHintText" Style="{StaticResource FootnoteText}" />
+                <Button x:Name="ScanCancelButton" Style="{StaticResource SecondaryButton}"
+                        Click="OnCancelClick" />
+            </StackPanel>
 
-        <!-- Advanced -->
-        <Expander x:Name="AdvancedExpander" Grid.Row="2" Margin="0,14,0,0" Background="Transparent"
+            <!-- Manual code ────────────────────────────────────────-->
+            <StackPanel x:Name="CodePanel" VerticalAlignment="Center" Spacing="12"
+                        Visibility="Collapsed">
+                <TextBox x:Name="CodeBox" PlaceholderText="XXXX-XXXX" MaxLength="9"
+                         FontSize="{StaticResource SizeCode}"
+                         FontFamily="{StaticResource FontMono}"
+                         TextAlignment="Center" CharacterSpacing="150"
+                         CornerRadius="{StaticResource ControlCorner}" Height="64"
+                         Background="{StaticResource FillSecondary}"
+                         Foreground="{StaticResource LabelPrimary}"
+                         BorderBrush="{StaticResource HairlineBrush}"
+                         VerticalContentAlignment="Center"
+                         TextChanged="OnCodeChanged" />
+                <!-- Says what is wrong with what you typed, as you type it,
+                     rather than after you commit to it. -->
+                <TextBlock x:Name="CodeHintText" Style="{StaticResource FootnoteText}" />
+                <Button x:Name="CodeConnectButton" Style="{StaticResource PrimaryButton}"
+                        IsEnabled="False" Click="OnCodeConnectClick" />
+                <Button x:Name="CodeCancelButton" Style="{StaticResource QuietButton}"
+                        Click="OnCancelClick" />
+            </StackPanel>
+
+            <!-- Working ────────────────────────────────────────-->
+            <StackPanel x:Name="BusyPanel" VerticalAlignment="Center" Spacing="16"
+                        Visibility="Collapsed">
+                <ProgressRing IsActive="True" Width="34" Height="34"
+                              Foreground="{StaticResource AccentBrush}" />
+                <TextBlock x:Name="BusyText" Style="{StaticResource BodyText}" />
+                <TextBlock x:Name="BusyDetailText" Style="{StaticResource FootnoteText}" />
+                <!-- Anything that can take time needs a way out of it. -->
+                <Button x:Name="BusyCancelButton" Style="{StaticResource QuietButton}"
+                        Click="OnCancelClick" />
+            </StackPanel>
+
+            <!-- Connected ────────────────────────────────────────-->
+            <StackPanel x:Name="ConnectedPanel" VerticalAlignment="Center" Spacing="8"
+                        Visibility="Collapsed">
+                <Grid HorizontalAlignment="Center" Width="76" Height="76" Margin="0,0,0,8">
+                    <Ellipse x:Name="ConnectedHalo" Width="76" Height="76"
+                             Fill="{StaticResource AccentFaintBrush}" />
+                    <Ellipse Width="46" Height="46" Fill="{StaticResource AccentSoftBrush}" />
+                    <Ellipse x:Name="ConnectedDot" Width="18" Height="18"
+                             Fill="{StaticResource AccentBrush}" />
+                </Grid>
+
+                <TextBlock x:Name="ConnectedText" Style="{StaticResource HeadlineText}" />
+                <TextBlock x:Name="ConnectedDetailText" Style="{StaticResource MonoText}"
+                           HorizontalAlignment="Center" />
+
+                <Border x:Name="ReconnectingBanner" Visibility="Collapsed"
+                        CornerRadius="{StaticResource SunkenCorner}"
+                        Background="{StaticResource WarningSoftBrush}"
+                        Padding="12,8" Margin="0,8,0,0">
+                    <TextBlock x:Name="ReconnectingText" Style="{StaticResource FootnoteText}"
+                               Foreground="{StaticResource WarningBrush}" />
+                </Border>
+
+                <Button x:Name="DisconnectButton" Style="{StaticResource SecondaryButton}"
+                        Margin="0,14,0,0" Click="OnDisconnectClick" />
+            </StackPanel>
+
+            <!-- Error ────────────────────────────────────────-->
+            <StackPanel x:Name="ErrorPanel" VerticalAlignment="Center" Spacing="12"
+                        Visibility="Collapsed">
+                <Grid HorizontalAlignment="Center" Width="60" Height="60" Margin="0,0,0,4">
+                    <Ellipse Width="60" Height="60" Fill="{StaticResource DangerSoftBrush}" />
+                    <Ellipse Width="14" Height="14" Fill="{StaticResource DangerBrush}" />
+                </Grid>
+                <!-- Errors get a headline that names the problem and a body that
+                     says what to do about it, instead of one undifferentiated
+                     paragraph the user has to parse under stress. -->
+                <TextBlock x:Name="ErrorTitle" Style="{StaticResource HeadlineText}" />
+                <TextBlock x:Name="ErrorText" Style="{StaticResource FootnoteText}"
+                           Margin="4,0,4,0" />
+                <Button x:Name="ErrorPrimaryButton" Style="{StaticResource PrimaryButton}"
+                        Margin="0,8,0,0" Click="OnErrorPrimaryClick" />
+                <Button x:Name="ErrorDismissButton" Style="{StaticResource QuietButton}"
+                        Click="OnDismissClick" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== Advanced: present, but never in the way ===== -->
+        <Expander x:Name="AdvancedExpander" Grid.Row="2" Margin="0,16,0,0"
+                  Background="Transparent" BorderBrush="Transparent"
                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
             <Expander.Header>
-                <TextBlock x:Name="AdvancedHeader" FontSize="12.5" Foreground="#A8FFFFFF" />
+                <TextBlock x:Name="AdvancedHeader" Style="{StaticResource CaptionText}"
+                           Foreground="{StaticResource LabelTertiary}" />
             </Expander.Header>
-            <StackPanel Spacing="12" Padding="2,6,2,2">
+            <StackPanel Spacing="12" Padding="2,8,2,2">
                 <Grid>
-                    <TextBlock x:Name="AdvancedAddressLabel" FontSize="12.5" Foreground="#A8FFFFFF" />
+                    <TextBlock x:Name="AdvancedAddressLabel" Style="{StaticResource CaptionText}"
+                               VerticalAlignment="Center" />
                     <TextBlock x:Name="AdvancedAddressValue" HorizontalAlignment="Right"
-                               FontFamily="Consolas" FontSize="12.5" Foreground="#F2FFFFFF" />
+                               Style="{StaticResource MonoText}"
+                               Foreground="{StaticResource LabelSecondary}" />
                 </Grid>
                 <Grid>
-                    <TextBlock x:Name="AdvancedLogsLabel" FontSize="12.5" Foreground="#A8FFFFFF" />
+                    <TextBlock x:Name="AdvancedLogsLabel" Style="{StaticResource CaptionText}"
+                               VerticalAlignment="Center" />
                     <HyperlinkButton x:Name="AdvancedLogsClear" HorizontalAlignment="Right"
                                      Padding="0" Click="OnClearLogsClick" />
                 </Grid>
-                <Border CornerRadius="12" Background="#12000000" Padding="12,8">
-                    <ScrollViewer Height="120" VerticalScrollBarVisibility="Auto">
-                        <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="11"
-                                   TextWrapping="NoWrap" Foreground="#8AFFFFFF" />
+                <Border CornerRadius="{StaticResource SunkenCorner}"
+                        Background="{StaticResource FillSunken}" Padding="12,10">
+                    <ScrollViewer Height="116" VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="LogText" FontFamily="{StaticResource FontMono}"
+                                   FontSize="11" TextWrapping="NoWrap"
+                                   Foreground="{StaticResource LabelTertiary}" />
                     </ScrollViewer>
                 </Border>
             </StackPanel>

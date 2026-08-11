@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Relay.App.Services;
 using Relay.Core;
@@ -18,7 +20,10 @@ namespace Relay.App;
 public sealed partial class MainWindow : Window
 {
     private const int PopupWidth = 380;
-    private const int PopupHeight = 600;
+    // The window follows its content between these bounds instead of standing
+    // at a fixed height with a hole in the middle of it.
+    private const int MinPopupHeight = 340;
+    private const int MaxPopupHeight = 640;
 
     private readonly AppController _controller = AppController.Instance;
     private CameraQrScanner? _scanner;
@@ -27,6 +32,9 @@ public sealed partial class MainWindow : Window
     private InputMode _mode = InputMode.None;
     private string? _localError;
     private long _shownAtTick;
+    private FrameworkElement? _visiblePanel;
+    private string? _errorAction;
+    private bool _shown;
 
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -76,6 +84,8 @@ public sealed partial class MainWindow : Window
         _controller.StateChanged += () => DispatcherQueue.TryEnqueue(Render);
         LocalLog.Changed += () => DispatcherQueue.TryEnqueue(RefreshLogs);
         Root.ActualThemeChanged += (_, _) => Render();
+        AttachPressFeedback();
+        AttachKeyboard();
         RefreshLogs();
         Render();
     }
@@ -126,44 +136,133 @@ public sealed partial class MainWindow : Window
     /// <summary>Positions the popover above the tray and brings it to the real foreground.</summary>
     public void ShowNearTray()
     {
-        var hwnd = Hwnd;
-        var scale = GetDpiForWindow(hwnd) / 96.0;
-        if (scale <= 0) scale = 1.0;
-        var w = (int)(PopupWidth * scale);
-        var h = (int)(PopupHeight * scale);
-        var margin = (int)(12 * scale);
-
-        AppWindow.Resize(new SizeInt32(w, h));
-        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
-        AppWindow.Move(new PointInt32(
-            area.X + area.Width - w - margin,
-            area.Y + area.Height - h - margin));
-
+        _shown = true;
+        PositionWindow(MinPopupHeight);
         _shownAtTick = Environment.TickCount64;
         AppWindow.Show();
-        ForceForeground(hwnd);
+        ForceForeground(Hwnd);
         Activate();
+        ResizeToContent();
+    }
+
+    /// <summary>
+    /// Puts the popover in the corner the notification area is actually in, at
+    /// [heightDip] tall, and never off-screen.
+    /// </summary>
+    private void PositionWindow(int heightDip)
+    {
+        var scale = GetDpiForWindow(Hwnd) / 96.0;
+        if (scale <= 0) scale = 1.0;
+        var w = (int)(PopupWidth * scale);
+        var h = (int)(heightDip * scale);
+        var margin = (int)(12 * scale);
+
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+
+        // Clamp to the work area: at 175% scaling a tall window used to be
+        // pushed off the top of the screen, and it is not resizable, so the
+        // header simply became unreachable.
+        h = Math.Min(h, Math.Max(area.Height - margin * 2, 200));
+
+        // A right-to-left Windows puts the notification area bottom-left. The
+        // content was already mirrored; the window itself was not, so it opened
+        // in the opposite corner from the icon that summoned it.
+        var x = Root.FlowDirection == FlowDirection.RightToLeft
+            ? area.X + margin
+            : area.X + area.Width - w - margin;
+
+        AppWindow.Resize(new SizeInt32(w, h));
+        AppWindow.Move(new PointInt32(x, area.Y + area.Height - h - margin));
     }
 
     private void HideToTray()
     {
         StopScanning();
+        _shown = false;
         AppWindow.Hide();
+    }
+
+    /// <summary>
+    /// Every button dips under the pointer the instant it goes down, not when
+    /// the click completes. Waiting for the release is what makes an interface
+    /// feel like it is thinking rather than responding.
+    /// </summary>
+    private void AttachPressFeedback()
+    {
+        foreach (var button in new[]
+        {
+            ScanButton, EnterCodeButton, ScanCancelButton, CodeConnectButton,
+            CodeCancelButton, BusyCancelButton, DisconnectButton,
+            ErrorPrimaryButton, ErrorDismissButton,
+        })
+        {
+            var target = button;
+            target.AddHandler(PointerPressedEvent,
+                new PointerEventHandler((_, _) => Motion.PressDown(target)), handledEventsToo: true);
+            // Released *and* exited: dragging off a control must not leave it
+            // stuck in the pressed state.
+            target.AddHandler(PointerReleasedEvent,
+                new PointerEventHandler((_, _) => Motion.PressUp(target)), handledEventsToo: true);
+            target.PointerExited += (_, _) => Motion.PressUp(target);
+            target.PointerCaptureLost += (_, _) => Motion.PressUp(target);
+        }
+    }
+
+    /// <summary>
+    /// Escape backs out of whatever is open, Enter takes the primary action.
+    /// A tray popover that can only be driven with a mouse is a popover half
+    /// its users cannot drive.
+    /// </summary>
+    private void AttachKeyboard()
+    {
+        Root.KeyDown += (_, e) =>
+        {
+            switch (e.Key)
+            {
+                case Windows.System.VirtualKey.Escape:
+                    if (_mode != InputMode.None || _localError is not null)
+                    {
+                        OnCancelClick(this, new RoutedEventArgs());
+                    }
+                    else
+                    {
+                        HideToTray();
+                    }
+                    e.Handled = true;
+                    break;
+
+                case Windows.System.VirtualKey.Enter:
+                    if (ErrorPanel.Visibility == Visibility.Visible &&
+                        ErrorPrimaryButton.Visibility == Visibility.Visible)
+                    {
+                        OnErrorPrimaryClick(this, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
+                    else if (IdlePanel.Visibility == Visibility.Visible)
+                    {
+                        OnScanClick(this, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
+                    break;
+            }
+        };
     }
 
     private void ApplyStrings()
     {
         TitleText.Text = Strings.Get("AppName");
-        TaglineText.Text = Strings.Get("Tagline");
-        IdleStatusText.Text = Strings.Get("StatusIdle");
+        IdleHeadline.Text = Strings.Get("IdleHeadline");
+        IdleBody.Text = Strings.Get("IdleBody");
         ScanButton.Content = Strings.Get("ScanQr");
         EnterCodeButton.Content = Strings.Get("EnterCode");
-        ScanHintText.Text = Strings.Get("ScanHint");
+        ScanHintText.Text = Strings.Get("ScanAiming");
         ScanCancelButton.Content = Strings.Get("Cancel");
         CodeHintText.Text = Strings.Get("CodeHint");
         CodeConnectButton.Content = Strings.Get("Connect");
         CodeCancelButton.Content = Strings.Get("Cancel");
-        BusyText.Text = Strings.Get("StatusConnecting");
+        BusyText.Text = Strings.Get("BusyConnecting");
+        BusyDetailText.Text = Strings.Get("BusyDetail");
+        BusyCancelButton.Content = Strings.Get("Cancel");
         DisconnectButton.Content = Strings.Get("Disconnect");
         ErrorDismissButton.Content = Strings.Get("Dismiss");
         AdvancedHeader.Text = Strings.Get("Advanced");
@@ -172,16 +271,25 @@ public sealed partial class MainWindow : Window
         AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
     }
 
-    /// <summary>Dynamic dot color by key — inline so it needs no XAML resources.</summary>
-    private static Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
+    /// <summary>
+    /// Resolves a token from the design system, falling back to a literal only
+    /// if the dictionary somehow is not loaded — this app is unpackaged and a
+    /// missing resource must never be able to fault the window.
+    /// </summary>
+    private Microsoft.UI.Xaml.Media.Brush ThemeBrush(string key)
     {
+        if (Root.Resources.TryGetValue(key, out var local) &&
+            local is Microsoft.UI.Xaml.Media.Brush b1) return b1;
+        if (Application.Current.Resources.TryGetValue(key, out var app) &&
+            app is Microsoft.UI.Xaml.Media.Brush b2) return b2;
+
         (byte a, byte r, byte g, byte b) = key switch
         {
-            "Accent" => ((byte)0xFF, (byte)0x4A, (byte)0xDF, (byte)0xBF),
-            "ErrorBrush" => ((byte)0xFF, (byte)0xFF, (byte)0x6B, (byte)0x66),
-            "WarningBrush" => ((byte)0xFF, (byte)0xF0, (byte)0xB4, (byte)0x5E),
-            "TextSecondary" => ((byte)0xA8, (byte)0xFF, (byte)0xFF, (byte)0xFF),
-            _ => ((byte)0x66, (byte)0xFF, (byte)0xFF, (byte)0xFF),
+            "AccentBrush" => ((byte)0xFF, (byte)0x4A, (byte)0xDF, (byte)0xBF),
+            "DangerBrush" => ((byte)0xFF, (byte)0xFF, (byte)0x7A, (byte)0x75),
+            "WarningBrush" => ((byte)0xFF, (byte)0xF5, (byte)0xB9, (byte)0x5F),
+            "LabelSecondary" => ((byte)0xB8, (byte)0xFF, (byte)0xFF, (byte)0xFF),
+            _ => ((byte)0x5C, (byte)0xFF, (byte)0xFF, (byte)0xFF),
         };
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
     }
@@ -206,29 +314,38 @@ public sealed partial class MainWindow : Window
         if (_localError is not null)
         {
             ShowOnly(ErrorPanel);
-            ErrorText.Text = LocalErrorMessage(_localError);
-            ErrorDismissButton.Content = Strings.Get("Dismiss");
-            StatusDot.Fill = ThemeBrush("ErrorBrush");
+            ApplyError(_localError);
+            SetStatusChip("DangerBrush", Strings.Get("StatusIdle"));
             return;
         }
 
         var state = _controller.StateName;
-        IdlePanel.Visibility = Show(state == "Idle" && _mode == InputMode.None);
-        ScanPanel.Visibility = Show(state == "Idle" && _mode == InputMode.Scanning);
-        CodePanel.Visibility = Show(state == "Idle" && _mode == InputMode.Code);
-        BusyPanel.Visibility = Show(state is "Preparing" or "Advertising");
-        ConnectedPanel.Visibility = Show(state == "Connected");
-        ErrorPanel.Visibility = Show(state == "Error");
-
         var reconnecting = _controller.Reconnecting && state == "Connected";
-        StatusDot.Fill = ThemeBrush(
+
+        ShowOnly(
+            state == "Idle" && _mode == InputMode.Scanning ? ScanPanel
+            : state == "Idle" && _mode == InputMode.Code ? CodePanel
+            : state == "Idle" ? IdlePanel
+            : state is "Preparing" or "Advertising" ? BusyPanel
+            : state == "Connected" ? ConnectedPanel
+            : state == "Error" ? ErrorPanel
+            : IdlePanel);
+
+        SetStatusChip(
             reconnecting ? "WarningBrush"
             : state switch
             {
-                "Connected" => "Accent",
-                "Error" => "ErrorBrush",
-                "Preparing" or "Advertising" => "TextSecondary",
-                _ => "TextTertiary",
+                "Connected" => "AccentBrush",
+                "Error" => "DangerBrush",
+                "Preparing" or "Advertising" => "LabelSecondary",
+                _ => "LabelQuaternary",
+            },
+            reconnecting ? Strings.Get("Reconnecting")
+            : state switch
+            {
+                "Connected" => Strings.Get("StatusConnected"),
+                "Preparing" or "Advertising" => Strings.Get("StatusConnecting"),
+                _ => Strings.Get("StatusIdle"),
             });
 
         if (state == "Connected" && _controller.Payload is { } payload)
@@ -236,52 +353,114 @@ public sealed partial class MainWindow : Window
             ConnectedText.Text = string.Format(Strings.Get("ConnectedVia"), payload.Name ?? payload.Host);
             ConnectedDetailText.Text = $"{payload.Host}:{payload.Port}";
             ReconnectingText.Text = Strings.Get("Reconnecting");
-            ReconnectingText.Visibility = Show(reconnecting);
-            ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "Accent");
+            ReconnectingBanner.Visibility = Show(reconnecting);
+            ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "AccentBrush");
+            // The halo breathes only while the link is healthy; during a
+            // reconnect it holds still, so "working on it" and "working" are
+            // not signalled by the same movement.
+            if (reconnecting) Motion.StopPulse(ConnectedHalo); else Motion.StartPulse(ConnectedHalo, 0.5);
         }
-        if (state == "Error")
-        {
-            ErrorText.Text = Strings.Get(_controller.ErrorCode switch
-            {
-                "ERR_QR_NEWER_VERSION" => "ErrQrNewer",
-                "ERR_QR_INVALID" => "ErrQrInvalid",
-                "ERR_CODE_INVALID" => "ErrCodeInvalid",
-                "ERR_HOST_UNREACHABLE" => "ErrHostUnreachable",
-                "ERR_WRONG_NETWORK" => "ErrWrongNetwork",
-                "ERR_CONNECTION_LOST" => "ErrConnectionLost",
-                "ERR_FIREWALL_BLOCKED" => "ErrFirewall",
-                "ERR_PROXY_APPLY_FAILED" => "ErrProxyApply",
-                "ERR_ROLLBACK_INCOMPLETE" => "ErrRollback",
-                "ERR_CAMERA_DENIED" => "ErrCameraDenied",
-                _ => "ErrProxyApply",
-            });
-            // The rollback-incomplete error's next action is to retry the disconnect.
-            ErrorDismissButton.Content = Strings.Get(
-                _controller.ErrorCode == "ERR_ROLLBACK_INCOMPLETE" ? "Disconnect" : "Dismiss");
-        }
+        if (state == "Error") ApplyError(_controller.ErrorCode ?? "ERR_PROXY_APPLY_FAILED");
 
         AdvancedAddressValue.Text = _controller.Payload is { } p ? $"{p.Host}:{p.Port}" : "—";
     }
 
+    /// <summary>
+    /// Swaps the visible panel, animating the change. The outgoing panel fades
+    /// before the incoming one rises, so the two never overlap into a smear —
+    /// and when the target is already showing, nothing animates at all, which
+    /// is what stops a routine Render (a theme change, a log line) from
+    /// re-playing the entrance under the user.
+    /// </summary>
     private void ShowOnly(FrameworkElement panel)
     {
-        IdlePanel.Visibility = Visibility.Collapsed;
-        ScanPanel.Visibility = Visibility.Collapsed;
-        CodePanel.Visibility = Visibility.Collapsed;
-        BusyPanel.Visibility = Visibility.Collapsed;
-        ConnectedPanel.Visibility = Visibility.Collapsed;
-        ErrorPanel.Visibility = Visibility.Collapsed;
-        panel.Visibility = Visibility.Visible;
+        if (ReferenceEquals(_visiblePanel, panel)) return;
+
+        var outgoing = _visiblePanel;
+        _visiblePanel = panel;
+
+        foreach (var other in AllPanels)
+        {
+            if (!ReferenceEquals(other, panel) && !ReferenceEquals(other, outgoing))
+            {
+                other.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        if (outgoing is not null)
+        {
+            Motion.ExitPanel(outgoing, () => Motion.EnterPanel(panel));
+        }
+        else
+        {
+            Motion.EnterPanel(panel);
+        }
+
+        if (!ReferenceEquals(panel, ConnectedPanel)) Motion.StopPulse(ConnectedHalo);
+        ResizeToContent();
     }
 
-    private static string LocalErrorMessage(string code) => Strings.Get(code switch
+    private FrameworkElement[] AllPanels => new FrameworkElement[]
+        { IdlePanel, ScanPanel, CodePanel, BusyPanel, ConnectedPanel, ErrorPanel };
+
+    /// <summary>
+    /// Errors get a name and a next step, not one block of prose. The primary
+    /// action is the thing that most often fixes it, so recovering does not
+    /// mean going back to the start and working out what to press.
+    /// </summary>
+    private void ApplyError(string code)
     {
-        "ERR_QR_NEWER_VERSION" => "ErrQrNewer",
-        "ERR_QR_INVALID" => "ErrQrInvalid",
-        "ERR_CODE_INVALID" => "ErrCodeInvalid",
-        "ERR_CAMERA_DENIED" => "ErrCameraDenied",
-        _ => "ErrQrInvalid",
-    });
+        var (title, body, primary) = code switch
+        {
+            "ERR_QR_NEWER_VERSION" => ("ErrTitleCode", "ErrQrNewer", (string?)null),
+            "ERR_QR_INVALID" => ("ErrTitleCode", "ErrQrInvalid", "ScanQr"),
+            "ERR_CODE_INVALID" => ("ErrTitleCode", "ErrCodeInvalid", "EnterCode"),
+            "ERR_HOST_UNREACHABLE" => ("ErrTitleNoPhone", "ErrHostUnreachable", "TryAgain"),
+            "ERR_WRONG_NETWORK" => ("ErrTitleNetwork", "ErrWrongNetwork", "TryAgain"),
+            "ERR_CONNECTION_LOST" => ("ErrTitleLost", "ErrConnectionLost", "TryAgain"),
+            "ERR_FIREWALL_BLOCKED" => ("ErrTitleBlocked", "ErrFirewall", "TryAgain"),
+            "ERR_PROXY_APPLY_FAILED" => ("ErrTitleProxy", "ErrProxyApply", "TryAgain"),
+            "ERR_ROLLBACK_INCOMPLETE" => ("ErrTitleRollback", "ErrRollback", "Disconnect"),
+            "ERR_CAMERA_DENIED" => ("ErrTitleCamera", "ErrCameraDenied", "EnterCodeInstead"),
+            _ => ("ErrTitleProxy", "ErrProxyApply", "TryAgain"),
+        };
+
+        _errorAction = primary;
+        ErrorTitle.Text = Strings.Get(title);
+        ErrorText.Text = Strings.Get(body);
+        ErrorPrimaryButton.Content = primary is null ? string.Empty : Strings.Get(primary);
+        ErrorPrimaryButton.Visibility = Show(primary is not null);
+        ErrorDismissButton.Content = Strings.Get("Dismiss");
+    }
+
+    private void SetStatusChip(string brushKey, string label)
+    {
+        StatusDot.Fill = ThemeBrush(brushKey);
+        StatusChipText.Text = label;
+    }
+
+    /// <summary>
+    /// Sizes the window to whatever is actually on screen. The height used to be
+    /// fixed, which left the idle screen more than half empty and made every
+    /// state feel like it was floating in a container built for something else.
+    /// </summary>
+    private void ResizeToContent()
+    {
+        if (!_shown) return;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            try
+            {
+                Root.Measure(new Windows.Foundation.Size(PopupWidth, double.PositiveInfinity));
+                var desired = Math.Clamp(Root.DesiredSize.Height, MinPopupHeight, MaxPopupHeight);
+                PositionWindow((int)Math.Ceiling(desired));
+            }
+            catch
+            {
+                // Measurement is a nicety; never let it take the window down.
+            }
+        });
+    }
 
     private static Visibility Show(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -386,6 +565,60 @@ public sealed partial class MainWindow : Window
         CodeBox.Focus(FocusState.Programmatic);
     }
 
+    /// <summary>
+    /// Validates as the user types and connects the moment a complete, valid
+    /// code is entered. The code carries a checksum, so "is this right" is
+    /// answerable immediately — making the user finish typing, read the button,
+    /// aim at it and click was a step the app could simply take itself.
+    /// </summary>
+    private void OnCodeChanged(object sender, TextChangedEventArgs e)
+    {
+        var raw = CodeBox.Text ?? string.Empty;
+        var clean = new string(raw.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+
+        if (clean.Length == 0)
+        {
+            CodeHintText.Text = Strings.Get("CodeHint");
+            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+
+        // Reject characters the alphabet does not contain before blaming the
+        // checksum: "that isn't one of the letters on your phone" is a more
+        // useful thing to be told than "invalid".
+        if (clean.Any(c => !TypedCode.Alphabet.Contains(c)))
+        {
+            CodeHintText.Text = Strings.Get("CodeBadChars");
+            CodeHintText.Foreground = ThemeBrush("WarningBrush");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+
+        if (clean.Length < TypedCode.Length)
+        {
+            CodeHintText.Text = string.Format(
+                Strings.Get("CodeIncomplete"), TypedCode.Length - clean.Length);
+            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+
+        if (TypedCode.Decode(clean) is null)
+        {
+            CodeHintText.Text = Strings.Get("CodeChecksum");
+            CodeHintText.Foreground = ThemeBrush("DangerBrush");
+            CodeConnectButton.IsEnabled = false;
+            Motion.Reject(CodeBox);
+            return;
+        }
+
+        CodeHintText.Text = Strings.Get("CodeReady");
+        CodeHintText.Foreground = ThemeBrush("AccentBrush");
+        CodeConnectButton.IsEnabled = true;
+        OnCodeConnectClick(sender, new RoutedEventArgs());
+    }
+
     private async void OnCodeConnectClick(object sender, RoutedEventArgs e)
     {
         var decoded = TypedCode.Decode(CodeBox.Text);
@@ -403,6 +636,33 @@ public sealed partial class MainWindow : Window
             Host = decoded.Value.Host,
             Port = decoded.Value.Port,
         });
+    }
+
+    /// <summary>The recovery the error itself suggests, so there is always a way forward.</summary>
+    private async void OnErrorPrimaryClick(object sender, RoutedEventArgs e)
+    {
+        var action = _errorAction;
+        _localError = null;
+        switch (action)
+        {
+            case "ScanQr":
+                _controller.DismissError();
+                OnScanClick(sender, e);
+                break;
+            case "EnterCode":
+            case "EnterCodeInstead":
+                _controller.DismissError();
+                OnEnterCodeClick(sender, e);
+                break;
+            case "Disconnect":
+                await _controller.DisconnectAsync();
+                break;
+            default:
+                _controller.DismissError();
+                _mode = InputMode.None;
+                Render();
+                break;
+        }
     }
 
     // --- shared handlers -----------------------------------------------------------
