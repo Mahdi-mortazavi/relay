@@ -62,9 +62,12 @@ if (-not $adb) {
 Ok "adb: $adb"
 
 # ------------------------------------------------------------------ device
-$devices = & $adb devices | Select-Object -Skip 1 | Where-Object { $_ -match '\S' }
-$ready   = $devices | Where-Object { $_ -match '\sdevice$' }
-if (-not $ready) {
+# @() around both: a pipeline that yields one item yields a *string*, not a
+# one-element array, and indexing a string returns its first character. That
+# turned a serial into "A" and made every later adb call fail silently.
+$devices = @(& $adb devices 2>&1 | Where-Object { $_ -match '\S' -and $_ -notmatch '^\*' })
+$ready   = @($devices | Where-Object { $_ -match '\sdevice$' })
+if ($ready.Count -eq 0) {
     Bad 'No phone is connected and authorised.'
     if ($devices | Where-Object { $_ -match 'unauthorized' }) {
         Info 'The phone is plugged in but has not been trusted. Unlock it and'
@@ -75,7 +78,17 @@ if (-not $ready) {
     }
     exit 2
 }
-$serial = ($ready[0] -split '\s+')[0]
+if ($ready.Count -gt 1) {
+    Info "$($ready.Count) devices attached; using the first."
+}
+$serial = ([string]$ready[0] -split '\s+')[0]
+if (-not $serial) {
+    Bad 'Could not read the device serial from adb.'
+    Info 'Raw output:'
+    $devices | ForEach-Object { Info $_ }
+    exit 2
+}
+Info "serial: $serial"
 
 function Prop([string]$Name) {
     # A failed getprop returns nothing, and .Trim() on that throws -- which
