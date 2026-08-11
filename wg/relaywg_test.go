@@ -215,8 +215,34 @@ func TestStopIsSafeTwiceAndOnNil(t *testing.T) {
 func nonLoopbackAddress(t *testing.T) string {
 	t.Helper()
 
-	// Any address off this machine will do; 192.0.2.1 is the reserved
-	// documentation range, so this cannot accidentally reach something real.
+	// Retried, because on a freshly booted emulator the default route appears a
+	// moment after the shell does, and the first attempt then fails with
+	// "network is unreachable". One run of this job passed and the next skipped
+	// all three traffic tests for exactly that reason.
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		if address := routableAddress(); address != "" {
+			return address
+		}
+		if time.Now().After(deadline) {
+			// Not t.Skip. A skip here reads as a pass, and these are the only
+			// tests in the suite that put real traffic through the tunnel:
+			// skipping them leaves a green run that has proven nothing about
+			// the thing it exists to prove.
+			t.Fatal("no routable IPv4 address after 20s — the tests that carry " +
+				"traffic cannot run, and a skipped run of them is not a passing one")
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+// routableAddress returns this machine's address as the routing table sees it,
+// or "" if there is none yet.
+func routableAddress() string {
+	// Opening a UDP socket toward a routable address asks the kernel the same
+	// question interface enumeration would, without netlink: nothing is sent,
+	// but the socket binds to the address the route would use. 192.0.2.1 is the
+	// reserved documentation range, so this cannot reach anything real.
 	if conn, err := net.Dial("udp4", "192.0.2.1:9"); err == nil {
 		defer conn.Close()
 		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && !addr.IP.IsLoopback() {
@@ -226,9 +252,10 @@ func nonLoopbackAddress(t *testing.T) string {
 		}
 	}
 
+	// Enumeration as a fallback, for anywhere the dial is refused.
 	interfaces, err := net.InterfaceAddrs()
 	if err != nil {
-		t.Fatalf("interfaces: %v", err)
+		return ""
 	}
 	for _, addr := range interfaces {
 		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
@@ -237,7 +264,6 @@ func nonLoopbackAddress(t *testing.T) string {
 			}
 		}
 	}
-	t.Skip("no non-loopback IPv4 address on this machine")
 	return ""
 }
 

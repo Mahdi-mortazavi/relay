@@ -25,6 +25,28 @@ adb shell getprop ro.build.version.release | tr -d '\r' | sed 's/^/Android /'
 adb shell getprop ro.product.cpu.abi | tr -d '\r' | sed 's/^/ABI /'
 echo "::endgroup::"
 
+# The tests that carry traffic need the device to have a routable address, and
+# a freshly booted emulator gets its default route a little after adb starts
+# answering. Waiting here turns "three tests mysteriously skipped" into a clear
+# message about the device's network.
+echo "::group::Wait for the device's network"
+for _ in $(seq 1 60); do
+  route="$(adb shell ip -4 route show default 2>/dev/null | tr -d '\r')"
+  address="$(adb shell ip -4 -o addr show scope global 2>/dev/null | tr -d '\r')"
+  if [ -n "$route" ] && [ -n "$address" ]; then
+    echo "$route"
+    echo "$address"
+    break
+  fi
+  sleep 1
+done
+if [ -z "${route:-}" ] || [ -z "${address:-}" ]; then
+  echo "::error::The device never got a default route; the traffic tests cannot run."
+  adb shell ip -4 addr show 2>&1 | tr -d '\r' || true
+  exit 1
+fi
+echo "::endgroup::"
+
 echo "::group::Push the suite"
 adb shell rm -rf "$REMOTE" >/dev/null 2>&1 || true
 adb shell mkdir -p "${REMOTE}/wg" "${REMOTE}/shared"
