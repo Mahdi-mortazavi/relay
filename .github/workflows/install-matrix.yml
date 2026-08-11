@@ -85,11 +85,12 @@ jobs:
           disable-animations: true
           script: |
             chmod +x .github/scripts/install-probe.sh
-            # The reported failure was an upgrade on arm64: an existing install
-            # replaced by the universal build. Probe exactly that.
-            export RELAY_UPGRADE_FROM=published-prev/Relay-android-arm64-v8a.apk
-            export RELAY_UPGRADE_TO=published/Relay-android-universal.apk
-            .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" published/Relay-android-universal.apk
+            # Every line here is its own `sh -c`, so the upgrade paths have to
+            # ride on the same command as the script or they never reach it.
+            # The reported failure was an upgrade — an install already on the
+            # phone, replaced by the universal build — so that is what this
+            # probes.
+            RELAY_UPGRADE_FROM=published-prev/Relay-android-arm64-v8a.apk RELAY_UPGRADE_TO=published/Relay-android-universal.apk .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" published/Relay-android-universal.apk
 
       - name: Upload the verdict
         if: always()

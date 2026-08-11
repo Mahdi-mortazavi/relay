@@ -91,8 +91,12 @@ done
 # the platform now has to reconcile signatures, version codes and the native
 # ABI it picked last time. RELAY_UPGRADE_FROM/RELAY_UPGRADE_TO name the two
 # files; both must be present for the probe to mean anything.
-if [ -n "${RELAY_UPGRADE_FROM:-}" ] && [ -f "${RELAY_UPGRADE_FROM}" ] \
-   && [ -n "${RELAY_UPGRADE_TO:-}" ] && [ -f "${RELAY_UPGRADE_TO}" ]; then
+if [ -z "${RELAY_UPGRADE_FROM:-}" ] || [ -z "${RELAY_UPGRADE_TO:-}" ]; then
+  # Silence here would read as "the upgrade path passed". Say it out loud.
+  note "upgrade path" "SKIP" "RELAY_UPGRADE_FROM/TO not set"
+elif [ ! -f "${RELAY_UPGRADE_FROM}" ] || [ ! -f "${RELAY_UPGRADE_TO}" ]; then
+  note "upgrade path" "SKIP" "missing $( [ -f "${RELAY_UPGRADE_FROM}" ] || echo "$RELAY_UPGRADE_FROM" ) $( [ -f "${RELAY_UPGRADE_TO}" ] || echo "$RELAY_UPGRADE_TO" )"
+else
   echo "upgrade: $(basename "$RELAY_UPGRADE_FROM") -> $(basename "$RELAY_UPGRADE_TO")" \
     | tee -a "$RESULTS"
 
