@@ -244,11 +244,14 @@ class GoldenJourneyTest {
         }
         // Assert the person is actually asked -- that is the part worth
         // proving, and the part a regression would remove.
-        val allow = compose.activity.getString(R.string.approve_allow)
+        // Matched on the dialog's title, not its button: the battery banner
+        // also has a button reading "Allow", so the button text finds two nodes
+        // and the assertion fails on the ambiguity rather than on anything real.
+        val prompt = compose.activity.getString(R.string.approve_title)
         compose.waitUntil(timeoutMillis = 20_000) {
-            compose.onAllNodesWithText(allow).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText(prompt).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText(allow).assertIsDisplayed()
+        compose.onNodeWithText(prompt).assertIsDisplayed()
         DeviceEvidence.screenshot("approval-prompt")
 
         // Answer it through the gate rather than by tapping. A Compose dialog
