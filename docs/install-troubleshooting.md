@@ -14,11 +14,26 @@ on every published release. So if the file refuses to install on your phone
 while the same file installs on those, the cause is almost certainly on the
 device rather than in the download.
 
-## Get the real error first
+## Let the script tell you
+
+With the phone connected over USB and USB debugging on, this asks the phone
+and names the cause, so you can skip the rest of this page:
+
+```
+scripts\diagnose-install.ps1          # Windows
+./scripts/diagnose-install.sh         # Linux, macOS
+```
+
+It downloads the current universal APK, reports the phone's Android version
+and CPU, says whether a copy is already installed, attempts the install, and
+translates whatever the platform says into the fix. It changes nothing unless
+you pass `--fix` (`-Fix` on Windows), which uninstalls the existing copy
+first.
+
+## Or get the real error yourself
 
 "App not installed" is the UI's summary. The platform's actual reason is one
-line, and it names the problem exactly. With the phone connected over USB and
-USB debugging on:
+line, and it names the problem exactly:
 
 ```
 adb install Relay-android-universal.apk
