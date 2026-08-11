@@ -78,6 +78,16 @@ class CrossPlatformSessionTest {
         val done = File(evidence, "host-done")
         val deadline = System.currentTimeMillis() + HOST_TIMEOUT_MS
         while (!done.exists() && System.currentTimeMillis() < deadline) {
+            // Stand in for the person holding the phone. The gate holds the
+            // host's first connection until someone allows it
+            // (/shared/pairing-beacon.md), and this harness has no UI to tap --
+            // it drives the service directly. Answering here is the same act
+            // the golden-journey test performs by tapping Allow, not a way
+            // around the gate: an unapproved client still never gets through.
+            ConnectionRepository.clientGate.pending.value?.let { waiting ->
+                DeviceEvidence.note("Allowing ${waiting.address} on the host's behalf")
+                ConnectionRepository.clientGate.resolve(waiting.address, allowed = true)
+            }
             Thread.sleep(500)
         }
         assertTrue(
