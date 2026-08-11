@@ -347,10 +347,10 @@ class SharingService : Service() {
         // Announce the stop so a PC drops this phone at once rather than waiting
         // out the staleness window, then forget who was approved: those answers
         // were about this network, and the next session may be a different one.
-        // Fire and forget: the goodbye datagram is an optimisation, and blocking
-        // teardown on a socket write would freeze the main thread for a message
-        // the listener's staleness window already covers.
-        beacon?.let { b -> scope.launch { b.stop() } }
+        // Direct, not through this scope: teardown often runs while the scope
+        // is already being cancelled, and a launch there would never execute --
+        // leaving the beacon broadcasting after the user pressed Stop.
+        beacon?.stop()
         beacon = null
         shortCode = null
         clientGate.reset()

@@ -6,11 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.IOException
 import java.net.DatagramPacket
@@ -56,23 +55,36 @@ class Beacon(
 
     /**
      * Stops announcing and sends one last datagram saying so, so a listener
-     * removes this phone at once instead of waiting out its timeout. Best
-     * effort: if the network is already gone the listener falls back to the
-     * timeout, which is the reason the timeout exists.
+     * removes this phone at once instead of waiting out its timeout.
+     *
+     * Not suspending, and it owns its own teardown. The first version asked the
+     * *service's* scope to run the goodbye, which meant that if the service was
+     * already tearing down -- the usual case -- the launch never ran, this
+     * scope was never cancelled, and the loop went on broadcasting once a
+     * second for the life of the process. A phone that had been told to stop
+     * sharing would keep advertising a proxy that no longer existed.
+     *
+     * The goodbye rides a plain daemon thread for the same reason: by the time
+     * anyone calls this, no coroutine scope in the app is guaranteed to still
+     * be alive to carry it. Best effort -- if the network is already gone, the
+     * listener falls back to its staleness timeout, which is what that timeout
+     * is for.
      */
-    suspend fun stop() {
-        job?.cancelAndJoin()
+    fun stop() {
+        job?.cancel()
         job = null
-        withContext(Dispatchers.IO) {
+        val goodbye = payload(STATE_STOPPED)
+        kotlin.concurrent.thread(isDaemon = true, name = "relay-beacon-goodbye") {
             try {
                 DatagramSocket().use { socket ->
                     socket.broadcast = true
-                    send(socket, payload(STATE_STOPPED))
+                    send(socket, goodbye)
                 }
             } catch (e: IOException) {
                 Log.d(TAG, "final beacon not sent: ${e.message}")
             }
         }
+        scope.cancel()
     }
 
     private fun payload(state: String): ByteArray {
