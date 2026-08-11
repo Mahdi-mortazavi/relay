@@ -89,8 +89,7 @@ jobs:
             # replaced by the universal build. Probe exactly that.
             export RELAY_UPGRADE_FROM=published-prev/Relay-android-arm64-v8a.apk
             export RELAY_UPGRADE_TO=published/Relay-android-universal.apk
-            .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" \
-              published/Relay-android-universal.apk
+            .github/scripts/install-probe.sh "${{ github.workspace }}/probe-out" published/Relay-android-universal.apk
 
       - name: Upload the verdict
         if: always()
