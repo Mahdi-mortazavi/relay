@@ -1,6 +1,7 @@
 package io.relay.app
 
 import io.relay.app.net.ClientGate
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -8,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -108,6 +110,36 @@ class ClientGateTest {
         waitForPrompt(gate, "192.168.1.13")
         gate.reset()
         assertFalse("a pending request must not be left hanging", waiting.await())
+    }
+
+    @Test
+    fun `resolving does not run the waiter on the caller's thread`() = runTest {
+        // The bug this guards against: with a hand-resumed continuation, the
+        // coroutine that was waiting continues *inline on whichever thread
+        // called resolve*. That thread is the UI thread, and the coroutine it
+        // resumes is the one that goes on to relay the connection -- so a tap
+        // on Allow ran socket I/O on the main thread. In tests it hung the
+        // thread that approved; in the app it would freeze the screen.
+        val gate = ClientGate()
+        val resumedOn = java.util.concurrent.atomic.AtomicReference<String>()
+        val resolverThread = Thread.currentThread().name
+
+        val request = async(Dispatchers.Default) {
+            val allowed = gate.authorize("192.168.1.20")
+            resumedOn.set(Thread.currentThread().name)
+            allowed
+        }
+        withTimeout(2_000) {
+            while (gate.pending.value?.address != "192.168.1.20") delay(5)
+        }
+        gate.resolve("192.168.1.20", allowed = true)
+
+        assertTrue(request.await())
+        assertNotEquals(
+            "the waiter resumed on the thread that answered the prompt",
+            resolverThread,
+            resumedOn.get(),
+        )
     }
 
     private suspend fun waitForPrompt(gate: ClientGate, address: String) {
