@@ -119,12 +119,34 @@ If the hash does not match the line in that file, download it again.
 
 ### Not enough free space
 
-**Reason string:** `INSTALL_FAILED_INSUFFICIENT_STORAGE`.
+**Reason string:** `INSTALL_FAILED_INSUFFICIENT_STORAGE`, or — and this is the
+one that catches people, because it does not look like a storage error at all:
 
-Installation needs meaningfully more room than the file itself — Android keeps
-the APK, the extracted code and the optimised code at once.
+```
+android.os.ParcelableException: java.io.IOException:
+    Requested internal only, but not enough space
+```
 
-**Fix:** free up a few hundred megabytes and retry.
+Installation needs meaningfully more room than the file itself: Android keeps
+the APK and the code it optimises out of it at the same time, so budget around
+twice the download.
+
+This is the most likely cause when the universal APK fails on a phone where an
+earlier release installed fine. The universal build carries four CPU
+architectures instead of one and is roughly three times the size — 15 MB
+against 5 MB — so it can be the first thing that does not fit.
+
+**Fix, in order of least effort:**
+
+1. If your phone is 64-bit ARM, which nearly every phone since 2017 is, install
+   `Relay-android-arm64-v8a.apk` instead. Same app, a third of the size. Only
+   use the universal build if that one says the app is not compatible.
+2. Free up a few hundred megabytes and retry.
+
+Relay's manifest sets `android:installLocation="auto"`, so on a phone with
+adoptable storage Android may place the app there instead of refusing. That
+does not help when there is no other storage to fall back on, which is what
+"Requested internal only" is telling you.
 
 ### Installation from unknown sources is off
 

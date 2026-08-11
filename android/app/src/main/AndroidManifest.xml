@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- installLocation: without it Android defaults to internalOnly, and a phone
+     with a full internal partition then refuses the install outright with
+     "Requested internal only, but not enough space" — surfaced to the user as
+     nothing more than "App not installed". "auto" lets the system place the
+     app on adoptable storage when internal is tight, and changes nothing on a
+     phone with room. Relay has no widgets, no account authenticators and no
+     device-admin receiver, none of which survive being moved, so there is
+     nothing here that "auto" can break. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:installLocation="auto">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
