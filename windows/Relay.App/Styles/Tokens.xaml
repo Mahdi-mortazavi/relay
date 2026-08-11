@@ -119,19 +119,21 @@
         <Setter Property="FontSize" Value="{StaticResource SizeBody}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="BorderThickness" Value="1" />
-        <!-- Replaced by our own ring below, not removed: a keyboard user has to
-             be able to see where they are. -->
-        <Setter Property="UseSystemFocusVisuals" Value="False" />
+        <!-- Focus indication is the framework's own visual, re-coloured to the
+             accent and pushed outside the fill. Drawing a ring inside the
+             template instead would depend on Button raising a "Focused" visual
+             state, and a keyboard user losing their place is not something to
+             stake on that: this path is rendered by the focus manager itself. -->
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="FocusVisualPrimaryBrush" Value="{StaticResource FocusRingBrush}" />
+        <Setter Property="FocusVisualPrimaryThickness" Value="2" />
+        <Setter Property="FocusVisualSecondaryBrush" Value="Transparent" />
+        <Setter Property="FocusVisualSecondaryThickness" Value="0" />
+        <Setter Property="FocusVisualMargin" Value="-3" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid>
-                        <!-- Sits outside the fill so it reads on any background. -->
-                        <Border x:Name="FocusRing"
-                                CornerRadius="{StaticResource PillCorner}"
-                                Margin="-3"
-                                BorderThickness="2"
-                                BorderBrush="Transparent" />
                         <Border x:Name="Bd"
                                 CornerRadius="{TemplateBinding CornerRadius}"
                                 Background="{TemplateBinding Background}"
@@ -165,15 +167,6 @@
                                     <VisualState.Setters>
                                         <Setter Target="Bd.Opacity" Value="0.35" />
                                         <Setter Target="Content.Opacity" Value="0.5" />
-                                    </VisualState.Setters>
-                                </VisualState>
-                            </VisualStateGroup>
-                            <VisualStateGroup x:Name="FocusStates">
-                                <VisualState x:Name="Unfocused" />
-                                <VisualState x:Name="PointerFocused" />
-                                <VisualState x:Name="Focused">
-                                    <VisualState.Setters>
-                                        <Setter Target="FocusRing.BorderBrush" Value="{StaticResource FocusRingBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>

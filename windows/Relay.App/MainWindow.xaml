@@ -132,9 +132,11 @@
                               Foreground="{StaticResource AccentBrush}" />
                 <TextBlock x:Name="BusyText" Style="{StaticResource BodyText}" />
                 <TextBlock x:Name="BusyDetailText" Style="{StaticResource FootnoteText}" />
-                <!-- Anything that can take time needs a way out of it. -->
+                <!-- Anything that can take time needs a way out of it — and the
+                     way out has to actually undo the attempt, not just stop
+                     looking at it. -->
                 <Button x:Name="BusyCancelButton" Style="{StaticResource QuietButton}"
-                        Click="OnCancelClick" />
+                        Click="OnBusyCancelClick" />
             </StackPanel>
 
             <!-- Connected ────────────────────────────────────────-->

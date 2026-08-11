@@ -1,7 +1,6 @@
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
-using Windows.Foundation;
 using Windows.UI.ViewManagement;
 
 namespace Relay.App.Services;
@@ -109,7 +108,8 @@ internal static class Motion
         var offset = compositor.CreateVector3KeyFrameAnimation();
         offset.InsertKeyFrame(0f, new System.Numerics.Vector3(0, 8, 0));
         offset.InsertKeyFrame(1f, System.Numerics.Vector3.Zero,
-            compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0.9f), new Vector2(0.2f, 1f)));
+            compositor.CreateCubicBezierEasingFunction(
+                new System.Numerics.Vector2(0.2f, 0.9f), new System.Numerics.Vector2(0.2f, 1f)));
         offset.Duration = TimeSpan.FromMilliseconds(320);
         visual.StartAnimation("Offset", offset);
 

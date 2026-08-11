@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     private FrameworkElement? _visiblePanel;
     private string? _errorAction;
     private bool _shown;
+    private bool _pulsing;
 
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -143,6 +144,7 @@ public sealed partial class MainWindow : Window
         ForceForeground(Hwnd);
         Activate();
         ResizeToContent();
+        FocusPrimary();
     }
 
     /// <summary>
@@ -197,11 +199,11 @@ public sealed partial class MainWindow : Window
         })
         {
             var target = button;
-            target.AddHandler(PointerPressedEvent,
+            target.AddHandler(UIElement.PointerPressedEvent,
                 new PointerEventHandler((_, _) => Motion.PressDown(target)), handledEventsToo: true);
             // Released *and* exited: dragging off a control must not leave it
             // stuck in the pressed state.
-            target.AddHandler(PointerReleasedEvent,
+            target.AddHandler(UIElement.PointerReleasedEvent,
                 new PointerEventHandler((_, _) => Motion.PressUp(target)), handledEventsToo: true);
             target.PointerExited += (_, _) => Motion.PressUp(target);
             target.PointerCaptureLost += (_, _) => Motion.PressUp(target);
@@ -215,7 +217,11 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void AttachKeyboard()
     {
-        Root.KeyDown += (_, e) =>
+        // handledEventsToo, because the focused control gets the key first and
+        // TextBox marks several of these handled. Escape has to work while the
+        // caret is in the code box — that is precisely where a user is most
+        // likely to want out.
+        Root.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler((_, e) =>
         {
             switch (e.Key)
             {
@@ -238,6 +244,12 @@ public sealed partial class MainWindow : Window
                         OnErrorPrimaryClick(this, new RoutedEventArgs());
                         e.Handled = true;
                     }
+                    else if (CodePanel.Visibility == Visibility.Visible &&
+                             CodeConnectButton.IsEnabled)
+                    {
+                        OnCodeConnectClick(this, new RoutedEventArgs());
+                        e.Handled = true;
+                    }
                     else if (IdlePanel.Visibility == Visibility.Visible)
                     {
                         OnScanClick(this, new RoutedEventArgs());
@@ -245,7 +257,28 @@ public sealed partial class MainWindow : Window
                     }
                     break;
             }
+        }), handledEventsToo: true);
+    }
+
+    /// <summary>
+    /// Puts the caret somewhere sensible when the popover appears. Without this
+    /// nothing inside holds focus, key events have no element to bubble from,
+    /// and a keyboard user opening the popover is simply stuck.
+    /// </summary>
+    private void FocusPrimary()
+    {
+        var target = _visiblePanel switch
+        {
+            _ when ReferenceEquals(_visiblePanel, CodePanel) => (Control)CodeBox,
+            _ when ReferenceEquals(_visiblePanel, ConnectedPanel) => DisconnectButton,
+            _ when ReferenceEquals(_visiblePanel, ErrorPanel) =>
+                ErrorPrimaryButton.Visibility == Visibility.Visible
+                    ? ErrorPrimaryButton : ErrorDismissButton,
+            _ when ReferenceEquals(_visiblePanel, ScanPanel) => ScanCancelButton,
+            _ when ReferenceEquals(_visiblePanel, BusyPanel) => BusyCancelButton,
+            _ => ScanButton,
         };
+        try { target.Focus(FocusState.Programmatic); } catch { }
     }
 
     private void ApplyStrings()
@@ -357,8 +390,11 @@ public sealed partial class MainWindow : Window
             ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "AccentBrush");
             // The halo breathes only while the link is healthy; during a
             // reconnect it holds still, so "working on it" and "working" are
-            // not signalled by the same movement.
-            if (reconnecting) Motion.StopPulse(ConnectedHalo); else Motion.StartPulse(ConnectedHalo, 0.5);
+            // not signalled by the same movement. Started once on entry rather
+            // than on every Render: restarting a looping animation snaps it back
+            // to its first keyframe, which reads as a stutter every time an
+            // unrelated state notification arrives.
+            SetPulsing(!reconnecting);
         }
         if (state == "Error") ApplyError(_controller.ErrorCode ?? "ERR_PROXY_APPLY_FAILED");
 
@@ -387,17 +423,24 @@ public sealed partial class MainWindow : Window
             }
         }
 
+        if (!ReferenceEquals(panel, ConnectedPanel)) SetPulsing(false);
+
+        // Measure *after* the swap, not alongside it: the outgoing panel is
+        // still laid out during its fade, so resizing now would size the window
+        // to the screen the user is leaving.
         if (outgoing is not null)
         {
-            Motion.ExitPanel(outgoing, () => Motion.EnterPanel(panel));
+            Motion.ExitPanel(outgoing, () =>
+            {
+                Motion.EnterPanel(panel);
+                ResizeToContent();
+            });
         }
         else
         {
             Motion.EnterPanel(panel);
+            ResizeToContent();
         }
-
-        if (!ReferenceEquals(panel, ConnectedPanel)) Motion.StopPulse(ConnectedHalo);
-        ResizeToContent();
     }
 
     private FrameworkElement[] AllPanels => new FrameworkElement[]
@@ -431,6 +474,13 @@ public sealed partial class MainWindow : Window
         ErrorPrimaryButton.Content = primary is null ? string.Empty : Strings.Get(primary);
         ErrorPrimaryButton.Visibility = Show(primary is not null);
         ErrorDismissButton.Content = Strings.Get("Dismiss");
+    }
+
+    private void SetPulsing(bool on)
+    {
+        if (on == _pulsing) return;
+        _pulsing = on;
+        if (on) Motion.StartPulse(ConnectedHalo, 0.5); else Motion.StopPulse(ConnectedHalo);
     }
 
     private void SetStatusChip(string brushKey, string label)
@@ -667,7 +717,27 @@ public sealed partial class MainWindow : Window
 
     // --- shared handlers -----------------------------------------------------------
 
-    private void OnCancelClick(object sender, RoutedEventArgs e) => StopScanning();
+    /// <summary>Backs out of scanning, code entry, or a local error — whichever is up.</summary>
+    private void OnCancelClick(object sender, RoutedEventArgs e)
+    {
+        // Escape reaches here from the error surface too, and a cancel that
+        // leaves the error still on screen is a key that appears to do nothing.
+        _localError = null;
+        StopScanning();
+    }
+
+    /// <summary>
+    /// Cancels an in-flight connection attempt. "stop" is a legal transition out
+    /// of both Preparing and Advertising, and ConnectAsync already unwinds a
+    /// proxy it applied if the state moved underneath it — so this genuinely
+    /// aborts the attempt rather than only hiding the progress ring.
+    /// </summary>
+    private async void OnBusyCancelClick(object sender, RoutedEventArgs e)
+    {
+        _localError = null;
+        _mode = InputMode.None;
+        await _controller.DisconnectAsync();
+    }
 
     private async void OnDisconnectClick(object sender, RoutedEventArgs e) =>
         await _controller.DisconnectAsync();
