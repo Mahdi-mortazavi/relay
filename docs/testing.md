@@ -9,6 +9,7 @@ hardware, an emulator started by hand, or a device plugged into anything.
 | Device | Android emulator, provisioned per run | The real APK on a real Android image: the golden journey, the foreground service, real relayed traffic | `e2e.yml` |
 | Cross-platform | Emulator + the Windows client's own code | The two platforms' shipping code talking to each other over `adb` | `e2e.yml` |
 | Windows app | `windows-latest` | The real installer: install → launch → restore → uninstall | `e2e.yml` |
+| Install matrix | Emulators, Android 11 → 16 | That the *published* APK installs, on the Android versions people run, including over a previous release | `install-matrix.yml` |
 
 ## Rung 1 — unit tests (`ci.yml`)
 
@@ -96,6 +97,43 @@ after uninstall.
 | Full Mode / WireGuard | Not implemented yet (Phase 3); the UI does not offer it | **NOT TESTED** |
 | Real Wi-Fi/hotspot radio behaviour, screen-off survival, battery | Emulated networking only | **Manual matrix below** |
 | Windows sleep/resume | Not available on a hosted runner | **BLOCKED — infrastructure** |
+| Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |
+| A native arm64 device | GitHub's arm64 runners expose no `/dev/kvm`; arm64 coverage is binary translation on x86_64 | **BLOCKED — infrastructure** |
+
+## Rung 5 — the install matrix (`install-matrix.yml`)
+
+Every other rung installs an APK that CI has just built. A user installs a
+different thing — the file on the release page — and the gap between those two
+sentences is where "it works in CI" and "it installs on my phone" stop being
+the same claim.
+
+This rung downloads the published assets and installs them unmodified on
+emulators running Android 11, 12, 14, 15 and 16, through both `adb install` and
+the `pm install` path the on-device package installer uses. Where an install
+succeeds it goes on to check that the platform selected a native ABI and that
+the process survives launch, because an APK that installs and then dies on a
+missing `.so` is still a broken download to the person holding the phone.
+
+It also probes the upgrade path, which is what almost everyone actually does:
+the previous release is installed first, then replaced by the new universal
+build, and the app is started afterwards. That sequence makes the platform
+reconcile signing keys, version codes and the native ABI it committed to on the
+previous install — none of which a clean install exercises.
+
+It runs on every published release, and monthly, since new Android versions
+change what sideloading accepts without any change of ours to trigger a run.
+
+Two limits worth stating plainly:
+
+- **No native arm64 device.** GitHub's arm64 runners have no `/dev/kvm`
+  (`Failed to open the device 'kvm'`), so an accelerated arm64 emulator is not
+  available at any price. The `google_apis` x86_64 images translate arm64,
+  which is what lets the upgrade probe install the previous arm64-only release,
+  but that is translation and not the real instruction set.
+- **No Play Protect.** The emulator images carry no Play Store, so the one
+  cause of "App not installed" that cannot be reproduced here is the one Google
+  applies on real phones. See
+  [`install-troubleshooting.md`](install-troubleshooting.md).
 
 ## Manual test matrix (what the lab cannot reach)
 

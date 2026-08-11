@@ -130,6 +130,14 @@ Two files. Nothing to compile. These links always resolve to the newest release:
 
 > ⚠️ **SmartScreen will warn you on first run.** The Windows installer isn't code-signed yet, so click **More info → Run anyway**. Every release ships `SHA256SUMS.txt` so you can verify exactly what you downloaded. The signing work is tracked in [`docs/release.md`](docs/release.md).
 
+> 📱 **Android says "App not installed"?** That message covers several unrelated
+> causes and names none of them. The two that catch most people: an older copy
+> you built yourself is still installed (uninstall it first — a different
+> signing key blocks the upgrade), or Play Protect blocked a sideloaded app
+> (**Install anyway** in its dialog). [`docs/install-troubleshooting.md`](docs/install-troubleshooting.md)
+> walks through the rest, starting with how to get the platform's real error
+> message instead of the summary.
+
 ---
 
 ## 🚀 Using it
