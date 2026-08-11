@@ -73,8 +73,11 @@ public sealed class UpdateCheck
     /// Parses "1.3.1" or "v1.3.1" into comparable parts. Returns null for
     /// anything else rather than guessing: a misparse here would either offer a
     /// downgrade or hide a real update.
+    ///
+    /// Public, like the beacon parser, because it is pure, it is where this
+    /// feature goes wrong, and tests live in a separate assembly.
     /// </summary>
-    internal static int[]? Parse(string? version)
+    public static int[]? Parse(string? version)
     {
         if (string.IsNullOrWhiteSpace(version)) return null;
         var text = version.Trim().TrimStart('v', 'V');
@@ -92,7 +95,7 @@ public sealed class UpdateCheck
     }
 
     /// <summary>Positive when <paramref name="a"/> is newer.</summary>
-    internal static int Compare(int[] a, int[] b)
+    public static int Compare(int[] a, int[] b)
     {
         for (var i = 0; i < Math.Max(a.Length, b.Length); i++)
         {

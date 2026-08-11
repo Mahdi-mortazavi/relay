@@ -14,6 +14,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The Full Mode endpoint (/wg). Its own job because it proves the thing that
+  # is hardest to be sure of -- that a WireGuard tunnel terminates and its
+  # traffic reaches the internet -- and it does that in a process, with no
+  # device involved. If this is red, Full Mode does not work, whatever the
+  # Android build says.
+  wireguard:
+    name: Full Mode endpoint (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wg
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: wg/go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test the tunnel end to end
+        # -race because the forwarders, the packet pump and teardown all touch
+        # the same endpoint from different goroutines, and a data race there
+        # would show up in the field as an occasional dead tunnel.
+        run: go test -race -count=1 ./...
+
+      - name: Build the Android library
+        run: |
+          set -euo pipefail
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+          # arm64 first: it is what nearly every phone runs. The other three
+          # ride along so the universal APK keeps working everywhere.
+          gomobile bind -target=android/arm64,android/arm,android/amd64,android/386 \
+            -androidapi 26 -o relaywg.aar .
+          ls -l relaywg.aar
+
+      - name: Upload the library
+        uses: actions/upload-artifact@v7
+        with:
+          name: relaywg-aar
+          path: wg/relaywg.aar
+          if-no-files-found: error
+
   android:
     name: Android (build + test)
     runs-on: ubuntu-latest

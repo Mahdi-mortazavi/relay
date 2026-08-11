@@ -267,3 +267,51 @@ func wireguardClient(t *testing.T, privateKey, serverPublic string, port int) (*
 	}
 	return dev, tunNet
 }
+
+func TestStartEndpointReplacesTheRunningOne(t *testing.T) {
+	// A network change restarts sharing. If the old endpoint were left running
+	// it would hold the UDP port and the new one would fail to bind, which
+	// would look like "Full Mode stopped working after I switched Wi-Fi".
+	defer StopEndpoint()
+
+	serverPrivate, _ := keyPair(t)
+	_, clientPublic := keyPair(t)
+	port := freeUDPPort(t)
+	config := fmt.Sprintf(
+		"private_key=%s\nlisten_port=%d\npublic_key=%s\nallowed_ip=10.13.37.2/32\n",
+		serverPrivate, port, clientPublic)
+
+	if err := StartEndpoint(config); err != nil {
+		t.Fatalf("first start: %v", err)
+	}
+	if !IsRunning() {
+		t.Fatal("IsRunning says no after a successful start")
+	}
+	// The same port again: this can only succeed if the first was released.
+	if err := StartEndpoint(config); err != nil {
+		t.Fatalf("restart on the same port: %v", err)
+	}
+	if !IsRunning() {
+		t.Fatal("IsRunning says no after a restart")
+	}
+}
+
+func TestStopEndpointIsSafeWhenNothingIsRunning(t *testing.T) {
+	StopEndpoint()
+	StopEndpoint()
+	if IsRunning() {
+		t.Fatal("IsRunning says yes with nothing started")
+	}
+}
+
+func TestAFailedStartLeavesNothingRunning(t *testing.T) {
+	// Otherwise the app believes Full Mode is on, shows a QR for it, and every
+	// connection silently goes nowhere.
+	StopEndpoint()
+	if err := StartEndpoint("nonsense\n"); err == nil {
+		t.Fatal("a malformed configuration must not start")
+	}
+	if IsRunning() {
+		t.Fatal("a failed start left an endpoint behind")
+	}
+}
