@@ -104,6 +104,9 @@ fun HomeScreen(
     onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
     onShareLogs: () -> Unit = {},
+    /** Version string of a newer release, or null when this build is current. */
+    updateAvailable: String? = null,
+    onGetUpdate: () -> Unit = {},
     /** The computer waiting on an answer, or null. /shared/pairing-beacon.md. */
     pendingClient: String? = null,
     onApproveClient: (Boolean) -> Unit = {},
@@ -168,6 +171,10 @@ fun HomeScreen(
             }
 
             Spacer(Modifier.height(20.dp))
+            if (updateAvailable != null) {
+                UpdateBanner(updateAvailable, onGetUpdate)
+                Spacer(Modifier.height(12.dp))
+            }
             if (!batteryExempt) {
                 BatteryBanner(onAllowBattery)
                 Spacer(Modifier.height(12.dp))
@@ -595,6 +602,39 @@ private fun BatteryBanner(onAllow: () -> Unit) {
             Text(stringResource(R.string.battery_banner_body), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
         }
         SubtleButton(text = stringResource(R.string.battery_banner_allow), onClick = onAllow)
+    }
+}
+
+/**
+ * Says a newer release exists and offers to fetch it.
+ *
+ * The note about Android asking first is not filler. This app cannot install
+ * an update by itself -- the platform reserves that for system apps and store
+ * installs -- and a banner that implied otherwise would leave someone thinking
+ * the update failed when the installer prompt is exactly what is supposed to
+ * happen.
+ */
+@Composable
+private fun UpdateBanner(version: String, onGet: () -> Unit) {
+    val glass = LocalGlass.current
+    Row(
+        modifier = Modifier.fillMaxWidth().glassPanel(radius = 16.dp).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.update_available, version),
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.textPrimary,
+            )
+            Text(
+                stringResource(R.string.update_manual_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textSecondary,
+            )
+        }
+        SubtleButton(text = stringResource(R.string.update_get), onClick = onGet)
     }
 }
 

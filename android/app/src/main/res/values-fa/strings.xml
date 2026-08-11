@@ -85,4 +85,7 @@
     <string name="approve_allow">اجازه بده</string>
     <string name="approve_deny">رد کن</string>
     <string name="advanced_logs_share">ارسال گزارش</string>
+    <string name="update_available">نسخهٔ %1$s موجود است</string>
+    <string name="update_get">دریافت</string>
+    <string name="update_manual_note">اندروید همیشه قبل از نصب می‌پرسد.</string>
 </resources>

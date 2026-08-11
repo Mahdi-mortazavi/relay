@@ -423,8 +423,11 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>One line saying what went wrong, not just which screen is up.</summary>
-    private string StateSummary() =>
-        _localError is not null ? $"Error: {_localError}" : _controller.State.ToString();
+    private string StateSummary()
+    {
+        var error = _localError ?? _controller.ErrorCode;
+        return error is null ? _controller.StateName : $"Error: {error}";
+    }
 
     // --- state projection ----------------------------------------------------
 
