@@ -16,16 +16,38 @@ GH_TOKEN in the env.
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 
 API = "https://api.github.com"
 
+# A runner occasionally fails a request for reasons that have nothing to do
+# with the release -- one job died on "CERTIFICATE_VERIFY_FAILED: self-signed
+# certificate", which is something between the runner and GitHub, not a broken
+# APK. Retrying keeps a network blip from being reported as a release that
+# cannot be installed.
+ATTEMPTS = 4
+
 
 def get(url, accept="application/vnd.github+json"):
-    req = urllib.request.Request(
-        url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
-                      "Accept": accept, "User-Agent": "relay-install-matrix"})
-    return urllib.request.urlopen(req)
+    last = None
+    for attempt in range(ATTEMPTS):
+        req = urllib.request.Request(
+            url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                          "Accept": accept, "User-Agent": "relay-install-matrix"})
+        try:
+            return urllib.request.urlopen(req, timeout=120)
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            # A 404 or 401 will not improve by asking again.
+            if isinstance(exc, urllib.error.HTTPError) and exc.code < 500:
+                raise
+            last = exc
+            if attempt < ATTEMPTS - 1:
+                delay = 2 ** (attempt + 1)
+                print(f"  request failed ({exc}); retrying in {delay}s")
+                time.sleep(delay)
+    raise SystemExit(f"giving up after {ATTEMPTS} attempts: {last}")
 
 
 def download(release, out):

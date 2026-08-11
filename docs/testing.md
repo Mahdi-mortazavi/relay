@@ -120,8 +120,14 @@ build, and the app is started afterwards. That sequence makes the platform
 reconcile signing keys, version codes and the native ABI it committed to on the
 previous install — none of which a clean install exercises.
 
-It runs on every published release, and monthly, since new Android versions
-change what sideloading accepts without any change of ours to trigger a run.
+`release.yml` starts it as its last step, once the release exists, and it also
+runs monthly, since new Android versions change what sideloading accepts
+without any change of ours to trigger a run.
+
+It is started explicitly rather than subscribing to the `release` event,
+because a release published with `GITHUB_TOKEN` raises no event — GitHub
+suppresses it to stop workflows triggering one another. Subscribing looked
+correct and ran for nothing.
 
 Two limits worth stating plainly:
 

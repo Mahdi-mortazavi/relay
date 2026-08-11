@@ -7,12 +7,14 @@
 # its own way of producing "App not installed", and none of them were covered.
 #
 # This workflow takes the published file and installs it, unmodified, across
-# the ABIs and Android versions real phones run.
+# the Android versions real phones run. release.yml starts it as its last step,
+# once the release exists.
 name: Install matrix
 
 on:
-  release:
-    types: [published]
+  # Started by release.yml once the release exists, not by the `release` event:
+  # a release published with GITHUB_TOKEN raises no event, by design, so
+  # subscribing to it meant this never ran for an actual release.
   workflow_dispatch:
     inputs:
       tag:

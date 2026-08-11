@@ -255,6 +255,11 @@ jobs:
     name: Publish release
     needs: [version, android, windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # To start install-matrix.yml once the release exists. Without it the
+      # dispatch is refused and the release ships unverified.
+      actions: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -349,3 +354,19 @@ jobs:
             --title "Relay ${{ needs.version.outputs.version }}" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --latest
+
+      # A release published with GITHUB_TOKEN raises no `release` event -- that
+      # is deliberate on GitHub's side, to stop workflows triggering each other
+      # in a loop. So install-matrix.yml, which subscribes to that event, never
+      # ran for a release this workflow created: it claimed to check every
+      # release and checked none of them. Start it here instead, where the
+      # release definitely exists.
+      - name: Check the published APKs install on real Android versions
+        if: needs.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run install-matrix.yml \
+            --ref "$GITHUB_REF_NAME" \
+            -f tag="v${{ needs.version.outputs.version }}"
+          echo "Install matrix started for v${{ needs.version.outputs.version }}."
