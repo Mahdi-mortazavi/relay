@@ -32,7 +32,7 @@ class PairingCodeTest {
     fun `draw avoids codes already in use`() {
         // Everything except 42 is taken, so 42 is the only answer it can give.
         val taken = (PairingCode.MIN..PairingCode.MAX).map { it.toString() }.toSet() - "42"
-        repeat(50) { assertEquals("42", PairingCode.draw(taken, attempts = 200)) }
+        repeat(50) { assertEquals("42", PairingCode.draw(taken)) }
     }
 
     @Test

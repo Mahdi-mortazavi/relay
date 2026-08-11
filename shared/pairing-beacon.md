@@ -69,7 +69,9 @@ anywhere it could be executed.
   enough to be useful blocks the thread that starts sharing, and a frozen app
   is a worse outcome than a rare collision. `PairingCode.draw` accepts a set of
   codes to avoid, for a caller that already has that knowledge cheaply, but the
-  phone does not gather it on this path.
+  phone does not gather it on this path. When given such a set it chooses
+  uniformly from the codes still free, so it cannot hand back a code it was
+  told to avoid while free ones remain.
 - Two phones can therefore land on the same code. That case has an answer
   already — see `ERR_CODE_AMBIGUOUS` below, where the PC shows both device
   names and asks which one.

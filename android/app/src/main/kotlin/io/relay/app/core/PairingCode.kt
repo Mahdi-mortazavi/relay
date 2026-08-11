@@ -25,16 +25,22 @@ object PairingCode {
 
     /**
      * Draws a code, avoiding [taken] — the codes of phones already announcing
-     * themselves on this network. Gives up after [attempts] and returns a code
-     * anyway: a collision produces a "which of these two?" prompt on the PC,
-     * which is worse than a unique code but much better than refusing to share.
+     * themselves on this network.
+     *
+     * Chooses uniformly from the codes that are still free rather than guessing
+     * and retrying. Rejection sampling gets steadily worse exactly when it
+     * matters most: with a crowded network it can run out of tries and hand
+     * back a code it was told to avoid, and it can do that while free codes
+     * remain. Enumerating ninety strings costs nothing and cannot fail that way.
+     *
+     * When every value is taken it returns one anyway. A collision produces a
+     * "which of these two?" prompt on the PC — worse than a unique code, and
+     * far better than refusing to share.
      */
-    fun draw(taken: Set<String> = emptySet(), attempts: Int = 5): String {
-        repeat(attempts) {
-            val candidate = next()
-            if (candidate !in taken) return candidate
-        }
-        return next()
+    fun draw(taken: Set<String> = emptySet()): String {
+        val free = (MIN..MAX).map { it.toString() }.filterNot { it in taken }
+        if (free.isEmpty()) return next()
+        return free[random.nextInt(free.size)]
     }
 
     private fun next(): String = (MIN + random.nextInt(MAX - MIN + 1)).toString()
