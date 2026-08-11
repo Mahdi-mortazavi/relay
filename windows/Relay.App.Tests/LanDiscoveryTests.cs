@@ -8,6 +8,8 @@ public class LanDiscoveryTests
 {
     private static byte[] Beacon(string json) => Encoding.UTF8.GetBytes(json);
 
+    private static readonly DateTimeOffset Now = DateTimeOffset.UnixEpoch;
+
     private const string Good =
         """{"v":1,"code":"42","mode":"socks5","host":"192.168.43.1","port":1080,"name":"Pixel 4a","state":"sharing"}""";
 
@@ -15,7 +17,7 @@ public class LanDiscoveryTests
     public void Parses_a_well_formed_beacon()
     {
         using var discovery = new LanDiscovery();
-        Assert.True(discovery.TryParse(Beacon(Good), out var device, out var stopped));
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(Good), Now, out var device, out var stopped));
         Assert.False(stopped);
         Assert.Equal("42", device!.Code);
         Assert.Equal("192.168.43.1", device.Host);
@@ -29,7 +31,7 @@ public class LanDiscoveryTests
     {
         using var discovery = new LanDiscovery();
         var json = Good.Replace("\"sharing\"", "\"stopped\"");
-        Assert.True(discovery.TryParse(Beacon(json), out _, out var stopped));
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(json), Now, out _, out var stopped));
         Assert.True(stopped);
     }
 
@@ -54,7 +56,7 @@ public class LanDiscoveryTests
     public void Rejects_malformed_beacons(string json)
     {
         using var discovery = new LanDiscovery();
-        Assert.False(discovery.TryParse(Beacon(json), out _, out _));
+        Assert.False(LanDiscovery.TryParseBeacon(Beacon(json), Now, out _, out _));
     }
 
     [Fact]
@@ -64,7 +66,7 @@ public class LanDiscoveryTests
         // pads it to a kilobyte must not get a kilobyte onto the screen.
         using var discovery = new LanDiscovery();
         var json = Good.Replace("Pixel 4a", new string('x', 500));
-        Assert.True(discovery.TryParse(Beacon(json), out var device, out _));
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(json), Now, out var device, out _));
         Assert.Equal(32, device!.Name!.Length);
     }
 
@@ -73,8 +75,7 @@ public class LanDiscoveryTests
     {
         var now = DateTimeOffset.UtcNow;
         using var discovery = new LanDiscovery(() => now);
-        Assert.True(discovery.TryParse(Beacon(Good), out var device, out _));
-        Add(discovery, device!);
+        Assert.True(discovery.Observe(Beacon(Good)));
 
         var found = discovery.Match("42");
         Assert.Single(found);
@@ -86,8 +87,7 @@ public class LanDiscoveryTests
     {
         var now = DateTimeOffset.UtcNow;
         using var discovery = new LanDiscovery(() => now);
-        Assert.True(discovery.TryParse(Beacon(Good), out var device, out _));
-        Add(discovery, device!);
+        Assert.True(discovery.Observe(Beacon(Good)));
         Assert.Empty(discovery.Match("77"));
     }
 
@@ -99,11 +99,8 @@ public class LanDiscoveryTests
         // silently-picked first.
         var now = DateTimeOffset.UtcNow;
         using var discovery = new LanDiscovery(() => now);
-        Assert.True(discovery.TryParse(Beacon(Good), out var first, out _));
-        Assert.True(discovery.TryParse(
-            Beacon(Good.Replace("192.168.43.1", "192.168.43.9")), out var second, out _));
-        Add(discovery, first!);
-        Add(discovery, second!);
+        Assert.True(discovery.Observe(Beacon(Good)));
+        Assert.True(discovery.Observe(Beacon(Good.Replace("192.168.43.1", "192.168.43.9"))));
 
         Assert.Equal(2, discovery.Match("42").Count);
     }
@@ -114,13 +111,35 @@ public class LanDiscoveryTests
         var now = DateTimeOffset.UtcNow;
         var clock = now;
         using var discovery = new LanDiscovery(() => clock);
-        Assert.True(discovery.TryParse(Beacon(Good), out var device, out _));
-        Add(discovery, device!);
+        Assert.True(discovery.Observe(Beacon(Good)));
         Assert.Single(discovery.Match("42"));
 
         // Past the staleness window: the phone left, or the network dropped.
         clock = now + LanDiscovery.Stale + TimeSpan.FromSeconds(1);
         Assert.Empty(discovery.Match("42"));
+    }
+
+    [Fact]
+    public void A_stopped_beacon_removes_the_phone_at_once()
+    {
+        // Without this the PC keeps offering a phone that has stopped sharing
+        // for another five seconds, and connecting to it fails for no visible
+        // reason.
+        var now = DateTimeOffset.UtcNow;
+        using var discovery = new LanDiscovery(() => now);
+        Assert.True(discovery.Observe(Beacon(Good)));
+        Assert.Single(discovery.Match("42"));
+
+        Assert.True(discovery.Observe(Beacon(Good.Replace("\"sharing\"", "\"stopped\""))));
+        Assert.Empty(discovery.Match("42"));
+    }
+
+    [Fact]
+    public void Observe_reports_a_datagram_it_could_not_use()
+    {
+        using var discovery = new LanDiscovery();
+        Assert.False(discovery.Observe(Beacon("not a beacon")));
+        Assert.Empty(discovery.Devices);
     }
 
     [Theory]
@@ -139,16 +158,4 @@ public class LanDiscoveryTests
     public void NormalizeCode_matches_the_contract(string? input, string? expected)
         => Assert.Equal(expected, LanDiscovery.NormalizeCode(input));
 
-    /// <summary>
-    /// Feeds a parsed device in without a socket. Discovery's own Add is
-    /// private because nothing outside the receive loop should invent devices;
-    /// the tests reach it through the same parse the loop uses.
-    /// </summary>
-    private static void Add(LanDiscovery discovery, LanDiscovery.Device device)
-    {
-        var field = typeof(LanDiscovery).GetField("_devices",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        var map = (Dictionary<string, LanDiscovery.Device>)field.GetValue(discovery)!;
-        map[device.Key] = device;
-    }
 }

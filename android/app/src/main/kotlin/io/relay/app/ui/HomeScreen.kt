@@ -103,6 +103,7 @@ fun HomeScreen(
     onSetMode: (TransportMode) -> Unit,
     onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
+    onShareLogs: () -> Unit = {},
     /** The computer waiting on an answer, or null. /shared/pairing-beacon.md. */
     pendingClient: String? = null,
     onApproveClient: (Boolean) -> Unit = {},
@@ -171,7 +172,7 @@ fun HomeScreen(
                 BatteryBanner(onAllowBattery)
                 Spacer(Modifier.height(12.dp))
             }
-            AdvancedSection(state, themeMode, preferredPort, logs, onSetTheme, onSetPort, onClearLogs)
+            AdvancedSection(state, themeMode, preferredPort, logs, onSetTheme, onSetPort, onClearLogs, onShareLogs)
         }
 
         // Inside the Box and after the scrolling Column, so it sits above the
@@ -483,6 +484,11 @@ private fun PairingPanel(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Spacer(Modifier.height(20.dp))
+            // Stop sits with the code rather than after the QR. Leading with a
+            // tall QR pushed it off the bottom of a small screen: the way out
+            // of the screen has to be visible without scrolling.
+            SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
             Spacer(Modifier.height(24.dp))
             Text(
                 text = stringResource(R.string.or_scan_qr),
@@ -535,8 +541,10 @@ private fun PairingPanel(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
-        SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
+        if (shortCode == null) {
+            Spacer(Modifier.height(24.dp))
+            SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
+        }
     }
 }
 
@@ -601,6 +609,7 @@ private fun AdvancedSection(
     onSetTheme: (String) -> Unit,
     onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
+    onShareLogs: () -> Unit,
 ) {
     val glass = LocalGlass.current
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -656,6 +665,15 @@ private fun AdvancedSection(
                             style = MaterialTheme.typography.labelSmall,
                             color = glass.textSecondary,
                             modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            stringResource(R.string.advanced_logs_share),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = glass.accent,
+                            modifier = Modifier
+                                .clickable(role = Role.Button) { onShareLogs() }
+                                .minimumInteractiveComponentSize()
+                                .padding(4.dp),
                         )
                         Text(
                             stringResource(R.string.advanced_logs_clear),

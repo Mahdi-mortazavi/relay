@@ -84,4 +84,5 @@
     <string name="approve_body">%1$s wants to share your connection.</string>
     <string name="approve_allow">Allow</string>
     <string name="approve_deny">Deny</string>
+    <string name="advanced_logs_share">Share report</string>
 </resources>

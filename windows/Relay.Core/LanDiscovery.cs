@@ -60,13 +60,24 @@ public sealed class LanDiscovery : IDisposable
             catch (ObjectDisposedException) { return; }
             catch (SocketException) { continue; } // one bad datagram is not the end of discovery
 
-            if (TryParse(result.Buffer, out var device, out var stopped))
-            {
-                if (stopped) Remove(device!.Key);
-                else Add(device!);
-            }
+            Observe(result.Buffer);
             Expire();
         }
+    }
+
+    /// <summary>
+    /// Feeds one datagram in, exactly as the receive loop does. Public because
+    /// the interesting behaviour of this class is what it does with the bytes
+    /// on the wire, and a test that cannot hand it bytes has to reach through
+    /// reflection instead — which tests the reflection, not the parser.
+    /// </summary>
+    /// <returns>True when the datagram was a beacon this version understands.</returns>
+    public bool Observe(byte[] datagram)
+    {
+        if (!TryParseBeacon(datagram, _clock(), out var device, out var stopped)) return false;
+        if (stopped) Remove(device!.Key);
+        else Add(device!);
+        return true;
     }
 
     /// <summary>
@@ -74,7 +85,7 @@ public sealed class LanDiscovery : IDisposable
     /// the network can send one — so every field is validated and nothing is
     /// trusted beyond being shown.
     /// </summary>
-    internal bool TryParse(byte[] bytes, out Device? device, out bool stopped)
+    public static bool TryParseBeacon(byte[] bytes, DateTimeOffset seen, out Device? device, out bool stopped)
     {
         device = null;
         stopped = false;
@@ -105,7 +116,7 @@ public sealed class LanDiscovery : IDisposable
             var state = root.TryGetProperty("state", out var s) ? s.GetString() : "sharing";
             stopped = state == "stopped";
 
-            device = new Device(code, mode, host!, portNumber, name, _clock());
+            device = new Device(code, mode, host!, portNumber, name, seen);
             return true;
         }
         catch (JsonException)

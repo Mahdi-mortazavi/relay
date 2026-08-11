@@ -84,4 +84,5 @@
     <string name="approve_body">%1$s می‌خواهد از اتصال شما استفاده کند.</string>
     <string name="approve_allow">اجازه بده</string>
     <string name="approve_deny">رد کن</string>
+    <string name="advanced_logs_share">ارسال گزارش</string>
 </resources>
