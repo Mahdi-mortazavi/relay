@@ -103,6 +103,86 @@ jobs:
             android/app/build/outputs/androidTest-results/**
           if-no-files-found: warn
 
+  # The universal APK exists for devices the arm64 split cannot reach: 32-bit ARM
+  # phones, x86 Chromebooks, emulators. Publishing it without ever installing it
+  # somewhere non-arm64 would be publishing a promise, so this job installs the
+  # real minified release APK on an x86_64 emulator, drives it through its own UI
+  # and pushes real bytes through its proxy.
+  universal-apk:
+    name: Universal APK (x86_64 device)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Release, so R8 actually runs: a missing keep rule is invisible in a
+      # debug build and fatal in the one people download.
+      - name: Build the universal release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      # No release keystore on a pull request, and adb will not install an
+      # unsigned APK. Sign the real minified output with a throwaway key so the
+      # artifact under test stays the release build rather than becoming a debug
+      # one — the signature is not what this job is testing.
+      - name: Sign it for the device
+        run: |
+          set -euo pipefail
+          APK=$(find android/app/build/outputs/apk/release -name '*universal*.apk' | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No universal APK was produced."
+            find android/app/build/outputs/apk/release -name '*.apk' || true
+            exit 1
+          fi
+          if unzip -l "$APK" | grep -qE 'META-INF/.*\.(RSA|EC|DSA)'; then
+            echo "Already signed by the release config; using it as-is."
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/e2e.jks" -storepass e2epass \
+              -keypass e2epass -alias e2e -keyalg RSA -keysize 2048 -validity 30 \
+              -dname "CN=Relay E2E, O=CI, C=US" >/dev/null 2>&1
+            BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+            "$BT/apksigner" sign --ks "$RUNNER_TEMP/e2e.jks" --ks-pass pass:e2epass \
+              --key-pass pass:e2epass --out "$RUNNER_TEMP/universal-signed.apk" "$APK"
+            APK="$RUNNER_TEMP/universal-signed.apk"
+          fi
+          echo "UNIVERSAL_APK=$APK" >> "$GITHUB_ENV"
+          ls -la "$APK"
+
+      - name: Install and exercise it on an x86_64 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: .github/scripts/universal-apk-e2e.sh "$UNIVERSAL_APK" "${{ github.workspace }}/e2e-out"
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-universal-apk
+          path: e2e-out/**
+          if-no-files-found: warn
+
   cross-platform:
     name: Cross-platform (host client ↔ live phone)
     runs-on: ubuntu-latest
