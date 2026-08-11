@@ -1,5 +1,6 @@
 package io.relay.app.net
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -8,8 +9,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * Decides whether a computer may use this phone's proxy, by asking the person
@@ -34,7 +33,20 @@ class ClientGate(
     data class Pending(val address: String)
 
     private val decisions = ConcurrentHashMap<String, Decision>()
-    private val waiters = ConcurrentHashMap<String, (Decision) -> Unit>()
+
+    /**
+     * One promise per waiting client.
+     *
+     * Deliberately a CompletableDeferred rather than a raw continuation. A
+     * continuation resumed by hand runs the rest of the coroutine *inline, on
+     * whatever thread called resume* -- which here is the UI thread, the moment
+     * someone taps Allow. The coroutine that continues is the one that goes on
+     * to relay the connection, so tapping Allow would have run socket I/O on
+     * the main thread: a frozen app, and on Android a
+     * NetworkOnMainThreadException. Completing a deferred instead wakes the
+     * waiter on its own dispatcher, where it belongs.
+     */
+    private val waiters = ConcurrentHashMap<String, CompletableDeferred<Decision>>()
     private val queue = Mutex()
 
     private val _pending = MutableStateFlow<Pending?>(null)
@@ -57,13 +69,11 @@ class ClientGate(
         // person was never shown.
         return queue.withLock {
             decisions[address]?.let { return@withLock it == Decision.ALLOWED }
+            val answer = CompletableDeferred<Decision>()
+            waiters[address] = answer
+            _pending.value = Pending(address)
             val decision = try {
-                withTimeout(timeoutMs) {
-                    suspendCoroutine { continuation ->
-                        waiters[address] = { continuation.resume(it) }
-                        _pending.value = Pending(address)
-                    }
-                }
+                withTimeout(timeoutMs) { answer.await() }
             } catch (_: TimeoutCancellationException) {
                 Decision.DENIED
             } finally {
@@ -75,11 +85,15 @@ class ClientGate(
         }
     }
 
-    /** Called by the UI when the person answers. */
+    /**
+     * Called by the UI when the person answers. Returns immediately: completing
+     * the promise hands the waiting coroutine back to its own dispatcher rather
+     * than running it here.
+     */
     fun resolve(address: String, allowed: Boolean) {
         val decision = if (allowed) Decision.ALLOWED else Decision.DENIED
         decisions[address] = decision
-        waiters.remove(address)?.invoke(decision)
+        waiters.remove(address)?.complete(decision)
         if (_pending.value?.address == address) _pending.value = null
     }
 
@@ -89,7 +103,7 @@ class ClientGate(
     /** Forgets every decision. Called when sharing stops. */
     fun reset() {
         decisions.clear()
-        waiters.keys.toList().forEach { waiters.remove(it)?.invoke(Decision.DENIED) }
+        waiters.keys.toList().forEach { waiters.remove(it)?.complete(Decision.DENIED) }
         _pending.value = null
     }
 

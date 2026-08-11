@@ -37,10 +37,17 @@ object DiagnosticReport {
         appendLine("Relay diagnostic report")
         appendLine("=======================")
         appendLine()
+        // Every Build field is read defensively. They are platform types, not
+        // guaranteed non-null, and this is the one function in the app that must
+        // never throw: it runs when something has already gone wrong, and a
+        // report that crashes instead of printing leaves the person with
+        // nothing to send. SUPPORTED_ABIS is null outside a device — a JVM unit
+        // test is the honest case, an unusual OEM image the paranoid one.
         appendLine("App:      $appVersion")
-        appendLine("Android:  ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-        appendLine("Device:   ${if (redactNames) "${Build.MANUFACTURER} ${Build.MODEL}" else Build.MODEL}")
-        appendLine("ABIs:     ${Build.SUPPORTED_ABIS.joinToString(", ")}")
+        appendLine("Android:  ${Build.VERSION.RELEASE ?: UNKNOWN} (API ${Build.VERSION.SDK_INT})")
+        val model = Build.MODEL ?: UNKNOWN
+        appendLine("Device:   ${if (redactNames) "${Build.MANUFACTURER ?: UNKNOWN} $model" else model}")
+        appendLine("ABIs:     ${Build.SUPPORTED_ABIS?.joinToString(", ") ?: UNKNOWN}")
         appendLine("State:    ${describe(state)}")
         appendLine()
         appendLine("Log (most recent last, times in seconds since sharing started)")
@@ -101,6 +108,7 @@ object DiagnosticReport {
     private fun encode(text: String): String =
         java.net.URLEncoder.encode(text, "UTF-8").replace("+", "%20")
 
+    private const val UNKNOWN = "unknown"
     private const val BODY_LIMIT = 6000
     private const val ISSUES_URL = "https://github.com/Mahdi-mortazavi/relay/issues"
 }

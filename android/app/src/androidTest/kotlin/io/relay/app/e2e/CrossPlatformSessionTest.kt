@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.relay.app.MainActivity
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
+import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.SharingService
@@ -21,6 +22,8 @@ import java.io.File
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 /**
  * Holds a real sharing session open while the **host** runs the Windows-side
@@ -75,27 +78,52 @@ class CrossPlatformSessionTest {
         // Tell the workflow the session is up and where to reach it.
         File(evidence, "ready").writeText("${payload.host}:${payload.port}")
 
-        val done = File(evidence, "host-done")
-        val deadline = System.currentTimeMillis() + HOST_TIMEOUT_MS
-        while (!done.exists() && System.currentTimeMillis() < deadline) {
-            // Stand in for the person holding the phone. The gate holds the
-            // host's first connection until someone allows it
-            // (/shared/pairing-beacon.md), and this harness has no UI to tap --
-            // it drives the service directly. Answering here is the same act
-            // the golden-journey test performs by tapping Allow, not a way
-            // around the gate: an unapproved client still never gets through.
-            ConnectionRepository.clientGate.pending.value?.let { waiting ->
-                DeviceEvidence.note("Allowing ${waiting.address} on the host's behalf")
-                ConnectionRepository.clientGate.resolve(waiting.address, allowed = true)
+        // Stand in for the person holding the phone, for as long as this test
+        // needs one. The gate holds every unapproved address until someone
+        // answers (/shared/pairing-beacon.md), and this harness has no UI to tap
+        // -- it drives the service directly. Answering here is the same act the
+        // golden-journey test performs by tapping Allow, not a way around the
+        // gate: an unapproved client still never gets through.
+        //
+        // It runs for the whole test rather than only while waiting for the
+        // host, because the last thing this test does is open its *own*
+        // connection, from the phone's address rather than the host's tunnel.
+        // That is a second address, so it gets a second prompt. Answering only
+        // until `host-done` appeared left that one unanswered: the gate did
+        // exactly what it should -- waited a minute and refused -- and the
+        // re-probe died on "Connection reset" while reading a greeting that
+        // was never going to come.
+        val answering = AtomicBoolean(true)
+        val standIn = thread(isDaemon = true, name = "relay-e2e-approver") {
+            while (answering.get()) {
+                ConnectionRepository.clientGate.pending.value?.let { waiting ->
+                    DeviceEvidence.note("Allowing ${waiting.address} on the person's behalf")
+                    ConnectionRepository.clientGate.resolve(waiting.address, allowed = true)
+                }
+                Thread.sleep(100)
             }
-            Thread.sleep(500)
         }
-        assertTrue(
-            "the host harness never finished within ${HOST_TIMEOUT_MS / 1000}s — " +
-                "see the host job's log for what it was doing",
-            done.exists(),
-        )
 
+        try {
+            val done = File(evidence, "host-done")
+            val deadline = System.currentTimeMillis() + HOST_TIMEOUT_MS
+            while (!done.exists() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(500)
+            }
+            assertTrue(
+                "the host harness never finished within ${HOST_TIMEOUT_MS / 1000}s — " +
+                    "see the host job's log for what it was doing",
+                done.exists(),
+            )
+            checkTheSessionSurvivedTheHost(payload)
+        } finally {
+            answering.set(false)
+            standIn.join(2_000)
+        }
+    }
+
+    /** The post-conditions, once the host has had its turn. */
+    private fun checkTheSessionSurvivedTheHost(payload: QrPayload) {
         // The host's traffic must have registered as a connected device, and the
         // session must still be healthy after it.
         val state = ConnectionRepository.state.value
@@ -110,6 +138,12 @@ class CrossPlatformSessionTest {
         // the difference between a demo and a product.
         Socket().use { probe ->
             probe.connect(InetSocketAddress(payload.host, payload.port), 5_000)
+            // Without a read timeout this blocks on the approval gate for its
+            // full minute and then fails as a bare "Connection reset", which
+            // says nothing about why. Ten seconds is far longer than a greeting
+            // needs and far shorter than the gate's patience, so a stall here
+            // reports itself as a stall.
+            probe.soTimeout = 10_000
             probe.getOutputStream().write(byteArrayOf(0x05, 0x01, 0x00))
             probe.getOutputStream().flush()
             val reply = ByteArray(2)
