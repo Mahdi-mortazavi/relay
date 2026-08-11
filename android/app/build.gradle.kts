@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
@@ -20,12 +19,12 @@ val relayVersionCode: Int = relayVersion.substringBefore("-").split(".").let { p
 
 android {
     namespace = "io.relay.app"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.relay.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = relayVersionCode
         versionName = relayVersion
         // Instrumented tests are the device half of the test pyramid: they run
@@ -93,7 +92,10 @@ android {
     }
 }
 
-// Kotlin 2.4 removed the `kotlinOptions` DSL that used to live in `android { }`.
+// Kotlin 2.4 removed the `kotlinOptions` DSL that used to live in `android { }`,
+// and AGP 9 folded Kotlin support into the Android plugin itself — the standalone
+// `org.jetbrains.kotlin.android` plugin is gone from the block above because
+// applying it alongside AGP 9 is now a hard error.
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
