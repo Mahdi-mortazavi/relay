@@ -14,6 +14,13 @@ import kotlinx.coroutines.flow.update
  * transition table — an illegal event is dropped, never applied.
  */
 object ConnectionRepository {
+    /**
+     * Who is allowed to use the proxy. Lives here rather than in the service
+     * because the answer comes from the UI and the question comes from the
+     * network, and this is the one object both of them already hold.
+     */
+    val clientGate = io.relay.app.net.ClientGate()
+
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Idle)
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 

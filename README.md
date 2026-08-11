@@ -194,7 +194,7 @@ Honest status, not a wish list.
 | ⚡ Fast Mode (SOCKS5, TCP) | ✅ **Shipping** |
 | 🔄 Auto-reconnect, actionable errors, EN + FA | ✅ **Shipping** |
 | 🎨 Redesigned Windows app | ✅ **Shipping** |
-| 🚀 Full Mode (WireGuard, TCP + UDP) | 🔨 Planned |
+| 🚀 Full Mode (WireGuard, TCP + UDP) | 🔨 In progress — the phone-side endpoint works and is tested end to end; not yet switchable on |
 | 🔑 Authenticated pairing | 🔨 Planned — see [SECURITY.md](SECURITY.md) |
 | ✍️ Signed Windows installer | 🔨 Planned |
 | 🍎 macOS client | 💭 Later |

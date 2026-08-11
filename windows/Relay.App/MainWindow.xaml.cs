@@ -26,6 +26,14 @@ public sealed partial class MainWindow : Window
     private const int MaxPopupHeight = 640;
 
     private readonly AppController _controller = AppController.Instance;
+
+    /// <summary>
+    /// Listens for phones announcing themselves, so a two-digit code can be
+    /// resolved to an address. Started once and left running: discovery has to
+    /// already know about a phone by the time someone finishes typing, and a
+    /// listener that starts when the box opens would find nothing for a second.
+    /// </summary>
+    private readonly LanDiscovery _discovery = new();
     private CameraQrScanner? _scanner;
     private long _lastPreviewTicks;
     private enum InputMode { None, Scanning, Code }
@@ -86,6 +94,23 @@ public sealed partial class MainWindow : Window
         AttachPressFeedback();
         AttachKeyboard();
         RefreshLogs();
+
+        // Start listening straight away. Someone types two digits in about a
+        // second, and a listener that only starts when the code box opens would
+        // still be empty when they finish -- they would be told no phone is
+        // there while the phone is shouting on the wire.
+        try
+        {
+            _discovery.Start();
+        }
+        catch (Exception ex)
+        {
+            // Another program on 47654, or a policy that forbids the bind.
+            // Pairing by QR and by the eight-character code both still work, so
+            // this is a note in the log rather than a dialog.
+            LocalLog.Add($"Device discovery unavailable: {ex.Message}");
+        }
+
         Render();
     }
 
@@ -331,6 +356,7 @@ public sealed partial class MainWindow : Window
         AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
         AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
         AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
+        AdvancedLogsShare.Content = Strings.Get("AdvancedLogsShare");
     }
 
     /// <summary>
@@ -369,6 +395,39 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnClearLogsClick(object sender, RoutedEventArgs e) => LocalLog.Clear();
+
+    /// <summary>
+    /// Puts the report on the clipboard and opens a GitHub issue with it
+    /// already in the body. Two steps rather than one because the clipboard
+    /// copy is what saves the report if the browser fails to open, and because
+    /// a person who would rather send it somewhere else -- Telegram, mail --
+    /// now has it in hand without being routed through GitHub first.
+    /// </summary>
+    private async void OnShareLogsClick(object sender, RoutedEventArgs e)
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        var entries = LocalLog.Snapshot()
+            .Select(entry => (entry.ElapsedSeconds, entry.Message))
+            .ToList();
+        var report = DiagnosticReport.Build(
+            StateSummary(),
+            entries,
+            version is null ? "unknown" : $"{version.Major}.{version.Minor}.{version.Build}");
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(report);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        LocalLog.Add("Diagnostic report copied to the clipboard");
+
+        await Windows.System.Launcher.LaunchUriAsync(new Uri(DiagnosticReport.IssueUrl(report)));
+    }
+
+    /// <summary>One line saying what went wrong, not just which screen is up.</summary>
+    private string StateSummary()
+    {
+        var error = _localError ?? _controller.ErrorCode;
+        return error is null ? _controller.StateName : $"Error: {error}";
+    }
 
     // --- state projection ----------------------------------------------------
 
@@ -490,6 +549,8 @@ public sealed partial class MainWindow : Window
             "ERR_QR_NEWER_VERSION" => ("ErrTitleCode", "ErrQrNewer", (string?)null),
             "ERR_QR_INVALID" => ("ErrTitleCode", "ErrQrInvalid", "ScanQr"),
             "ERR_CODE_INVALID" => ("ErrTitleCode", "ErrCodeInvalid", "EnterCode"),
+            "ERR_CODE_NOT_FOUND" => ("ErrTitleCode", "ErrCodeNotFound", "EnterCode"),
+            "ERR_CODE_AMBIGUOUS" => ("ErrTitleCode", "ErrCodeAmbiguous", "EnterCode"),
             "ERR_HOST_UNREACHABLE" => ("ErrTitleNoPhone", "ErrHostUnreachable", "TryAgain"),
             "ERR_WRONG_NETWORK" => ("ErrTitleNetwork", "ErrWrongNetwork", "TryAgain"),
             "ERR_CONNECTION_LOST" => ("ErrTitleLost", "ErrConnectionLost", "TryAgain"),
@@ -655,6 +716,18 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnCodeChanged(object sender, TextChangedEventArgs e)
     {
+        // Two shapes are legal now. Two digits means "find the phone announcing
+        // that code on this network" (/shared/pairing-beacon.md); eight
+        // characters is the older code that carries the address itself, kept
+        // working for one release so a phone that has not updated still pairs.
+        var raw = CodeBox.Text ?? string.Empty;
+        var digits = LanDiscovery.NormalizeCode(raw);
+        if (digits is not null)
+        {
+            OnShortCodeTyped(digits, sender);
+            return;
+        }
+
         // Normalise exactly as TypedCode.Decode does, because that is what
         // judges the code a moment later. This used to strip every character
         // that was not a letter or digit, which is a wider rule than the
@@ -664,11 +737,22 @@ public sealed partial class MainWindow : Window
         // auto-connected, and the decoder then saw the raw nine characters and
         // rejected them as ERR_CODE_INVALID. The code was correct; the app
         // refused it and blamed the user.
-        var clean = TypedCode.Normalize(CodeBox.Text);
+        var clean = TypedCode.Normalize(raw);
 
         if (clean.Length == 0)
         {
             CodeHintText.Text = Strings.Get("CodeHint");
+            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+
+        // A single digit is someone halfway through typing a two-digit code,
+        // not a broken long one. Saying "that isn't one of the letters on your
+        // phone" at that moment would be wrong and alarming.
+        if (clean.Length == 1 && char.IsAsciiDigit(clean[0]))
+        {
+            CodeHintText.Text = Strings.Get("CodeHintShort");
             CodeHintText.Foreground = ThemeBrush("LabelTertiary");
             CodeConnectButton.IsEnabled = false;
             return;
@@ -709,8 +793,73 @@ public sealed partial class MainWindow : Window
         OnCodeConnectClick(sender, new RoutedEventArgs());
     }
 
+    /// <summary>
+    /// Two digits were typed. Unlike the long code there is nothing to decode —
+    /// the answer is whichever phone on this network is announcing that number,
+    /// so the failure modes are "nobody" and "more than one" rather than
+    /// "malformed".
+    /// </summary>
+    private void OnShortCodeTyped(string digits, object sender)
+    {
+        var matches = _discovery.Match(digits);
+        switch (matches.Count)
+        {
+            case 0:
+                CodeHintText.Text = Strings.Get("CodeNoDevice");
+                CodeHintText.Foreground = ThemeBrush("WarningBrush");
+                CodeConnectButton.IsEnabled = false;
+                return;
+            case 1:
+                CodeHintText.Text = matches[0].Name is { Length: > 0 } name
+                    ? string.Format(Strings.Get("CodeFoundNamed"), name)
+                    : Strings.Get("CodeReady");
+                CodeHintText.Foreground = ThemeBrush("AccentBrush");
+                CodeConnectButton.IsEnabled = true;
+                OnCodeConnectClick(sender, new RoutedEventArgs());
+                return;
+            default:
+                // Rare, and the only honest thing to do is ask. Picking the
+                // first would connect someone to a stranger's phone without
+                // ever telling them there was a choice.
+                CodeHintText.Text = string.Format(
+                    Strings.Get("CodeAmbiguous"),
+                    string.Join(", ", matches.Select(m => m.Name ?? m.Host)));
+                CodeHintText.Foreground = ThemeBrush("WarningBrush");
+                CodeConnectButton.IsEnabled = false;
+                return;
+        }
+    }
+
     private async void OnCodeConnectClick(object sender, RoutedEventArgs e)
     {
+        // Short code first: it is the path people will take, and it resolves
+        // through discovery rather than by decoding anything.
+        var digits = LanDiscovery.NormalizeCode(CodeBox.Text);
+        if (digits is not null)
+        {
+            var matches = _discovery.Match(digits);
+            if (matches.Count != 1)
+            {
+                // Zero means the phone is not sharing or is on another network;
+                // more than one needs a human to choose. Neither is a malformed
+                // code, so neither says so.
+                ShowLocalError(matches.Count == 0 ? "ERR_CODE_NOT_FOUND" : "ERR_CODE_AMBIGUOUS");
+                return;
+            }
+            var device = matches[0];
+            _localError = null;
+            _mode = InputMode.None;
+            await _controller.ConnectAsync(new QrPayload
+            {
+                V = QrPayloadCodec.SupportedVersion,
+                Mode = device.Mode,
+                Host = device.Host,
+                Port = device.PortNumber,
+                Name = device.Name,
+            });
+            return;
+        }
+
         var decoded = TypedCode.Decode(TypedCode.Normalize(CodeBox.Text));
         if (decoded is null)
         {

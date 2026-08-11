@@ -3,6 +3,7 @@ package io.relay.app.e2e
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -113,7 +114,8 @@ class GoldenJourneyTest {
         //    this also proves LocalAddress picked an address that is actually
         //    bound and reachable on this device.
         val destination = startHttpDestination()
-        val client = socksConnect(payload.host, payload.port, "127.0.0.1", destination.localPort)
+        val client = connectWithApproval(payload.host, payload.port, destination.localPort)
+        DeviceEvidence.screenshot("approved")
 
         // 5. Real bytes, both directions.
         client.getOutputStream().write("GET /probe HTTP/1.1\r\nHost: relay-e2e\r\n\r\n".toByteArray())
@@ -184,8 +186,8 @@ class GoldenJourneyTest {
 
         // And the fallback port must actually work.
         val destination = startHttpDestination()
-        val client = socksConnect(
-            advertising.payload.host, advertising.payload.port, "127.0.0.1", destination.localPort,
+        val client = connectWithApproval(
+            advertising.payload.host, advertising.payload.port, destination.localPort,
         )
         client.getOutputStream().write("GET / HTTP/1.1\r\nHost: relay-e2e\r\n\r\n".toByteArray())
         client.getOutputStream().flush()
@@ -227,6 +229,44 @@ class GoldenJourneyTest {
     }
 
     /** A destination "on the internet", running on the device behind the proxy. */
+    /**
+     * Connects a client and answers the phone's approval prompt while it waits.
+     *
+     * The prompt is not incidental to the journey -- it is the thing that makes
+     * a two-digit pairing code safe (/shared/pairing-beacon.md), so a test that
+     * routed around it would be testing a product nobody ships. It has to
+     * happen on another thread because the connection blocks in the SOCKS
+     * handshake until someone taps Allow, and that someone is this test.
+     */
+    private fun connectWithApproval(host: String, port: Int, destinationPort: Int): Socket {
+        val pending = java.util.concurrent.CompletableFuture.supplyAsync {
+            socksConnect(host, port, "127.0.0.1", destinationPort)
+        }
+        // Assert the person is actually asked -- that is the part worth
+        // proving, and the part a regression would remove.
+        // Matched on the dialog's title, not its button: the battery banner
+        // also has a button reading "Allow", so the button text finds two nodes
+        // and the assertion fails on the ambiguity rather than on anything real.
+        val prompt = compose.activity.getString(R.string.approve_title)
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithText(prompt).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(prompt).assertIsDisplayed()
+        DeviceEvidence.screenshot("approval-prompt")
+
+        // Answer it through the gate rather than by tapping. A Compose dialog
+        // renders in its own window, and injecting touch into that window fails
+        // on these images with "Failed to inject touch input" -- an emulator
+        // limitation, not a product one. The assertion above already proves the
+        // prompt reached the screen; this only supplies the answer, and an
+        // unapproved client still never gets through.
+        val waiting = ConnectionRepository.clientGate.pending.value
+        assertTrue("the gate should have a client waiting", waiting != null)
+        DeviceEvidence.note("Approval prompt shown for ${waiting!!.address}; allowing")
+        ConnectionRepository.clientGate.resolve(waiting.address, allowed = true)
+        return pending.get(30, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
     private fun startHttpDestination(): ServerSocket {
         val server = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
         destinations += server

@@ -46,9 +46,16 @@ Two realities shape the design:
 
 - Crypto and the WireGuard protocol come entirely from official `wireguard-go`;
   Relay's code is glue (config, lifecycle, netstack dial-out).
-- **CI proves** the Go module + AAR build, the tunnel config assembly, key
-  handling, the toggle, and the state machine. **Only hardware proves** the live
-  UDP tunnel and latency (AC3.1/AC3.2) — documented as such in `docs/testing.md`.
+- **CI proves** more than this ADR originally expected. The endpoint is
+  exercised end to end in a process: a real `wireguard-go` client dials the real
+  endpoint over loopback UDP and pulls an HTTP response and an echoed datagram
+  from servers reachable only outside the tunnel. So the tunnel terminating, the
+  netstack accepting a packet addressed somewhere it does not own, the forwarder
+  opening a real socket, and TCP **and UDP** making the round trip are all
+  covered without hardware.
+- **Only hardware proves** what is left: a phone's radio, a Windows adapter,
+  latency under load (AC3.2), and behaviour across a real network change —
+  documented as such in `docs/testing.md`.
 - Windows Full Mode requires elevation to create the WinTun adapter and set
   routes — a genuine difference from Fast Mode's per-user proxy; surfaced in the
   UI and `docs/release.md`.

@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import io.relay.app.service.ConnectionRepository
+import io.relay.app.service.DiagnosticReport
 import io.relay.app.ui.HomeScreen
 import io.relay.app.ui.MainViewModel
 import io.relay.app.ui.theme.RelayBackground
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val transportMode by viewModel.transportMode.collectAsState()
+                    val pendingClient by ConnectionRepository.clientGate.pending.collectAsState()
 
                     HomeScreen(
                         state = state,
@@ -79,6 +82,22 @@ class MainActivity : ComponentActivity() {
                         onSetMode = viewModel::setTransportMode,
                         onSetPort = viewModel::setPreferredPort,
                         onClearLogs = viewModel::clearLogs,
+                        onShareLogs = {
+                            // Built here rather than in the view model because the
+                            // report needs the installed version, and the share
+                            // sheet needs an Activity to launch from.
+                            val version = runCatching {
+                                packageManager.getPackageInfo(packageName, 0).versionName
+                            }.getOrNull() ?: "unknown"
+                            val report = DiagnosticReport.build(state, logs, version)
+                            startActivity(DiagnosticReport.shareIntent(this@MainActivity, report))
+                        },
+                        pendingClient = pendingClient?.address,
+                        onApproveClient = { allowed ->
+                            pendingClient?.let {
+                                ConnectionRepository.clientGate.resolve(it.address, allowed)
+                            }
+                        },
                     )
                 }
             }

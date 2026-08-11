@@ -129,7 +129,27 @@ sleep 8
 adb exec-out screencap -p > "${OUT}/universal-sharing.png" 2>/dev/null || true
 echo "::endgroup::"
 
+# The phone now asks before letting a computer use the proxy -- that prompt is
+# what makes a two-digit pairing code safe (/shared/pairing-beacon.md). The
+# connection below blocks in the SOCKS handshake until someone answers it, so
+# something has to be the someone. Runs in the background because the tap has
+# to happen while the transfer is waiting, not before it starts.
+approve_when_asked() {
+  local deadline=$(( SECONDS + 90 ))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if tap_by_text "Allow" 2>/dev/null; then
+      echo "approved the client on the phone"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "no approval prompt appeared within 90s"
+  return 1
+}
+
 echo "::group::Relay real traffic through it"
+approve_when_asked &
+APPROVER_PID=$!
 # Self-contained target: served by this runner, reached back through the phone.
 python3 -m http.server "$ECHO_PORT" --bind 0.0.0.0 --directory "$OUT" \
   > "${OUT}/http-server.log" 2>&1 &

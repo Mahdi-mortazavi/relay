@@ -7,7 +7,7 @@
 | 0 | Scaffolding: monorepo, docs, ADRs, green headless CI for both skeletons | **Done** (PR #1) |
 | 1 | MVP — Fast Mode (SOCKS5): Android foreground service + QR issuing; Windows tray client + auto proxy with verified rollback; EN+FA; Liquid Glass | **In progress** |
 | 2 | Hardening & UX polish: actionable errors, auto-reconnect, Advanced settings, VPN compatibility matrix, motion polish, dark/light | **In progress** |
-| 3 | Full Mode (WireGuard): TCP+UDP tunneling, per-pairing keys, mode toggle | Pending |
+| 3 | Full Mode (WireGuard): TCP+UDP tunneling, per-pairing keys, mode toggle | In progress — phone endpoint built and proven in CI (`/wg`); Android AAR wiring and the Windows client remain |
 | 4 | Documentation of the longer-term roadmap below (docs only) | Pending |
 
 ## Beyond (Phase 4 documents these; implementation only on explicit go-ahead)
