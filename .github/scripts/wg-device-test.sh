@@ -30,20 +30,25 @@ echo "::endgroup::"
 # answering. Waiting here turns "three tests mysteriously skipped" into a clear
 # message about the device's network.
 echo "::group::Wait for the device's network"
+# Best effort, and deliberately unable to fail the job: `set -e` plus an `ip`
+# that exits non-zero while the interface is still coming up killed this script
+# before it ran a single test, which is a worse outcome than a slow start. The
+# real guarantee is in the suite -- it retries for twenty seconds and then fails
+# rather than skipping.
+route=""
+address=""
 for _ in $(seq 1 60); do
-  route="$(adb shell ip -4 route show default 2>/dev/null | tr -d '\r')"
-  address="$(adb shell ip -4 -o addr show scope global 2>/dev/null | tr -d '\r')"
-  if [ -n "$route" ] && [ -n "$address" ]; then
-    echo "$route"
-    echo "$address"
-    break
-  fi
+  route="$(adb shell ip -4 route show default 2>/dev/null | tr -d '\r' || true)"
+  address="$(adb shell ip -4 -o addr show scope global 2>/dev/null | tr -d '\r' || true)"
+  if [ -n "$route" ] && [ -n "$address" ]; then break; fi
   sleep 1
 done
-if [ -z "${route:-}" ] || [ -z "${address:-}" ]; then
-  echo "::error::The device never got a default route; the traffic tests cannot run."
+if [ -n "$route" ]; then
+  echo "$route"
+  echo "$address"
+else
+  echo "No default route after 60s; running anyway so the suite reports why."
   adb shell ip -4 addr show 2>&1 | tr -d '\r' || true
-  exit 1
 fi
 echo "::endgroup::"
 
