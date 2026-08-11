@@ -145,13 +145,21 @@ if ($size -lt 1MB) {
 # phone can have more free bytes than the file and still refuse. Checking here
 # turns a stack trace after a 15 MB download into a number beforehand.
 $free = 0
-$dfLine = & $adb -s $serial shell df /data 2>$null | Select-Object -Last 1
+$dfRaw = @(& $adb -s $serial shell df -k /data 2>&1 | ForEach-Object { ([string]$_).Trim() } |
+           Where-Object { $_ -match '\S' })
+$dfLine = $dfRaw | Where-Object { $_ -match '/data\s*$' } | Select-Object -Last 1
+if (-not $dfLine) { $dfLine = $dfRaw | Select-Object -Last 1 }
 if ($dfLine) {
-    $columns = ([string]$dfLine -split '\s+') | Where-Object { $_ -match '^\d+$' }
-    # df reports 1K blocks; the available column is the third number.
+    # df -k reports 1K blocks; Available is the third number on the row.
+    $columns = @(($dfLine -split '\s+') | Where-Object { $_ -match '^\d+$' })
     if ($columns.Count -ge 3) { $free = [int64]$columns[2] * 1024 }
 }
-if ($free -gt 0) {
+if ($free -le 0) {
+    # Never pass over this quietly: a storage problem is the likeliest cause of
+    # a failed install, and saying nothing looks identical to "there is room".
+    Info 'could not read free space from df; continuing without that check'
+    if ($dfRaw.Count) { $dfRaw | ForEach-Object { Info "  df: $_" } }
+} else {
     Info ("free space on /data: {0:N0} bytes" -f $free)
     if ($free -lt ($size * 2)) {
         Bad 'Not enough free space for this install.'
