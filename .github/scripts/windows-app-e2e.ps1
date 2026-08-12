@@ -101,7 +101,14 @@ if (Test-Path $exe) {
 }
 # resources.pri is the file whose absence made the window fail to load at
 # runtime once already; a shipped installer without it is a broken product.
-foreach ($required in @('resources.pri', 'Microsoft.WindowsAppRuntime.Bootstrap.dll')) {
+# relaywg-client.exe and wintun.dll are Full Mode. Without them the app still
+# installs, still launches, still does Fast Mode -- and silently cannot do the
+# mode its own UI offers. That is exactly how Full Mode spent four releases
+# missing from every Android build, so the installed layout is checked for them
+# rather than trusted. wintun.dll must sit beside the client specifically: it is
+# loaded from the executable's own directory.
+foreach ($required in @('resources.pri', 'Microsoft.WindowsAppRuntime.Bootstrap.dll',
+                        'relaywg-client.exe', 'wintun.dll')) {
     if (Test-Path (Join-Path $installDir $required)) {
         Record "installer.layout.$required" 'PASS' 'present'
     } else {

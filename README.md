@@ -15,23 +15,14 @@
 &nbsp;
 [![Download for Android](https://img.shields.io/badge/Download-Android-3DDC84?style=for-the-badge)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 
-<sub>Always resolves to the newest release · [all files & release notes](https://github.com/Mahdi-mortazavi/relay/releases/latest)</sub>
+<sub>Always the newest release · [all files & notes](https://github.com/Mahdi-mortazavi/relay/releases/latest)</sub>
 
 <br>
 
 [![CI](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml)
 [![E2E device lab](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml)
-[![Security](https://github.com/Mahdi-mortazavi/relay/actions/workflows/security.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/security.yml)
-
 [![Release](https://img.shields.io/github/v/release/Mahdi-mortazavi/relay?sort=semver&color=4ADFBF&label=release)](https://github.com/Mahdi-mortazavi/relay/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Mahdi-mortazavi/relay/total?color=4ADFBF&label=downloads)](https://github.com/Mahdi-mortazavi/relay/releases)
-[![Stars](https://img.shields.io/github/stars/Mahdi-mortazavi/relay?color=F5B95F&label=stars)](https://github.com/Mahdi-mortazavi/relay/stargazers)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-
-[![Android](https://img.shields.io/badge/Android-8.0+-3DDC84?logo=android&logoColor=white)](#-install)
-[![Windows](https://img.shields.io/badge/Windows-10_|_11-0078D4)](#-install)
-[![Kotlin](https://img.shields.io/badge/Kotlin-Compose-7F52FF?logo=kotlin&logoColor=white)](android/)
-[![.NET 8](https://img.shields.io/badge/.NET_8-WinUI_3-512BD4?logo=dotnet&logoColor=white)](windows/)
 
 **🌍 [English](README.md) · [فارسی](README.fa.md)**
 
@@ -39,183 +30,102 @@
 
 ---
 
-## ⚡ Sixty seconds, start to finish
+## 📥 Download
 
-<div align="center">
+| | File | Who it's for |
+|---|---|---|
+| **Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10/11. Installs for you alone — no admin prompt. |
+| Windows 32-bit | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | Only if you know you need it. |
+| **Android** | [**Relay-android-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+. Almost every phone since 2017. |
+| Android (any device) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Bigger, works everywhere. Use this if the one above says *"app not compatible"*. |
+| Checksums | [SHA256SUMS.txt](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/SHA256SUMS.txt) | `sha256sum -c SHA256SUMS.txt` |
 
-| 📱 On your phone | 💻 On your PC | ✅ Done |
-|:---:|:---:|:---:|
-| Tap **Start Sharing** | Click **Scan QR** | You're online |
-| A QR code appears | Hold the phone to the webcam | Through your phone |
+Windows warns on first run because the installer isn't code-signed yet — **More info → Run anyway**. If Android says *"App not installed"*, [this page](docs/install-troubleshooting.md) covers every cause I've seen.
 
-</div>
+---
 
-No account. No cloud service. No IP addresses, no port numbers, and you never open network settings on either device.
+## 🚀 How to use it
 
-> 🔒 **Local-only. Zero telemetry.** These apps make no network connections other than relaying your own traffic between your own two devices. No analytics, no accounts, no crash reporting, no update pings. Ever.
+**On your phone**
+
+1. Turn on your hotspot — or put the phone and the PC on the same Wi-Fi.
+2. Open Relay and tap **Start Sharing**.
+3. The screen shows a QR code and a **two-digit number**.
+
+**On your PC**
+
+4. Open Relay and either click **Scan QR** and hold the phone up to your webcam, or click **Enter Code** and type those two digits.
+5. Approve the request that appears on your phone.
+
+That's it — your browser, your apps, everything goes through the phone. Press **Disconnect** when you're done and Windows goes back exactly as it was.
+
+<details>
+<summary><b>Fast Mode or Full Mode?</b></summary>
+
+<br>
+
+**Fast Mode** is the default and needs no permissions. It carries TCP — browsing, video, downloads, most apps.
+
+**Full Mode** carries **TCP and UDP**, so games and some video calls work too. It uses WireGuard, and Windows asks for permission once when you connect, because creating a network adapter needs it. Only that one small tunnel process gets the permission — never the whole app.
+
+Switch modes on the phone before you tap Start Sharing.
+
+</details>
+
+<details>
+<summary><b>If something goes wrong</b></summary>
+
+<br>
+
+Relay tries to tell you what actually happened instead of showing "connection failed". Every error has a name and a next step — the full list is in [docs/errors.md](docs/errors.md).
+
+Both apps keep a local log you can read and share (**Advanced → Logs**). Nothing is ever uploaded on its own.
+
+</details>
 
 ---
 
 ## 💡 Why I built this
 
-I kept hitting the same wall.
+I kept ending up in the same place: laptop with no internet, phone with plenty. Windows hotspot refuses to start. USB tethering needs a driver. Third-party apps want a subscription, an account, and permission to see everything.
 
-My phone had internet. Sometimes through a VPN. My laptop had nothing.
+The connection was always right there. The problem was never the network — it was the setup.
 
-Sharing that connection should have taken ten seconds. It never did.
-
-**Turning on the hotspot passed the phone's _raw_ connection through — not the VPN.** So the one thing I actually needed was the one thing it wouldn't carry.
-
-The tools that could do better wanted an IP address, a port number, and a trip into Windows proxy settings. Every single time.
-
-Then the phone's screen would turn off, and the whole thing would quietly die. No error. No notification. Just... nothing loading any more.
-
-And when I was finished, the proxy I'd set by hand stayed set by hand. I'd usually discover that days later, when nothing on the laptop could reach the internet and I had no idea why.
-
-Each of those is a small problem. Together, they meant **I just stopped bothering.**
-
-So I built the thing I wanted to exist. 🧩
-
-<div align="center">
-
-### **Relay is what "share your connection" should have been all along.**
-
-</div>
+So Relay has no accounts, no servers, no telemetry, no subscription. Your traffic goes phone → PC over your own Wi-Fi and touches nothing of mine. **Scan a code and it works**, and when it doesn't, it tells you why.
 
 ---
 
-## 🔧 How it works
+## 🔐 Honest about security
 
-```mermaid
-flowchart TB
-    subgraph PC["💻 Windows"]
-        TRAY["Tray app"]
-        PROXY["System proxy<br/>set and restored for you"]
-    end
+Fast Mode's transport is a **SOCKS5 proxy with no password**. That's a deliberate trade — Windows can't supply proxy credentials system-wide, and requiring them would break the "no configuration" promise that is the whole point.
 
-    subgraph PHONE["📱 Android"]
-        SVC["Foreground service<br/>SOCKS5 proxy"]
-        QR["Shows the QR"]
-    end
+So instead: **your phone asks you before any computer is allowed through.** The two-digit code just picks your phone out of the ones nearby; the approval is what keeps strangers out. Full Mode doesn't ask, because there the PC proves itself with a key that existed only inside your QR code.
 
-    PC <-->|"hotspot or same Wi-Fi"| PHONE
-    PHONE --> VPN(["🛡️ Phone's VPN, if any"])
-    VPN --> NET(["🌐 Internet"])
-
-    style PHONE fill:#12241e,stroke:#4ADFBF,color:#fff
-    style PC fill:#111d30,stroke:#4A9FDF,color:#fff
-```
-
-Because **the phone opens the outbound sockets**, whatever VPN is active on the phone carries your laptop's traffic too — including DNS. That is the whole trick, and it's why Relay solves the problem a hotspot cannot.
-
-The QR carries a small versioned payload: an address, a port, and which transport to use. There is **no discovery protocol and no pairing server** — which is exactly why it still works when a VPN is up. System VPNs on Android 10+ break local network discovery, so Relay simply never discovers anything.
-
-When you disconnect, Relay puts your Windows proxy settings back **exactly** as it found them — then reads the registry back to confirm it actually worked.
-
-<sub>📐 Deeper detail in [`docs/architecture.md`](docs/architecture.md)</sub>
+Safe on your own hotspot. On shared or public Wi-Fi, prefer Full Mode. The full threat model is in [SECURITY.md](SECURITY.md) — including what Relay does *not* protect you from.
 
 ---
 
-## 📥 Install
+## 🧪 How it's tested
 
-Two files. Nothing to compile. These links always resolve to the newest release:
+Every commit installs the real app on real Android images (API 30–36), drives it through its own UI, and pushes real bytes through the real proxy. The Windows client's own code runs against a **live phone** over `adb`. The real installer is installed, launched and uninstalled, with the system proxy checked at every stage. Full Mode's tunnel is brought up on a real WinTun adapter and a real WireGuard handshake is verified across it.
 
-| | Download | Requirements |
-|:---|:---|:---|
-| **💻 Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10 or 11. Per-user install — no admin prompt. |
-| 💻 Windows 32-bit | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | Only if you know you need it. |
-| **📱 Android** | [**Relay-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+, 64-bit ARM — almost every phone since 2017. Enable "install from unknown sources". |
-| 📱 Android (any device) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Same app, every CPU type — 32-bit ARM, x86 Chromebooks, emulators. Larger. **Use this if the one above says "app not compatible".** |
-| 📱 Android (stores) | [Relay-android.aab](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android.aab) | App-store bundle — not directly installable. |
+Then the *published* APK is installed on Android 11 through 16 — because a release nobody can install is not a release.
 
-> ⚠️ **SmartScreen will warn you on first run.** The Windows installer isn't code-signed yet, so click **More info → Run anyway**. Every release ships `SHA256SUMS.txt` so you can verify exactly what you downloaded. The signing work is tracked in [`docs/release.md`](docs/release.md).
-
-> 📱 **Android says "App not installed"?** That message covers several unrelated
-> causes and names none of them. The two that catch most people: an older copy
-> you built yourself is still installed (uninstall it first — a different
-> signing key blocks the upgrade), or Play Protect blocked a sideloaded app
-> (**Install anyway** in its dialog). [`docs/install-troubleshooting.md`](docs/install-troubleshooting.md)
-> walks through the rest, starting with how to get the platform's real error
-> message instead of the summary.
+What hardware still has to prove is written down in [docs/testing.md](docs/testing.md), not hidden.
 
 ---
 
-## 🚀 Using it
+## 🗺️ Status
 
-1. On the phone, **turn on the hotspot** and connect the PC to it — or put both on the same Wi-Fi.
-2. Open Relay on the phone → tap **Start Sharing**.
-3. Open Relay on the PC (it lives in the tray) → click **Scan QR** → hold the phone up to the webcam.
-   <br><sub>No webcam? Click **Enter Code Manually** and type the 8-character code under the QR. It validates as you type and connects the moment it's valid.</sub>
-4. The PC says **Connected**. Use it normally. 🎉
-5. Click **Disconnect** on the PC, or **Stop** on the phone, when you're done.
-
-💤 **The phone keeps sharing with the screen off.** On first run it offers to exempt itself from battery optimisation — accept it, or Android will eventually kill the session.
-
-📡 **Today Relay carries TCP**, which covers browsing, streaming, downloads and most apps. UDP — games, some video calls — needs the WireGuard transport, which is [on the roadmap](docs/roadmap.md) and **not in this build**. The app doesn't offer it, rather than offering it and failing.
-
----
-
-## 🔐 Is it secure? An honest answer
-
-**Short version: fine on your own hotspot. Not private on a café network.**
-
-Relay's transport is a SOCKS5 proxy with **no authentication** — because Windows' system proxy has no way to supply credentials. So anyone else on the same network who finds the port can relay traffic through your phone.
-
-That's a real limitation, and it deserves a straight answer instead of a footnote.
-
-👉 **[SECURITY.md](SECURITY.md)** has the full threat model, what Relay does guarantee, and how to report a vulnerability privately.
-
----
-
-## 🧪 How it's tested (this part I'm proud of)
-
-Relay changes your operating system's network settings. "It worked on my machine" isn't good enough for that.
-
-**Every pull request runs a device lab that GitHub builds from scratch:**
-
-| | What actually runs |
-|:---|:---|
-| 📱 **Real Android** | The real APK on real emulators (API 30 + 34), driven through the real UI, relaying real HTTP through the real SOCKS5 server |
-| 🔗 **Real cross-platform** | The Windows client's own code against a live phone over `adb` — the shipping decoder reads the phone's actual QR payload, real bytes cross between platforms |
-| 💻 **Real installer** | Install → launch → screenshot → restore → uninstall, with the proxy registry read back and compared **after every single stage** |
-
-And what the lab **can't** reach — a physical camera scanning a screen, WinUI control automation, Windows sleep — is written down as **blocked** in [`docs/testing.md`](docs/testing.md) instead of quietly skipped.
-
-<sub>That last sentence is the point. A green checkmark that hides an untested path is worse than no checkmark at all.</sub>
-
----
-
-## 🗺️ Roadmap
-
-Honest status, not a wish list.
-
-| Feature | Status |
+| | |
 |:---|:---|
 | ⚡ Fast Mode (SOCKS5, TCP) | ✅ **Shipping** |
+| 🚀 Full Mode (WireGuard, TCP + UDP) | ✅ **Shipping** — both platforms |
 | 🔄 Auto-reconnect, actionable errors, EN + FA | ✅ **Shipping** |
-| 🎨 Redesigned Windows app | ✅ **Shipping** |
-| 🚀 Full Mode (WireGuard, TCP + UDP) | 🔨 Phone side **shipping** — switchable on, and its endpoint is tested on a real Android image; the Windows client still needs its WinTun adapter |
-| 🔑 Authenticated pairing | 🔨 Planned — see [SECURITY.md](SECURITY.md) |
 | ✍️ Signed Windows installer | 🔨 Planned |
 | 🍎 macOS client | 💭 Later |
 
-<sub>Detail in [`docs/roadmap.md`](docs/roadmap.md)</sub>
-
----
-
-## ⭐ Star history
-
-If Relay saved you a headache, a star genuinely helps other people find it.
-
-<div align="center">
-<a href="https://star-history.com/#Mahdi-mortazavi/relay&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Mahdi-mortazavi/relay&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Mahdi-mortazavi/relay&type=Date" />
-    <img alt="Relay star history" src="https://api.star-history.com/svg?repos=Mahdi-mortazavi/relay&type=Date" width="600" />
-  </picture>
-</a>
-</div>
+<sub>Detail in [`docs/roadmap.md`](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md)</sub>
 
 ---
 
@@ -229,15 +139,15 @@ If Relay saved you a headache, a star genuinely helps other people find it.
 
 **Full-Stack Developer × Product Builder × Problem Solver**
 
-🧩 First principles thinking → 💡 Designing solutions → 🚀 Building real products
-
 <sub>📍 Iran</sub>
 
 <br>
 
-I don't build demos. I build things I need, then I make them good enough to hand to someone else.
+I'm Mahdi. I don't build demos — I build the thing I needed, then keep working on it until it's good enough to hand to someone else.
 
-Relay started as my own frustration. It now runs a device lab on every commit, ships signed releases on two platforms, and tells you the truth about what it can't do. **That's the standard I hold my work to.**
+Relay is exactly that. It began as my own frustration with a laptop that had no internet and a phone that did. Now it runs a device lab on every commit, ships on two platforms, and tells you the truth about what it can't do yet. **That last part is the standard I hold my work to** — I'd rather write down a limitation than let you discover it.
+
+If Relay is useful to you, a ⭐ genuinely helps. If it breaks, [tell me](https://github.com/Mahdi-mortazavi/relay/issues/new/choose) — I read everything.
 
 <br>
 
@@ -253,29 +163,7 @@ Relay started as my own frustration. It now runs a device lab on every commit, s
 &nbsp;
 [![Website](https://img.shields.io/badge/Website-mahdi--mortazavi.github.io-4ADFBF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mahdi-mortazavi.github.io)
 
-**🚀 [Startup Legend](https://t.me/Startup_legend)** — my community, where I share what I'm building, what broke, and what I learned fixing it. Builders, founders and developers welcome.
-
-</div>
-
----
-
-<div align="center">
-
-## 🤝 Get involved
-
-**Found a bug?** [Open an issue](https://github.com/Mahdi-mortazavi/relay/issues/new/choose) — I read every one.
-
-**Got an idea?** [Message me on Telegram](https://t.me/Mahdi_mortazavi1) or bring it to [the community](https://t.me/Startup_legend).
-
-**Want to contribute?** [`CONTRIBUTING.md`](CONTRIBUTING.md) has the workflow. Good first issues are labelled.
-
-**Just found this useful?** ⭐ Star it. It takes one click and it genuinely matters.
-
-<br>
-
-[![Star this repo](https://img.shields.io/badge/Star-this_repo-F5B95F?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/stargazers)
-&nbsp;
-[![Report a bug](https://img.shields.io/badge/Report-a_bug-FF7A75?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/issues/new/choose)
+**🚀 [Startup Legend](https://t.me/Startup_legend)** — my community, where I share what I'm building, what broke, and what I learned fixing it.
 
 </div>
 
@@ -283,87 +171,24 @@ Relay started as my own frustration. It now runs a device lab on every commit, s
 
 ## 🛠️ For developers
 
-<details>
-<summary><b>📂 Project layout</b></summary>
+Two apps and one shared contract. Android is Kotlin + Compose; Windows is .NET 8 + WinUI 3; Full Mode's tunnel is Go (`wg/`), used by both ends.
 
-<br>
+There is **no local build required** — CI is the build system (ADR-0004). Push and the pipeline builds, tests on real devices, and can cut a release.
 
 ```
-android/   Android app (Kotlin + Jetpack Compose)
-windows/   Windows tray app (.NET 8 + WinUI 3) + shared Relay.Core
-shared/    Contracts both apps consume: QR schema, test vectors,
-           state machine, design tokens
-docs/      Architecture, ADRs, testing, security, release process
+android/   Kotlin + Compose            windows/   .NET 8 + WinUI 3
+wg/        WireGuard endpoint (Go)     shared/    the cross-platform contract
+docs/      architecture, ADRs, testing, errors
 ```
 
-**Anything under `shared/` is the single source of truth.** Change it **first**, then both platforms — the unit tests on each side assert against those files, so the two implementations cannot drift apart.
-
-</details>
-
-<details>
-<summary><b>🤖 Building Android</b></summary>
-
-<br>
-
-Needs JDK 17 and an Android SDK with platform 35.
-
-```bash
-cd android
-./gradlew assembleDebug          # debug APK
-./gradlew testDebugUnitTest      # unit tests, incl. the SOCKS5 protocol suite
-```
-
-</details>
-
-<details>
-<summary><b>🪟 Building Windows</b></summary>
-
-<br>
-
-The shared core is .NET 8 and runs on **any** OS:
-
-```bash
-dotnet test windows/Relay.App.Tests/Relay.App.Tests.csproj
-```
-
-The app itself needs Windows and Visual Studio's MSBuild — the WinUI 3 PRI packaging tasks aren't in the dotnet CLI's MSBuild:
-
-```powershell
-msbuild windows/Relay.App/Relay.App.csproj /restore /p:Configuration=Release /p:Platform=x64
-```
-
-</details>
-
-<details>
-<summary><b>📖 Docs worth reading</b></summary>
-
-<br>
-
-| Doc | What's in it |
-|:---|:---|
-| [`docs/architecture.md`](docs/architecture.md) | How the two apps fit together |
-| [`docs/adr/`](docs/adr/) | **Why** the architecture is this way — start at ADR-0001 |
-| [`docs/testing.md`](docs/testing.md) | What the device lab runs, and what it can't reach |
-| [`docs/design/windows-redesign.md`](docs/design/windows-redesign.md) | The Windows UI redesign, before → after |
-| [`docs/security.md`](docs/security.md) · [`SECURITY.md`](SECURITY.md) | Threat model and reporting |
-| [`docs/roadmap.md`](docs/roadmap.md) | Honest status of everything planned |
-
-</details>
-
----
+Start with [`docs/architecture.md`](docs/architecture.md) and the [ADRs](docs/adr/) — every significant decision is written down with the reasoning that produced it. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the rest.
 
 <div align="center">
 
-### 📄 License
-
-[**Apache-2.0**](LICENSE) — use it, fork it, ship it.
-
-<sub>"WireGuard" is a registered trademark of Jason A. Donenfeld.</sub>
-
 <br>
 
-**Built with care by [Mahdi Mortazavi](https://github.com/Mahdi-mortazavi)** 🇮🇷
+**Made in Iran 🇮🇷 · [Apache-2.0](LICENSE)**
 
-<sub>If this saved you time, [tell me about it](https://t.me/Mahdi_mortazavi1). It's the best part of building things.</sub>
+<sub>"WireGuard" is a registered trademark of Jason A. Donenfeld.</sub>
 
 </div>
