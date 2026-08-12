@@ -17,7 +17,7 @@ namespace Relay.Core;
 /// only a real Windows machine can prove — that the adapter comes up and
 /// carries traffic — is proven by the client's own test, on a runner.
 /// </summary>
-public sealed class WgTunnelSession(WgTunnelSession.IProcessHost host)
+public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
 {
     /// <summary>Error codes are the stable identifiers from docs/errors.md.</summary>
     public sealed record Result(bool Ok, string? ErrorCode = null)
@@ -108,7 +108,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost host)
         IProcessHandle tunnel;
         try
         {
-            tunnel = host.Start(Arguments(wg));
+            tunnel = processHost.Start(Arguments(wg));
         }
         catch (ElevationDeclined)
         {
