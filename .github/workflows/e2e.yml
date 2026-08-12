@@ -233,7 +233,12 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api }}-${{ matrix.target }}
+          # -v2: the API 30 AVD in the previous cache started failing before
+          # Gradle ran at all -- no build results, no test results, two minutes
+          # and out -- while API 34 on the same commits stayed green. That is a
+          # broken snapshot being restored, not flaky hardware, and the only way
+          # to stop restoring it is to stop asking for it by that name.
+          key: avd-v2-${{ matrix.api }}-${{ matrix.target }}
 
       - name: Create the AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -464,6 +469,35 @@ jobs:
             Write-Error "resources.pri missing - the app would crash at launch."
             exit 1
           }
+
+      # The same two files the release puts beside Relay.exe. Built here too,
+      # so the job that installs the real installer is checking the layout the
+      # real installer has -- otherwise the assertion below would pass on an
+      # installer nobody ships.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: wg/go.sum
+
+      - name: Bundle the Full Mode client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $zip = "$env:RUNNER_TEMP\wintun.zip"
+          Invoke-WebRequest -Uri 'https://www.wintun.net/builds/wintun-0.14.1.zip' -OutFile $zip
+          $expected = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { Write-Error "wintun.zip hash is $actual, expected $expected" }
+          Expand-Archive -Path $zip -DestinationPath "$env:RUNNER_TEMP\wintun" -Force
+          $out = "$env:GITHUB_WORKSPACE\publish-x64"
+          $env:GOOS = 'windows'; $env:GOARCH = 'amd64'
+          Push-Location wg
+          go build -o "$out\relaywg-client.exe" ./cmd/relaywg-client
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error 'building the client failed' }
+          Pop-Location
+          Copy-Item "$env:RUNNER_TEMP\wintun\wintun\bin\amd64\wintun.dll" "$out\wintun.dll" -Force
 
       - name: Build the installer
         shell: pwsh
