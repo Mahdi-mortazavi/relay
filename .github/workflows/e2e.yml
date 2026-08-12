@@ -128,7 +128,9 @@ jobs:
 
       - name: Build the client
         working-directory: wg
-        run: go build -o "${{ runner.temp }}/relaywg-client.exe" ./cmd/relaywg-client
+        # Its own directory: wintun.dll has to sit beside the executable, which
+        # is also how it will sit beside Relay.exe once installed.
+        run: go build -o "${{ runner.temp }}/client/relaywg-client.exe" ./cmd/relaywg-client
 
       # wintun.dll is not linked in: the library loads it at runtime from the
       # executable's own directory, which is also how it will sit next to
@@ -149,18 +151,23 @@ jobs:
             Write-Error "wintun.zip hash is $actual, expected $expected"
           }
           Expand-Archive -Path $zip -DestinationPath "$env:RUNNER_TEMP\wintun" -Force
-          Copy-Item "$env:RUNNER_TEMP\wintun\wintun\bin\amd64\wintun.dll" "$env:RUNNER_TEMP\wintun.dll"
-          Get-Item "$env:RUNNER_TEMP\wintun.dll" | Format-List Name, Length
+          Copy-Item "$env:RUNNER_TEMP\wintun\wintun\bin\amd64\wintun.dll" "$env:RUNNER_TEMP\client\wintun.dll"
+          Get-Item "$env:RUNNER_TEMP\client\wintun.dll" | Format-List Name, Length
 
       - name: Bring up a real adapter and route through it
         working-directory: wg
         shell: pwsh
         env:
-          RELAYWG_CLIENT: ${{ runner.temp }}\relaywg-client.exe
+          RELAYWG_CLIENT: ${{ runner.temp }}\client\relaywg-client.exe
         run: |
           $ErrorActionPreference = 'Stop'
-          Copy-Item "$env:RUNNER_TEMP\wintun.dll" (Split-Path $env:RELAYWG_CLIENT) -Force
-          whoami /groups | Select-String 'S-1-5-32-544' | Out-Null
+          # Named so a failure to create the adapter can be read as "not
+          # elevated" rather than guessed at.
+          $admin = ([Security.Principal.WindowsPrincipal] `
+            [Security.Principal.WindowsIdentity]::GetCurrent()
+          ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "Running as Administrator: $admin"
+          Get-ChildItem (Split-Path $env:RELAYWG_CLIENT) | Format-Table Name, Length
           go test -count=1 -v -timeout 15m ./cmd/relaywg-client
 
       - name: The machine's networking must be as we found it
