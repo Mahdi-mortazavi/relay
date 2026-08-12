@@ -8,16 +8,24 @@
 // keeps that property for everything except the mode that genuinely cannot have
 // it, and keeps the elevation prompt tied to a single visible action.
 //
-// The configuration arrives on **stdin**, never as a file. It carries the
+// The configuration is handed over a stream, never as a file. It carries the
 // client's private key, and a key written to a temp file survives a crash, a
-// backup, and anyone reading the disk afterwards.
+// backup, and anyone reading the disk afterwards. A command line is no better:
+// any process on the machine can read one.
 //
-// Protocol with the parent process:
+// Protocol with the parent process, over a named pipe (-config-pipe) or over
+// stdin and stdout when run by hand:
 //
-//	stdin   the wireguard-go IPC configuration, then EOF
-//	stdout  "READY\n" once traffic can flow, then nothing
+//	in      the wireguard-go IPC configuration, ended by "END-CONFIG"
+//	out     "READY" once traffic can flow, then nothing
 //	stderr  human-readable progress and errors
-//	exit    tear the tunnel down when stdin closes, or on Ctrl+Break
+//	exit    tear the tunnel down when the stream closes, or on Ctrl+Break
+//
+// The stream stays open for the life of the tunnel, which is what makes its
+// closing mean "the app is gone" -- including the app crashing, the case that
+// matters, because a tunnel nobody is watching still holds the machine's
+// routes. That is also why the configuration ends with a sentinel rather than
+// with EOF: reading to EOF would consume the very signal being waited on.
 //
 // The adapter disappears when this process exits, by any route including being
 // killed: WinTun removes it with the last handle. That is what makes the
@@ -62,17 +70,30 @@ func main() {
 	address := flag.String("address", "10.13.37.2/32", "this end of the tunnel")
 	dns := flag.String("dns", "", "DNS server to set on the adapter; empty leaves it alone")
 	routes := flag.String("routes", "0.0.0.0/0", "comma-separated prefixes to send through the tunnel")
+	pipe := flag.String("config-pipe", "",
+		"named pipe carrying the configuration and readiness; stdin/stdout when empty")
 	flag.Parse()
 
-	if err := run(*name, *address, *dns, *routes); err != nil {
+	if err := run(*name, *address, *dns, *routes, *pipe); err != nil {
 		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(name, address, dns, routes string) error {
-	stdin := bufio.NewReader(os.Stdin)
-	config, parentGone, err := readConfig(stdin)
+func run(name, address, dns, routes, pipe string) error {
+	// The app talks over a named pipe rather than stdin, because a process
+	// launched through the elevation prompt cannot have its streams redirected
+	// at all -- and the only other way to hand it a private key would be a temp
+	// file, which is exactly what should not exist. Stdin remains for running
+	// this by hand, and for the tests.
+	channel, err := openChannel(pipe)
+	if err != nil {
+		return err
+	}
+	defer channel.Close()
+
+	reader := bufio.NewReader(channel)
+	config, parentGone, err := readConfig(reader)
 	if err != nil {
 		return err
 	}
@@ -117,10 +138,11 @@ func run(name, address, dns, routes string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)
-	fmt.Println("READY")
-	os.Stdout.Sync()
+	if _, err := io.WriteString(channel, "READY\n"); err != nil {
+		return fmt.Errorf("reporting readiness: %w", err)
+	}
 
-	waitForShutdown(stdin, parentGone)
+	waitForShutdown(reader, parentGone)
 	fmt.Fprintln(os.Stderr, "tearing down")
 	// The deferred Close calls remove the adapter, and Windows drops its
 	// addresses and routes with it.
@@ -202,6 +224,32 @@ func parsePrefixes(list string) ([]netip.Prefix, error) {
 	return parsed, nil
 }
 
+// openChannel returns the stream the configuration arrives on and readiness is
+// reported over: a named pipe when one is given, otherwise stdin and stdout.
+//
+// The pipe is opened read-write and stays open for the life of the tunnel. Its
+// closing is how this process learns the app has gone -- including the app
+// crashing, which is the case that matters, because a tunnel nobody is watching
+// still holds the machine's routes.
+func openChannel(pipe string) (io.ReadWriteCloser, error) {
+	if pipe == "" {
+		return stdioChannel{}, nil
+	}
+	path := `\\.\pipe\` + pipe
+	handle, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return nil, fmt.Errorf("opening %s: %w", path, err)
+	}
+	return handle, nil
+}
+
+// stdioChannel reads from stdin and writes to stdout as one stream.
+type stdioChannel struct{}
+
+func (stdioChannel) Read(p []byte) (int, error)  { return os.Stdin.Read(p) }
+func (stdioChannel) Write(p []byte) (int, error) { return os.Stdout.Write(p) }
+func (stdioChannel) Close() error                { return nil }
+
 // readConfig reads the IPC configuration up to [configTerminator], and reports
 // whether stdin reached EOF while doing so.
 //
@@ -245,7 +293,7 @@ func readConfig(stdin *bufio.Reader) (config string, parentGone bool, err error)
 // Both matter. The parent closing stdin is the ordinary Disconnect; the signal
 // is what a person pressing Ctrl+C in a console window sends. Waiting on only
 // one of them leaves a tunnel running with nobody watching it.
-func waitForShutdown(stdin *bufio.Reader, parentAlreadyGone bool) {
+func waitForShutdown(channel *bufio.Reader, parentAlreadyGone bool) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -256,7 +304,7 @@ func waitForShutdown(stdin *bufio.Reader, parentAlreadyGone bool) {
 
 	closed := make(chan struct{})
 	go func() {
-		io.Copy(io.Discard, stdin)
+		io.Copy(io.Discard, channel)
 		close(closed)
 	}()
 
