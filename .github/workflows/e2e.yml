@@ -233,7 +233,12 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api }}-${{ matrix.target }}
+          # -v2: the API 30 AVD in the previous cache started failing before
+          # Gradle ran at all -- no build results, no test results, two minutes
+          # and out -- while API 34 on the same commits stayed green. That is a
+          # broken snapshot being restored, not flaky hardware, and the only way
+          # to stop restoring it is to stop asking for it by that name.
+          key: avd-v2-${{ matrix.api }}-${{ matrix.target }}
 
       - name: Create the AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
