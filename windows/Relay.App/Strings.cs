@@ -72,6 +72,11 @@ public static class Strings
         ["ErrFirewall"] = "The connection was blocked. Allow Relay through Windows Firewall (or your security software), then try again.",
         ["ErrProxyApply"] = "Windows refused the proxy change. Close other proxy/VPN managers and try again.",
         ["ErrRollback"] = "Relay couldn't fully restore your proxy settings. Disconnect again to retry.",
+        ["ErrTitleElevation"] = "Full Mode needs permission",
+        ["ErrTitleTunnel"] = "The tunnel didn't start",
+        ["ErrWgElevationDeclined"] = "Full Mode has to create a network adapter, which Windows only allows with your permission. Choose Yes on the prompt, or switch the phone to Fast Mode.",
+        ["ErrWgStartFailed"] = "Relay couldn't bring the tunnel up. Close any other VPN that is running, then try again — or switch the phone to Fast Mode.",
+        ["ErrWgStopFailed"] = "The tunnel process wouldn't stop. Restart Relay; the adapter and its routes are removed when it exits.",
         ["ErrCameraDenied"] = "Relay can't use the camera — it may be missing, in use by another app, or blocked. Allow camera access in Windows Settings > Privacy, or enter the code manually.",
     };
 
@@ -127,6 +132,11 @@ public static class Strings
         ["ErrFirewall"] = "اتصال مسدود شد. به رله در فایروال ویندوز (یا نرم‌افزار امنیتی) اجازه دهید و دوباره تلاش کنید.",
         ["ErrProxyApply"] = "ویندوز تغییر پراکسی را نپذیرفت. مدیریت‌کننده‌های دیگر پراکسی/VPN را ببندید و دوباره تلاش کنید.",
         ["ErrRollback"] = "رله نتوانست تنظیمات پراکسی را کاملاً بازگرداند. برای تلاش دوباره، دوباره «قطع اتصال» را بزنید.",
+        ["ErrTitleElevation"] = "حالت کامل به اجازه نیاز دارد",
+        ["ErrTitleTunnel"] = "تونل بالا نیامد",
+        ["ErrWgElevationDeclined"] = "حالت کامل باید یک آداپتور شبکه بسازد و ویندوز این کار را فقط با اجازهٔ شما انجام می‌دهد. در پنجرهٔ ویندوز «بله» را بزنید، یا گوشی را روی حالت سریع بگذارید.",
+        ["ErrWgStartFailed"] = "رله نتوانست تونل را بالا بیاورد. اگر VPN دیگری روشن است ببندید و دوباره تلاش کنید — یا گوشی را روی حالت سریع بگذارید.",
+        ["ErrWgStopFailed"] = "پروسهٔ تونل بسته نشد. رله را دوباره اجرا کنید؛ آداپتور و مسیرهایش با بسته شدن آن پاک می‌شوند.",
         ["ErrCameraDenied"] = "رله به دوربین دسترسی ندارد — ممکن است نبودن دوربین، اشغال توسط برنامه‌ای دیگر، یا مسدودبودن باشد. در تنظیمات ویندوز > حریم خصوصی دسترسی دوربین را فعال کنید، یا کد را دستی وارد کنید.",
     };
 }

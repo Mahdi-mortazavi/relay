@@ -38,7 +38,12 @@ jobs:
 
       - name: Vet
         run: |
-          go vet ./...
+          # Two passes. The Windows client cannot even be parsed on Linux -- it
+          # imports golang.org/x/sys/windows -- so vetting as Windows is what
+          # actually covers every package; the native pass is what checks the
+          # endpoint the way it is built for Android.
+          GOOS=windows go vet ./...
+          go vet .
           # gofmt is not cosmetic here: this package is read by whoever is
           # debugging a tunnel that will not come up, and two files had already
           # drifted before anyone checked.
@@ -52,7 +57,10 @@ jobs:
         # -race because the forwarders, the packet pump and teardown all touch
         # the same endpoint from different goroutines, and a data race there
         # would show up in the field as an occasional dead tunnel.
-        run: go test -race -count=1 ./...
+        #
+        # The endpoint package only: the client's tests need a Windows machine
+        # and Administrator, and run in the E2E workflow instead.
+        run: go test -race -count=1 .
 
       # The same script a developer runs, so the library the app ships is built
       # the way the one on a desk is. The NDK comes from the runner image; an

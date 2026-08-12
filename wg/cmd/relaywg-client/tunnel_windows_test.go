@@ -1,0 +1,215 @@
+package main
+
+import (
+	"bufio"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+
+	"golang.org/x/crypto/curve25519"
+
+	relaywg "github.com/Mahdi-mortazavi/relay/wg"
+)
+
+// The Windows half of Full Mode, against the real Windows networking stack.
+//
+// What this can prove, and what it deliberately does not try to:
+//
+// The endpoint's own suite already puts real TCP and UDP through a real tunnel,
+// in a process and on a device. What none of that touches is the part of the
+// Windows client that can only fail on Windows: creating a WinTun adapter,
+// which needs Administrator; giving it an address, a metric and routes; and
+// tearing all of it down again without stranding the machine.
+//
+// A full "browse the web through the tunnel" test is not possible on one
+// machine, and pretending otherwise would produce a test that passes for the
+// wrong reason. Both ends share a single routing table, so any destination
+// routed into the tunnel is also routed into the tunnel when the endpoint tries
+// to forward it onward -- traffic would loop rather than reach anything. So
+// this proves the two things that are genuinely Windows-specific and genuinely
+// untested elsewhere:
+//
+//  1. the adapter comes up, and WireGuard completes a handshake across it;
+//  2. Windows really routes the prefixes it is given into that adapter --
+//     measured at the endpoint, which decrypts what arrives.
+//
+// Needs Administrator. On a GitHub runner that is the default; on a desk it is
+// not, and the test says so rather than failing obscurely.
+func TestTheAdapterComesUpAndCarriesRoutedTraffic(t *testing.T) {
+	binary := os.Getenv("RELAYWG_CLIENT")
+	if binary == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+
+	serverPrivate, serverPublic := keyPair(t)
+	clientPrivate, clientPublic := keyPair(t)
+	port := freeUDPPort(t)
+
+	// The phone, in this process.
+	endpoint, err := relaywg.Start(fmt.Sprintf(
+		"private_key=%s\nlisten_port=%d\npublic_key=%s\nallowed_ip=10.13.37.2/32\n",
+		serverPrivate, port, clientPublic))
+	if err != nil {
+		t.Fatalf("the endpoint did not start: %v", err)
+	}
+	defer endpoint.Stop()
+
+	// The laptop. Routes a documentation prefix rather than 0.0.0.0/0: taking
+	// over the default route on the machine running the test would cut the
+	// runner off from GitHub, and the claim under test is "Windows routes what
+	// it is told into this adapter", which a /24 shows exactly as well.
+	client := exec.Command(binary,
+		"-name", "RelayTest",
+		"-address", "10.13.37.2/32",
+		"-routes", "198.51.100.0/24",
+	)
+	stdin, err := client.StdinPipe()
+	if err != nil {
+		t.Fatalf("stdin: %v", err)
+	}
+	stdout, err := client.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout: %v", err)
+	}
+	client.Stderr = os.Stderr
+	if err := client.Start(); err != nil {
+		t.Fatalf("starting the client: %v", err)
+	}
+	defer func() {
+		stdin.Close()
+		client.Wait()
+	}()
+
+	fmt.Fprintf(stdin, "private_key=%s\npublic_key=%s\nendpoint=127.0.0.1:%d\n"+
+		"allowed_ip=0.0.0.0/0\npersistent_keepalive_interval=1\n%s\n",
+		clientPrivate, serverPublic, port, configTerminator)
+
+	waitForReady(t, stdout, client)
+
+	// The handshake. Nothing else in the suite proves that the configuration
+	// this client assembles is one the endpoint accepts across a real adapter.
+	deadline := time.Now().Add(30 * time.Second)
+	for endpoint.LastHandshakeUnix() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("no WireGuard handshake within 30s of the adapter coming up")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// And the routing. A connection to the routed prefix cannot complete -- the
+	// endpoint would have to forward it back to itself -- but that is not what
+	// is being measured. What is measured is that the packets left through the
+	// adapter and the endpoint decrypted them, which can only happen if Windows
+	// really picked this interface for that prefix.
+	before := endpoint.BytesReceived()
+	go func() {
+		conn, err := net.DialTimeout("tcp", "198.51.100.5:80", 5*time.Second)
+		if err == nil {
+			conn.Close()
+		}
+	}()
+
+	deadline = time.Now().Add(20 * time.Second)
+	for endpoint.BytesReceived() <= before {
+		if time.Now().After(deadline) {
+			t.Fatalf("nothing arrived at the endpoint: Windows did not route "+
+				"198.51.100.0/24 into the adapter (rx stuck at %d)", before)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// Teardown: closing stdin is what the app does on Disconnect, and the
+	// adapter must go with the process. A tunnel adapter left behind holds its
+	// routes, and the machine keeps sending traffic somewhere that is gone.
+	stdin.Close()
+	done := make(chan error, 1)
+	go func() { done <- client.Wait() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("the client exited badly: %v", err)
+		}
+	case <-time.After(20 * time.Second):
+		client.Process.Kill()
+		t.Fatal("the client did not exit when its parent closed stdin")
+	}
+
+	if adapterExists(t, "RelayTest") {
+		t.Error("the adapter is still there after the client exited")
+	}
+}
+
+func waitForReady(t *testing.T, stdout io.Reader, client *exec.Cmd) {
+	t.Helper()
+	ready := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if strings.TrimSpace(scanner.Text()) == "READY" {
+				ready <- "READY"
+				return
+			}
+		}
+		ready <- ""
+	}()
+
+	select {
+	case line := <-ready:
+		if line == "" {
+			t.Fatal("the client exited before it was ready — most likely not running as Administrator")
+		}
+	case <-time.After(60 * time.Second):
+		client.Process.Kill()
+		t.Fatal("the client never reported READY")
+	}
+}
+
+// adapterExists asks Windows, not the client, whether the adapter is gone.
+func adapterExists(t *testing.T, name string) bool {
+	t.Helper()
+	// Give Windows a moment: the adapter is removed as the process exits, and
+	// the interface list can lag that by a beat.
+	for i := 0; i < 20; i++ {
+		out, err := exec.Command("powershell", "-NoProfile", "-Command",
+			fmt.Sprintf("if (Get-NetAdapter -Name '%s' -ErrorAction SilentlyContinue) { 'yes' } else { 'no' }", name),
+		).Output()
+		if err == nil && strings.TrimSpace(string(out)) == "no" {
+			return false
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return true
+}
+
+func keyPair(t *testing.T) (private, public string) {
+	t.Helper()
+	var priv [32]byte
+	if _, err := io.ReadFull(rand.Reader, priv[:]); err != nil {
+		t.Fatalf("key generation: %v", err)
+	}
+	priv[0] &= 248
+	priv[31] &= 127
+	priv[31] |= 64
+	pub, err := curve25519.X25519(priv[:], curve25519.Basepoint)
+	if err != nil {
+		t.Fatalf("public key: %v", err)
+	}
+	return hex.EncodeToString(priv[:]), hex.EncodeToString(pub)
+}
+
+func freeUDPPort(t *testing.T) int {
+	t.Helper()
+	c, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("no free port: %v", err)
+	}
+	defer c.Close()
+	return c.LocalAddr().(*net.UDPAddr).Port
+}

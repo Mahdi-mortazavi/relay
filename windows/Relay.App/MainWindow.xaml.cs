@@ -558,6 +558,13 @@ public sealed partial class MainWindow : Window
             "ERR_PROXY_APPLY_FAILED" => ("ErrTitleProxy", "ErrProxyApply", "TryAgain"),
             "ERR_ROLLBACK_INCOMPLETE" => ("ErrTitleRollback", "ErrRollback", "Disconnect"),
             "ERR_CAMERA_DENIED" => ("ErrTitleCamera", "ErrCameraDenied", "EnterCodeInstead"),
+            // Full Mode (ADR-0008). A declined elevation prompt is its own
+            // answer: "the tunnel failed" would send someone hunting their
+            // network for something they chose two seconds earlier.
+            "ERR_WG_ELEVATION_DECLINED" => ("ErrTitleElevation", "ErrWgElevationDeclined", "TryAgain"),
+            "ERR_WG_START_FAILED" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
+            "ERR_WG_ALREADY_RUNNING" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
+            "ERR_WG_STOP_FAILED" => ("ErrTitleTunnel", "ErrWgStopFailed", "TryAgain"),
             _ => ("ErrTitleProxy", "ErrProxyApply", "TryAgain"),
         };
 

@@ -37,6 +37,10 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_FIREWALL_BLOCKED` | Error | Local connect refused/blocked in a way consistent with a firewall rule | Allow Relay through Windows Firewall (or your security software), then try again |
 | `ERR_PROXY_APPLY_FAILED` | Error | Applied proxy didn't verify on read-back (rolled back) | Close other proxy/VPN managers and try again |
 | `ERR_ROLLBACK_INCOMPLETE` | Error | Disconnect couldn't restore the snapshot (backup kept) | Press Disconnect again to retry the restore |
+| `ERR_WG_ELEVATION_DECLINED` | Error | Full Mode's elevation prompt was dismissed | Choose Yes on the prompt, or switch the phone to Fast Mode |
+| `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again — or switch the phone to Fast Mode |
+| `ERR_WG_ALREADY_RUNNING` | Error | A tunnel is already up; a second would fight it for the adapter | Disconnect first |
+| `ERR_WG_STOP_FAILED` | Error | The tunnel process would not exit | Restart Relay; the adapter and its routes go when it exits |
 | `ERR_CAMERA_DENIED` | Error | Camera unavailable or access denied | Allow camera access for desktop apps in Windows Settings → Privacy, or enter the code manually |
 
 ## Design rules

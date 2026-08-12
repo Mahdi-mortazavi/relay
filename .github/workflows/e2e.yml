@@ -107,6 +107,79 @@ jobs:
           path: e2e-out/**
           if-no-files-found: warn
 
+  # Full Mode's Windows half, on a real Windows machine.
+  #
+  # This is the only job in the lab that creates a network adapter. Everything
+  # about the client that can fail only on Windows lives here: WinTun needs
+  # Administrator, the address and metric and routes are Windows APIs, and the
+  # teardown has to leave the machine's networking as it found it.
+  windows-full-mode:
+    name: Full Mode client (WinTun adapter)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: wg/go.sum
+
+      - name: Build the client
+        working-directory: wg
+        # Its own directory: wintun.dll has to sit beside the executable, which
+        # is also how it will sit beside Relay.exe once installed.
+        run: go build -o "${{ runner.temp }}/client/relaywg-client.exe" ./cmd/relaywg-client
+
+      # wintun.dll is not linked in: the library loads it at runtime from the
+      # executable's own directory, which is also how it will sit next to
+      # Relay.exe once installed.
+      - name: Fetch WinTun
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $zip = "$env:RUNNER_TEMP\wintun.zip"
+          Invoke-WebRequest -Uri 'https://www.wintun.net/builds/wintun-0.14.1.zip' -OutFile $zip
+          # Pinned by hash: this DLL ends up inside the installer, and a
+          # silently changed build of it is a supply-chain problem, not an
+          # inconvenience.
+          $expected = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) {
+            Write-Error "wintun.zip hash is $actual, expected $expected"
+          }
+          Expand-Archive -Path $zip -DestinationPath "$env:RUNNER_TEMP\wintun" -Force
+          Copy-Item "$env:RUNNER_TEMP\wintun\wintun\bin\amd64\wintun.dll" "$env:RUNNER_TEMP\client\wintun.dll"
+          Get-Item "$env:RUNNER_TEMP\client\wintun.dll" | Format-List Name, Length
+
+      - name: Bring up a real adapter and route through it
+        working-directory: wg
+        shell: pwsh
+        env:
+          RELAYWG_CLIENT: ${{ runner.temp }}\client\relaywg-client.exe
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Named so a failure to create the adapter can be read as "not
+          # elevated" rather than guessed at.
+          $admin = ([Security.Principal.WindowsPrincipal] `
+            [Security.Principal.WindowsIdentity]::GetCurrent()
+          ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "Running as Administrator: $admin"
+          Get-ChildItem (Split-Path $env:RELAYWG_CLIENT) | Format-Table Name, Length
+          go test -count=1 -v -timeout 15m ./cmd/relaywg-client
+
+      - name: The machine's networking must be as we found it
+        if: always()
+        shell: pwsh
+        run: |
+          $left = Get-NetAdapter -Name 'RelayTest' -ErrorAction SilentlyContinue
+          if ($left) {
+            Write-Error "The test left an adapter behind: $($left.Name)"
+          }
+          Write-Host "No Relay adapters remain."
+
   android-device:
     name: Android device (API ${{ matrix.api }})
     runs-on: ubuntu-latest

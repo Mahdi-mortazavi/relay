@@ -18,6 +18,14 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         new(new WinInetProxyStore(), new FileBackupStore());
 
     private readonly ProxySession _session = new(proxyStore, backupStore);
+
+    /// <summary>
+    /// Full Mode's tunnel. The client sits beside Relay.exe, with wintun.dll
+    /// next to it — the DLL is loaded from the executable's own directory, so
+    /// the two travel together or neither works.
+    /// </summary>
+    private readonly WgTunnelSession _tunnel = new(new ElevatedTunnelHost(
+        Path.Combine(AppContext.BaseDirectory, "relaywg-client.exe")));
     private readonly object _gate = new();
     private readonly object _sessionLock = new(); // serializes all _session IO
     private CancellationTokenSource? _supervisor;
@@ -44,6 +52,11 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     /// <summary>Full pairing flow from a decoded payload. Runs the blocking parts off the UI thread.</summary>
     public async Task ConnectAsync(QrPayload payload)
     {
+        if (payload.Mode == QrPayload.ModeWireguard)
+        {
+            await ConnectFullModeAsync(payload);
+            return;
+        }
         if (payload.Mode != QrPayload.ModeSocks5)
         {
             Fail("ERR_QR_NEWER_VERSION");
@@ -130,6 +143,35 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     public async Task DisconnectAsync()
     {
         StopSupervisor();
+
+        // Full Mode first: if a tunnel is up, that is what "connected" meant,
+        // and no proxy was ever applied to roll back.
+        if (_tunnel.IsRunning)
+        {
+            WgTunnelSession.Result stopped;
+            try
+            {
+                stopped = await TunnelDisconnectLocked();
+            }
+            catch (Exception ex)
+            {
+                LocalLog.Add($"Tunnel stop threw: {ex.Message}");
+                Fail("ERR_WG_STOP_FAILED");
+                return;
+            }
+            if (stopped.Ok)
+            {
+                LocalLog.Add("Disconnected (Full Mode)");
+                if (!Dispatch("stop")) Dispatch("dismiss");
+            }
+            else
+            {
+                LocalLog.Add($"Tunnel would not stop: {stopped.ErrorCode}");
+                Fail(stopped.ErrorCode!);
+            }
+            return;
+        }
+
         ProxySession.Result result;
         try
         {
@@ -156,6 +198,59 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
         }
     }
 
+    /// <summary>
+    /// Full Mode (ADR-0008): a WireGuard tunnel to the phone instead of a
+    /// system proxy.
+    ///
+    /// Shorter than the Fast Mode path above, and the difference is real rather
+    /// than cosmetic. Relay changes nothing on this machine here — the adapter
+    /// and its routes belong to the tunnel process and vanish with it — so
+    /// there is no snapshot to take, no rollback to verify, and no recovery
+    /// hook to arm against a crash. There is also no probe: the tunnel reports
+    /// ready only after a WireGuard handshake, which is a stronger statement
+    /// than "something answered on that port".
+    /// </summary>
+    private async Task ConnectFullModeAsync(QrPayload payload)
+    {
+        if (payload.Wg is null)
+        {
+            // The decoder rejects this already; belt and braces, because the
+            // alternative is a NullReferenceException inside the tunnel.
+            Fail("ERR_QR_INVALID");
+            return;
+        }
+        if (!Dispatch("start", payload)) return;
+        LocalLog.Add($"Full Mode: dialling {payload.Host}:{payload.Port}");
+
+        WgTunnelSession.Result started;
+        try
+        {
+            started = await TunnelConnectLocked(payload.Wg, payload.Host);
+        }
+        catch (Exception ex)
+        {
+            LocalLog.Add($"Tunnel start threw: {ex.Message}");
+            Fail("ERR_WG_START_FAILED");
+            return;
+        }
+        if (!started.Ok)
+        {
+            LocalLog.Add($"Tunnel did not start: {started.ErrorCode}");
+            Fail(started.ErrorCode!);
+            return;
+        }
+
+        // A concurrent Disconnect may have moved us back to Idle while the
+        // adapter was coming up. Leaving it running would route the machine
+        // through a tunnel the UI says nothing about.
+        if (!Dispatch("ready"))
+        {
+            try { await TunnelDisconnectLocked(); } catch { }
+            return;
+        }
+        LocalLog.Add("Connected (Full Mode)");
+    }
+
     public void DismissError() => Dispatch("dismiss");
 
     // All ProxySession IO goes through these so a user Disconnect and the
@@ -165,6 +260,14 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
 
     private Task<ProxySession.Result> DisconnectLocked() =>
         Task.Run(() => { lock (_sessionLock) return _session.Disconnect(); });
+
+    // Full Mode's tunnel shares the same lock: a user Disconnect and anything
+    // else touching the session must not overlap, exactly as for the proxy.
+    private Task<WgTunnelSession.Result> TunnelConnectLocked(WgParams wg, string host) =>
+        Task.Run(() => { lock (_sessionLock) return _tunnel.Connect(wg, host); });
+
+    private Task<WgTunnelSession.Result> TunnelDisconnectLocked() =>
+        Task.Run(() => { lock (_sessionLock) return _tunnel.Disconnect(); });
 
     // --- reconnect supervisor (ADR-0007) -------------------------------------
 

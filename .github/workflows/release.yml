@@ -182,6 +182,52 @@ jobs:
             }
           }
 
+      # Full Mode's tunnel process, and the driver library it loads. Both go
+      # into the publish directory, which is what the installer packages, so
+      # they land beside Relay.exe -- wintun.dll is loaded from the executable's
+      # own directory, so the three travel together or Full Mode is not there.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: wg/go.sum
+
+      - name: Build the Full Mode client and bundle WinTun
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $zip = "$env:RUNNER_TEMP\wintun.zip"
+          Invoke-WebRequest -Uri 'https://www.wintun.net/builds/wintun-0.14.1.zip' -OutFile $zip
+          # Pinned: this DLL ships inside the installer, so a silently changed
+          # build of it is a supply-chain problem rather than an inconvenience.
+          $expected = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { Write-Error "wintun.zip hash is $actual, expected $expected" }
+          Expand-Archive -Path $zip -DestinationPath "$env:RUNNER_TEMP\wintun" -Force
+
+          # amd64 for the x64 installer, x86 for the 32-bit one: a mismatched
+          # DLL fails at load with a message about the file being invalid,
+          # which reads as a corrupt download rather than a wrong build.
+          $targets = @{ 'x64' = @{ goarch = 'amd64'; dll = 'amd64' }
+                        'x86' = @{ goarch = '386';   dll = 'x86'   } }
+          foreach ($arch in $targets.Keys) {
+            $out = "$env:GITHUB_WORKSPACE\publish-$arch"
+            $env:GOOS = 'windows'
+            $env:GOARCH = $targets[$arch].goarch
+            Push-Location wg
+            go build -o "$out\relaywg-client.exe" ./cmd/relaywg-client
+            if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "building the client for $arch failed" }
+            Pop-Location
+            Copy-Item "$env:RUNNER_TEMP\wintun\wintun\bin\$($targets[$arch].dll)\wintun.dll" "$out\wintun.dll" -Force
+            # A release whose Full Mode is quietly absent is the failure this
+            # whole feature already had once, on Android.
+            foreach ($file in 'relaywg-client.exe', 'wintun.dll') {
+              if (-not (Test-Path "$out\$file")) { Write-Error "$file is missing from publish-$arch" }
+            }
+            Get-Item "$out\relaywg-client.exe", "$out\wintun.dll" | Format-Table Name, Length
+          }
+
       - name: Build installers
         shell: pwsh
         run: |
