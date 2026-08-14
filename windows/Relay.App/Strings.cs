@@ -51,6 +51,9 @@ public static class Strings
         ["AdvancedAddress"] = "Hotspot address",
         ["AdvancedLogs"] = "Activity log (stays on this PC)",
         ["AdvancedLogsClear"] = "Clear",
+        // Copies the diagnostic report and opens a pre-filled issue. Named for
+        // both halves, because the clipboard step is the surprising one.
+        ["AdvancedLogsShare"] = "Copy & report",
         ["AdvancedLogsEmpty"] = "No activity yet",
         ["IdleHeadline"] = "Ready to connect",
         ["IdleBody"] = "Open Relay on your phone and tap Start Sharing. Then scan its QR, or type the two digits it shows.",
@@ -123,6 +126,7 @@ public static class Strings
         ["AdvancedAddress"] = "نشانی هات‌اسپات",
         ["AdvancedLogs"] = "گزارش فعالیت (روی همین رایانه می‌ماند)",
         ["AdvancedLogsClear"] = "پاک‌کردن",
+        ["AdvancedLogsShare"] = "کپی و گزارش",
         ["AdvancedLogsEmpty"] = "هنوز فعالیتی نیست",
         ["IdleHeadline"] = "آمادهٔ اتصال",
         ["IdleBody"] = "رله را روی گوشی باز کنید و «شروع اشتراک‌گذاری» را بزنید. بعد کد QR آن را اسکن کنید، یا همان دو رقمی را که نشان می‌دهد تایپ کنید.",

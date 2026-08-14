@@ -226,32 +226,21 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Cache the AVD
-        uses: actions/cache@v6
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          # -v2: the API 30 AVD in the previous cache started failing before
-          # Gradle ran at all -- no build results, no test results, two minutes
-          # and out -- while API 34 on the same commits stayed green. That is a
-          # broken snapshot being restored, not flaky hardware, and the only way
-          # to stop restoring it is to stop asking for it by that name.
-          key: avd-v2-${{ matrix.api }}-${{ matrix.target }}
-
-      - name: Create the AVD snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api }}
-          target: ${{ matrix.target }}
-          arch: x86_64
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: false
-          script: echo "AVD created"
-
+      # Cold boot, no cached AVD snapshot. This job used to restore one to save
+      # a couple of minutes and paid for it twice, both times on API 30, both
+      # times as a two-minute failure with no Gradle output at all -- which
+      # reads as "the tests broke" and is not that.
+      #
+      # The mechanism is visible once the log is read closely: restoring a
+      # snapshot restores `sys.boot_completed=1` along with everything else, so
+      # the runner's boot-wait returns at once while the system is still coming
+      # up, and its very next step -- `input keyevent 82`, to unlock the screen
+      # -- dies with "No service published for: input". Nothing under test has
+      # run yet. Bumping the cache key made that rarer, not impossible; only
+      # booting for real makes `sys.boot_completed` mean what the wait assumes.
+      #
+      # The three other emulator jobs here have always cold-booted and have
+      # never failed this way. This one now matches them.
       - name: Run the device tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -259,7 +248,7 @@ jobs:
           target: ${{ matrix.target }}
           arch: x86_64
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: .github/scripts/device-tests.sh "${{ github.workspace }}/e2e-out"
 
