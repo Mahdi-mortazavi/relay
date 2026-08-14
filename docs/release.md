@@ -2,9 +2,27 @@
 
 Releases are **tag-triggered only** — an ordinary push can never publish anything.
 
-| Platform | Tag | Workflow | Artifacts attached to the GitHub Release |
+**One tag, one release, both platforms.** `git push origin v1.7.0` runs
+`release.yml`, which builds the signed Android artifacts and both Windows
+installers and publishes them together, so
+`/releases/latest/download/<asset>` resolves for every platform — which is what
+the README download buttons point at.
+
+| Tag | Workflow | Artifacts attached to the GitHub Release |
+|---|---|---|
+| `v*.*.*` | `release.yml` | `Relay-android-arm64-v8a.apk`, `Relay-android-universal.apk`, `Relay-android.aab`, `Relay-Setup-x64.exe`, `Relay-Setup-x86.exe` |
+
+`release.yml` also takes a `workflow_dispatch` with a version and a `publish`
+toggle. Leave `publish` off for a dry run; turn it on to cut the release without
+pushing a tag — `gh release create` makes the tag itself, which is the only
+route from an environment where pushing tags is blocked.
+
+The per-platform workflows below still exist for shipping one platform alone.
+They are not the normal path.
+
+| Platform | Tag | Workflow | Artifacts |
 |---|---|---|---|
-| Android | `android-v*.*.*` | `android-release.yml` | `relay-arm64-v8a-<version>.apk` (signed, primary sideload artifact) + `relay-<version>.aab` |
+| Android | `android-v*.*.*` | `android-release.yml` | `relay-arm64-v8a-<version>.apk` + `relay-<version>.aab` |
 | Windows | `windows-v*.*.*` | `windows-release.yml` | `Relay-Setup-x64-<version>.exe` + `Relay-Setup-x86-<version>.exe` |
 
 Every release also carries **`SHA256SUMS.txt`**, generated in the same job that
