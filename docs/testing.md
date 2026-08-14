@@ -3,6 +3,13 @@
 Three rungs, all provisioned by GitHub. Nothing here needs a maintainer's
 hardware, an emulator started by hand, or a device plugged into anything.
 
+One thing this arrangement structurally cannot reach: the emulator and the
+Windows runner are two machines in two jobs, so **the two apps have never once
+found each other over a real network**. A phone plugged into a laptop closes
+that gap — [`local-device-testing.md`](local-device-testing.md) is the runbook,
+and it lists exactly which six checks are worth doing there and which are
+already covered here.
+
 | Rung | Where | What it proves | Workflow |
 |---|---|---|---|
 | Unit | `ubuntu-latest` + `windows-latest` | Pure logic, and the SOCKS5 protocol over real loopback sockets | `ci.yml` |

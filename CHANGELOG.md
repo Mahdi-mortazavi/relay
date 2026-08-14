@@ -3,8 +3,8 @@
 Notable changes to Relay. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 Relay is pre-1.0, so minor versions may still change behaviour.
 
-Releases are cut per platform (`android-vX.Y.Z`, `windows-vX.Y.Z`) — see
-[`docs/release.md`](docs/release.md). Artifacts for every version are on the
+One tag ships both platforms (`vX.Y.Z`) — see [`docs/release.md`](docs/release.md).
+Artifacts for every version are on the
 [Releases page](https://github.com/Mahdi-mortazavi/relay/releases).
 
 ## [Unreleased]
