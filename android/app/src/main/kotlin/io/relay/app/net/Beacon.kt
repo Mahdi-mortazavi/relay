@@ -114,7 +114,7 @@ class Beacon(
      * happens on its own socket and the passive path still works. Failing to
      * bind must not stop the phone from sharing.
      */
-    private fun openProbeSocket(): DatagramSocket? = try {
+    internal fun openProbeSocket(): DatagramSocket? = try {
         DatagramSocket(null).apply {
             reuseAddress = true
             broadcast = true

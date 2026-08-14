@@ -7,6 +7,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -86,8 +87,12 @@ class BeaconProbeTest {
             deviceName = "test",
             bindToLan = { pinned += it },
         )
-        beacon.start()
+        // The socket, not start(): start() reaches android.util.Log, which is an
+        // android.jar stub off the device and throws. Same reason isProbe parses
+        // with kotlinx.serialization instead of org.json.
+        val socket = beacon.openProbeSocket()
         try {
+            assertNotNull("the probe socket did not open; port ${Beacon.PORT} busy?", socket)
             assertEquals(
                 "the probe socket must be pinned before it can answer anything",
                 1,
@@ -95,7 +100,7 @@ class BeaconProbeTest {
             )
             assertEquals(Beacon.PORT, pinned.single().localPort)
         } finally {
-            beacon.stop()
+            socket?.close()
         }
     }
 
