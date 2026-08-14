@@ -40,6 +40,10 @@
 | Android (any device) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Bigger, works everywhere. Use this if the one above says *"app not compatible"*. |
 | Checksums | [SHA256SUMS.txt](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/SHA256SUMS.txt) | `sha256sum -c SHA256SUMS.txt` |
 
+**The current version is `1.8.0`, and it is the only release on this repository.** Older releases have been removed on purpose. Every link above always points at the newest one, and both apps now show their version under **Advanced** — so if the phone and the PC ever seem to disagree, check those two numbers first. They should match, and if they don't, that is the whole explanation.
+
+The two Android files are the **same app**, built in the same run, differing only in which CPU architectures they carry. They cannot behave differently. If one seems to, it is an older copy — uninstall and reinstall from the links above.
+
 Windows warns on first run because the installer isn't code-signed yet — **More info → Run anyway**. If Android says *"App not installed"*, [this page](docs/install-troubleshooting.md) covers every cause I've seen.
 
 ---
@@ -78,6 +82,10 @@ Switch modes on the phone before you tap Start Sharing.
 <br>
 
 Relay tries to tell you what actually happened instead of showing "connection failed". Every error has a name and a next step — the full list is in [docs/errors.md](docs/errors.md).
+
+**First check: the version number.** Both apps show it under **Advanced**. Two different versions is the single most common cause of "these two don't work together", and until 1.8.0 the Windows app reported its version wrongly, so nobody could see it.
+
+**Browsers should just work** — no extension, no manual proxy entry. If you previously needed something like SwitchyOmega to get Chrome through Relay, that was a bug in how Relay described the proxy to Windows, and 1.8.0 fixes it. Turn the extension off.
 
 Both apps keep a local log you can read and share (**Advanced → Logs**). Nothing is ever uploaded on its own.
 
