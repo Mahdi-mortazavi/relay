@@ -51,6 +51,32 @@ Releases are cut per platform (`android-vX.Y.Z`, `windows-vX.Y.Z`) — see
 
 ### Fixed
 
+- **The two apps asked for different codes.** The phone shows a two-digit
+  number; the Windows code box was captioned "the 8-character code shown under
+  the QR", placeholdered `XXXX-XXXX` and accepted nine characters. The
+  two-digit path existed and worked — nothing in the interface pointed at it,
+  so holding both screens read as "these two apps do not go together". The box
+  is now two characters wide, and the long code moved behind a link named for
+  what the user would be looking at ("my phone shows a longer code") rather
+  than for its length.
+- **Six user-facing strings did not exist**, so the app spoke to people in
+  identifiers: someone who typed a code no phone was answering was told
+  `CodeNoDevice`, and the error underneath said `ErrCodeNotFound`. They had
+  been added to a pair of `.resw` files that nothing reads. Those files are
+  deleted — `Strings.cs` is the only store — and a test now derives every key
+  the app asks for from the sources and fails if either language is missing
+  one.
+- **A PC with a default firewall could not find the phone at all.** The
+  listener is an unelevated app and Relay's installer is per-user, so Windows
+  drops the phone's beacons before Relay sees them: the phone displays a code
+  and the PC insists no phone is showing it. The PC now sends a probe and the
+  phone answers unicast, so the PC's own outbound state entry opens the return
+  path (`/shared/pairing-beacon.md` → The probe). Asserted from both sides
+  against `/shared/test-vectors.json`, including on a real device.
+- **The phone contradicted itself after the hotspot changed address.**
+  Re-advertising dropped the two-digit code, so the screen fell back to the
+  eight-character one, and the beacon kept announcing the old address forever —
+  a PC that found the code connected to an IP that no longer answered.
 - **Full Mode's native library would not have loaded on Android 15's 16 KB-page
   devices.** gomobile aligns for 4 KB pages by default and every emulator image
   uses 4 KB pages, so the app would have installed, offered the mode, and died
@@ -101,6 +127,12 @@ Releases are cut per platform (`android-vX.Y.Z`, `windows-vX.Y.Z`) — see
 - A leaked file descriptor per failed port bind on Android.
 
 ### Changed
+
+- The Windows pairing screen lists the phones announcing themselves right now,
+  each with the code it is showing, so the two screens can be checked against
+  one another and a single visible phone needs no typing at all. A code typed
+  before the phone's first beacon arrives now connects when it lands, instead
+  of leaving "no phone has that code" on screen.
 
 - Mode segments are proper radio controls with 48 dp targets.
 - `docs/testing.md` describes the automated lab, and states what it cannot

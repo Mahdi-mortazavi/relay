@@ -7,9 +7,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.json.JSONObject
 import java.io.IOException
 import java.net.DatagramPacket
@@ -38,6 +44,7 @@ class Beacon(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
+    private var answerJob: Job? = null
 
     fun start() {
         if (job != null) return
@@ -48,6 +55,56 @@ class Beacon(
                 while (isActive) {
                     send(socket, sharing)
                     delay(intervalMs)
+                }
+            }
+        }
+        answerJob = scope.launch { answerProbes() }
+    }
+
+    /**
+     * Replies to probes (/shared/pairing-beacon.md) with one unicast beacon.
+     *
+     * Broadcasting alone is not enough to be found. Windows Firewall drops
+     * unsolicited inbound UDP to an unelevated app, and Relay's Windows
+     * installer is per-user so it cannot add a rule — the PC never hears a word
+     * of this, and the user is left holding a phone showing a code the PC
+     * insists nobody is using. When the PC speaks first, its own firewall lets
+     * the answer back through, so this is the path that works on a machine
+     * nobody configured.
+     *
+     * Best effort by design: if 47654 is already taken, broadcasting still
+     * happens on its own socket and the passive path still works. Failing to
+     * bind must not stop the phone from sharing.
+     */
+    private suspend fun answerProbes() {
+        val socket = try {
+            DatagramSocket(null).apply {
+                reuseAddress = true
+                broadcast = true
+                soTimeout = PROBE_POLL_MS
+                bind(java.net.InetSocketAddress(PORT))
+            }
+        } catch (e: IOException) {
+            Log.d(TAG, "not answering probes: ${e.message}")
+            return
+        }
+        socket.use {
+            val answer = payload(STATE_SHARING)
+            val buffer = ByteArray(512)
+            while (currentCoroutineContext().isActive) {
+                val packet = DatagramPacket(buffer, buffer.size)
+                try {
+                    socket.receive(packet)
+                } catch (_: IOException) {
+                    continue // soTimeout, so cancellation is noticed promptly
+                }
+                // Everything else on this port is ignored, including this
+                // phone's own broadcasts, which the host loops straight back.
+                if (!isProbe(String(packet.data, packet.offset, packet.length, Charsets.UTF_8))) continue
+                try {
+                    socket.send(DatagramPacket(answer, answer.size, packet.address, packet.port))
+                } catch (e: IOException) {
+                    Log.d(TAG, "probe answer to ${packet.address} failed: ${e.message}")
                 }
             }
         }
@@ -73,6 +130,8 @@ class Beacon(
     fun stop() {
         job?.cancel()
         job = null
+        answerJob?.cancel()
+        answerJob = null
         val goodbye = payload(STATE_STOPPED)
         kotlin.concurrent.thread(isDaemon = true, name = "relay-beacon-goodbye") {
             try {
@@ -128,8 +187,51 @@ class Beacon(
         const val INTERVAL_MS = 1000L
         const val STATE_SHARING = "sharing"
         const val STATE_STOPPED = "stopped"
+
+        /**
+         * How long a blocked receive waits before looking at cancellation.
+         * A probe answered a fifth of a second late is invisible to a person;
+         * a coroutine that cannot be cancelled for a whole second outlives the
+         * service that owns it.
+         */
+        const val PROBE_POLL_MS = 200
+
         private const val NAME_MAX = 32
         private const val TAG = "RelayBeacon"
+
+        /**
+         * The probe a listener sends (/shared/pairing-beacon.md → The probe),
+         * asserted byte-for-byte against `pairingProbe.datagram` in
+         * /shared/test-vectors.json by the Windows suite.
+         */
+        const val PROBE_JSON = """{"v":1,"probe":1}"""
+
+        fun probeDatagram(): ByteArray = PROBE_JSON.toByteArray(Charsets.UTF_8)
+
+        /**
+         * True when [text] is a probe this phone should answer.
+         *
+         * Deliberately narrow, in both directions. Answering reveals that this
+         * phone is sharing and at what address, so a datagram has to say the
+         * version it speaks and actually ask the question before it gets a
+         * reply — but a phone that answers nothing is invisible behind a
+         * Windows firewall, so refusing too much is not the safe default it
+         * looks like. The exact set either way is in /shared/test-vectors.json.
+         *
+         * Parsed with kotlinx.serialization rather than org.json so this is
+         * reachable from a plain JVM test: org.json is an android.jar stub off
+         * the device, and a rule this consequential being untestable until it
+         * reaches hardware is how it goes wrong quietly.
+         */
+        fun isProbe(text: String): Boolean = try {
+            val obj = Json.parseToJsonElement(text).jsonObject
+            val version = obj["v"]?.jsonPrimitive?.intOrNull
+            val probe = obj["probe"]?.jsonPrimitive
+            version == VERSION && probe != null &&
+                (probe.booleanOrNull == true || (probe.intOrNull ?: 0) != 0)
+        } catch (_: Exception) {
+            false // not ours; something else uses this port
+        }
 
         /** Codes currently claimed by other phones, for [PairingCode.draw]. */
         fun observedCodes(listenMs: Long = 1200): Set<String> = try {

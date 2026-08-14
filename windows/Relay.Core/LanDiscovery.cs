@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +15,12 @@ public sealed class LanDiscovery : IDisposable
 {
     public const int Port = 47654;
     public const int Version = 1;
+
+    /// <summary>Digits in a pairing code (/shared/pairing-beacon.md).</summary>
+    public const int CodeLength = 2;
+
     public static readonly TimeSpan Stale = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
 
     /// <summary>A phone currently announcing itself.</summary>
     public sealed record Device(string Code, string Mode, string Host, int PortNumber, string? Name, DateTimeOffset Seen)
@@ -27,6 +33,7 @@ public sealed class LanDiscovery : IDisposable
     private readonly Func<DateTimeOffset> _clock;
     private UdpClient? _socket;
     private CancellationTokenSource? _cancellation;
+    private CancellationTokenSource? _probing;
 
     public LanDiscovery(Func<DateTimeOffset>? clock = null) => _clock = clock ?? (() => DateTimeOffset.UtcNow);
 
@@ -42,9 +49,139 @@ public sealed class LanDiscovery : IDisposable
         var socket = new UdpClient();
         socket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         socket.Client.Bind(new IPEndPoint(IPAddress.Any, Port));
+        socket.EnableBroadcast = true;
         _socket = socket;
         _cancellation = new CancellationTokenSource();
         _ = ReceiveLoopAsync(socket, _cancellation.Token);
+    }
+
+    /// <summary>
+    /// Turns the active half of discovery on or off (/shared/pairing-beacon.md
+    /// → "The probe"). Off by default: a tray app has no business broadcasting
+    /// once a second all day, and this only matters while someone is looking at
+    /// the pairing screen.
+    ///
+    /// Probing is what makes discovery work on a PC nobody configured. Windows
+    /// Firewall drops unsolicited inbound UDP to an unelevated app, and Relay's
+    /// installer is per-user so it cannot add a rule — pure listening simply
+    /// hears nothing, and the user is left with a phone showing a code the PC
+    /// says does not exist. A datagram sent first opens the return path.
+    /// </summary>
+    public void SetProbing(bool on)
+    {
+        if (on)
+        {
+            if (_probing is not null) return;
+            _probing = new CancellationTokenSource();
+            _ = ProbeLoopAsync(_probing.Token);
+        }
+        else
+        {
+            _probing?.Cancel();
+            _probing?.Dispose();
+            _probing = null;
+        }
+    }
+
+    private async Task ProbeLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            Probe();
+            try { await Task.Delay(ProbeInterval, token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+            // SetProbing(false) cancels and disposes in one step, and this loop
+            // can be sitting between the two. Racing the shutdown of the thing
+            // that told it to stop is not an error worth propagating.
+            catch (ObjectDisposedException) { return; }
+        }
+    }
+
+    /// <summary>
+    /// Sends one probe on every interface. Public so the pairing screen can ask
+    /// for one the instant it opens rather than waiting out a tick.
+    /// </summary>
+    public void Probe()
+    {
+        var socket = _socket;
+        if (socket is null) return;
+
+        var datagram = ProbeDatagram();
+        foreach (var address in BroadcastAddresses())
+        {
+            try
+            {
+                socket.Send(datagram, datagram.Length, new IPEndPoint(address, Port));
+            }
+            catch (SocketException)
+            {
+                // One interface refusing is ordinary — a down VPN adapter, a
+                // network the stack is still bringing up. Only every interface
+                // failing matters, and that shows as the phone never appearing.
+            }
+            catch (ObjectDisposedException) { return; }
+        }
+    }
+
+    /// <summary>The probe datagram from /shared/pairing-beacon.md.</summary>
+    public static byte[] ProbeDatagram() =>
+        Encoding.UTF8.GetBytes($$"""{"v":{{Version}},"probe":1}""");
+
+    /// <summary>
+    /// The broadcast address of each usable IPv4 interface, plus the limited
+    /// broadcast address.
+    ///
+    /// Both, deliberately. A directed broadcast is the one that reaches a phone
+    /// acting as a hotspot, because that interface is not the PC's default
+    /// route; 255.255.255.255 is the one that survives adapters whose netmask
+    /// the stack reports oddly. Sending two small datagrams is cheaper than
+    /// choosing wrong.
+    /// </summary>
+    private static IEnumerable<IPAddress> BroadcastAddresses()
+    {
+        var seen = new HashSet<string> { IPAddress.Broadcast.ToString() };
+        yield return IPAddress.Broadcast;
+
+        NetworkInterface[] interfaces;
+        try { interfaces = NetworkInterface.GetAllNetworkInterfaces(); }
+        catch (NetworkInformationException) { yield break; }
+
+        foreach (var nic in interfaces)
+        {
+            if (nic.OperationalStatus != OperationalStatus.Up) continue;
+            if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+
+            IPInterfaceProperties properties;
+            try { properties = nic.GetIPProperties(); }
+            catch (NetworkInformationException) { continue; }
+
+            foreach (var unicast in properties.UnicastAddresses)
+            {
+                var broadcast = BroadcastFor(unicast.Address, unicast.IPv4Mask);
+                if (broadcast is not null && seen.Add(broadcast.ToString())) yield return broadcast;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The directed broadcast address for an interface: host bits all ones.
+    /// Null for anything that is not a usable IPv4 address and mask.
+    /// </summary>
+    public static IPAddress? BroadcastFor(IPAddress? address, IPAddress? mask)
+    {
+        if (address is null || mask is null) return null;
+        if (address.AddressFamily != AddressFamily.InterNetwork) return null;
+        if (mask.AddressFamily != AddressFamily.InterNetwork) return null;
+
+        var host = address.GetAddressBytes();
+        var bits = mask.GetAddressBytes();
+        // A /32, or an adapter that reports no mask at all, has no broadcast
+        // address; sending to the host itself would be a datagram to nowhere.
+        if (bits.All(b => b == 0) || bits.All(b => b == 0xFF)) return null;
+
+        var result = new byte[4];
+        for (var i = 0; i < 4; i++) result[i] = (byte)(host[i] | (byte)~bits[i]);
+        return new IPAddress(result);
     }
 
     private async Task ReceiveLoopAsync(UdpClient socket, CancellationToken token)
@@ -98,7 +235,8 @@ public sealed class LanDiscovery : IDisposable
                 return false;
 
             var code = root.TryGetProperty("code", out var c) ? c.GetString() : null;
-            if (code is null || code.Length != 2 || !code.All(char.IsAsciiDigit) || code[0] == '0') return false;
+            if (code is null || code.Length != CodeLength ||
+                !code.All(char.IsAsciiDigit) || code[0] == '0') return false;
 
             var host = root.TryGetProperty("host", out var h) ? h.GetString() : null;
             if (string.IsNullOrWhiteSpace(host) || !IPAddress.TryParse(host, out _)) return false;
@@ -125,11 +263,30 @@ public sealed class LanDiscovery : IDisposable
         }
     }
 
+    /// <summary>
+    /// Records a beacon, and reports a change only when something a person
+    /// could see is different.
+    ///
+    /// A phone beacons once a second forever. Firing the event on every one of
+    /// them turned "the set of visible phones changed" into a metronome, and
+    /// the pairing screen rebuilt its list — and threw away whatever row had
+    /// focus — once a second for as long as it was open.
+    /// </summary>
     private void Add(Device device)
     {
-        lock (_lock) _devices[device.Key] = device;
-        Notify();
+        bool changed;
+        lock (_lock)
+        {
+            changed = !_devices.TryGetValue(device.Key, out var known) || !SameToTheUser(known, device);
+            _devices[device.Key] = device;
+        }
+        if (changed) Notify();
     }
+
+    /// <summary>Everything except when it was last heard from.</summary>
+    private static bool SameToTheUser(Device a, Device b) =>
+        a.Code == b.Code && a.Mode == b.Mode && a.Host == b.Host &&
+        a.PortNumber == b.PortNumber && a.Name == b.Name;
 
     private void Remove(string key)
     {
@@ -180,7 +337,7 @@ public sealed class LanDiscovery : IDisposable
     {
         if (input is null) return null;
         var digits = new string(input.Where(ch => !char.IsWhiteSpace(ch)).ToArray());
-        if (digits.Length != 2) return null;
+        if (digits.Length != CodeLength) return null;
         if (!digits.All(char.IsAsciiDigit)) return null;
         if (digits[0] == '0') return null;
         return digits;
@@ -188,6 +345,7 @@ public sealed class LanDiscovery : IDisposable
 
     public void Dispose()
     {
+        SetProbing(false);
         _cancellation?.Cancel();
         _socket?.Dispose();
         _socket = null;

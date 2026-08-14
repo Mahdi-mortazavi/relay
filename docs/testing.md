@@ -167,7 +167,9 @@ There is no local dev loop: manual verification always uses an **installable art
 
 ### Cross-checks worth doing
 
-- **Typed-code path:** on the laptop choose **Enter Code Manually**, type the 8-char code shown under the QR. Same connect result as scanning.
+- **Two-digit path:** on the laptop choose **Enter the 2-digit code** and type the two digits the phone is showing. Same connect result as scanning. The phone should also appear by itself in the list under the box, with the same two digits next to its name — if the box shows nothing while the phone is plainly sharing, that is the discovery path failing, not a mistyped code.
+- **Discovery through a default firewall (the one CI cannot prove):** the laptop's beacon listener is an unelevated app, and Windows blocks unsolicited inbound UDP to those by default, so the PC also probes and the phone answers unicast (`/shared/pairing-beacon.md` → The probe). Verify on a PC that has *never* been told to allow Relay through the firewall, and on a **Public** network profile: the phone must still appear. If it only appears after clicking Allow on a firewall prompt, the probe path is not working and every fresh install will look broken.
+- **Address change mid-session:** while connected, drop and restore the hotspot so the phone comes back on a different IP. The two digits on the phone must not change, and the laptop must be able to reconnect with them.
 - **Camera denied:** deny camera to desktop apps, tap **Scan QR** → the app shows the `ERR_CAMERA_DENIED` message pointing to manual entry, never a crash.
 - **Phone not on hotspot:** try to connect with the laptop on a different network → `ERR_HOST_UNREACHABLE`, and the proxy is rolled back (re-check as in AC1.4).
 - **Crash recovery:** connect, kill the Windows app from Task Manager, relaunch → the proxy is restored on start (unless you changed it meanwhile, in which case your change is kept).

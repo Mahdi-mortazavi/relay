@@ -106,7 +106,12 @@
             <!-- Manual code ────────────────────────────────────────-->
             <StackPanel x:Name="CodePanel" VerticalAlignment="Center" Spacing="12"
                         Visibility="Collapsed">
-                <TextBox x:Name="CodeBox" PlaceholderText="XXXX-XXXX" MaxLength="9"
+                <!-- Two characters wide, because two digits is what the phone
+                     shows. A box captioned "the 8-character code" in front of a
+                     phone showing "42" reads as "these two apps do not go
+                     together", and people stop there. -->
+                <TextBox x:Name="CodeBox" PlaceholderText="00" MaxLength="2"
+                         InputScope="Number"
                          FontSize="{StaticResource SizeCode}"
                          FontFamily="{StaticResource FontMono}"
                          TextAlignment="Center" CharacterSpacing="150"
@@ -119,8 +124,25 @@
                 <!-- Says what is wrong with what you typed, as you type it,
                      rather than after you commit to it. -->
                 <TextBlock x:Name="CodeHintText" Style="{StaticResource FootnoteText}" />
+
+                <!-- Every phone currently announcing itself, with the code it
+                     is showing. Typing is then a convenience rather than the
+                     only way in, and the two screens can be checked against
+                     each other without trusting either app's prose. Rows are
+                     built in code; see PopulateFoundList. -->
+                <StackPanel x:Name="FoundPanel" Spacing="6" Visibility="Collapsed">
+                    <TextBlock x:Name="FoundHeader" Style="{StaticResource CaptionText}"
+                               Foreground="{StaticResource LabelTertiary}" />
+                    <StackPanel x:Name="FoundList" Spacing="6" />
+                </StackPanel>
+
                 <Button x:Name="CodeConnectButton" Style="{StaticResource PrimaryButton}"
                         IsEnabled="False" Click="OnCodeConnectClick" />
+                <!-- The long code is still accepted, for a phone that could not
+                     announce itself at all. Named by what the user would be
+                     looking at rather than by its length. -->
+                <HyperlinkButton x:Name="CodeModeLink" HorizontalAlignment="Center"
+                                 Click="OnCodeModeClick" />
                 <Button x:Name="CodeCancelButton" Style="{StaticResource QuietButton}"
                         Click="OnCancelClick" />
             </StackPanel>

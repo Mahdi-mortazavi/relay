@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using Relay.Core;
 using Xunit;
@@ -140,6 +141,68 @@ public class LanDiscoveryTests
         using var discovery = new LanDiscovery();
         Assert.False(discovery.Observe(Beacon("not a beacon")));
         Assert.Empty(discovery.Devices);
+    }
+
+    [Fact]
+    public void The_probe_is_the_datagram_in_the_shared_contract()
+    {
+        // Byte-for-byte, because the phone matches on the parsed shape of this
+        // exact string and answers nothing else. See /shared/pairing-beacon.md.
+        var expected = SharedContracts.Json("test-vectors.json")
+            .RootElement.GetProperty("pairingProbe").GetProperty("datagram").GetString();
+
+        Assert.Equal(expected, Encoding.UTF8.GetString(LanDiscovery.ProbeDatagram()));
+    }
+
+    [Fact]
+    public void A_probe_is_not_mistaken_for_a_phone()
+    {
+        // The host loops our own broadcast straight back to us. Treating it as
+        // a beacon would put this PC in the device list, under whatever code it
+        // happened to parse out of nothing.
+        using var discovery = new LanDiscovery();
+        Assert.False(discovery.Observe(LanDiscovery.ProbeDatagram()));
+        Assert.Empty(discovery.Devices);
+    }
+
+    [Theory]
+    // A phone acting as a hotspot: the directed broadcast is the one that
+    // reaches it, because that interface is not this PC's default route.
+    [InlineData("192.168.43.15", "255.255.255.0", "192.168.43.255")]
+    [InlineData("10.0.0.7", "255.0.0.0", "10.255.255.255")]
+    [InlineData("172.20.10.3", "255.255.255.240", "172.20.10.15")]
+    // A /32, or an adapter that reports no mask at all, has no broadcast
+    // address — sending to the host itself would be a datagram to nowhere.
+    [InlineData("192.168.1.5", "255.255.255.255", null)]
+    [InlineData("192.168.1.5", "0.0.0.0", null)]
+    public void Broadcast_address_covers_the_whole_subnet(string address, string mask, string? expected)
+    {
+        var result = LanDiscovery.BroadcastFor(IPAddress.Parse(address), IPAddress.Parse(mask));
+        Assert.Equal(expected, result?.ToString());
+    }
+
+    [Fact]
+    public void An_interface_without_an_IPv4_mask_has_no_broadcast_address()
+    {
+        // IPv6-only adapters and tunnels report a null mask; asking them to
+        // broadcast throws rather than simply finding nothing.
+        Assert.Null(LanDiscovery.BroadcastFor(IPAddress.Parse("192.168.1.5"), null));
+        Assert.Null(LanDiscovery.BroadcastFor(null, IPAddress.Parse("255.255.255.0")));
+        Assert.Null(LanDiscovery.BroadcastFor(IPAddress.IPv6Loopback, IPAddress.Parse("255.255.255.0")));
+    }
+
+    [Fact]
+    public void Probing_can_be_turned_on_and_off_without_a_socket()
+    {
+        // The pairing screen toggles this on every show and hide. Discovery
+        // that never bound — another program on 47654, a policy that forbids
+        // it — must let that happen quietly rather than throwing into the UI.
+        using var discovery = new LanDiscovery();
+        discovery.SetProbing(true);
+        discovery.SetProbing(true);
+        discovery.SetProbing(false);
+        discovery.SetProbing(false);
+        discovery.Probe();
     }
 
     [Theory]

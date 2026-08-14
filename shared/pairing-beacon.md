@@ -76,12 +76,46 @@ anywhere it could be executed.
   already — see `ERR_CODE_AMBIGUOUS` below, where the PC shows both device
   names and asks which one.
 
+## The probe
+
+A listener MAY also ask, instead of only waiting to be told. It sends this
+datagram to the broadcast address of each of its own interfaces, port **47654**:
+
+```json
+{"v":1,"probe":1}
+```
+
+A phone that is sharing MUST answer it with one ordinary beacon, sent
+**unicast** back to the sender's address and port — not broadcast, or the answer
+would reach every listener but the one that asked. A phone that is not sharing
+answers nothing.
+
+This is not an optimisation. Windows Firewall blocks *unsolicited* inbound UDP
+to an unelevated app by default, and Relay's installer is per-user and cannot
+add a firewall rule. Passive listening therefore fails on many PCs with no
+symptom the user can act on: the phone shows a code, the PC says no phone has
+it. A datagram the PC sent first creates the outbound state entry that lets the
+answer back in, so this is the path that works on a machine nobody configured.
+
+Rules on both sides:
+
+- A probe has no `code`, so a beacon parser rejects it. A responder MUST
+  identify a probe by `probe` being present and truthy, and MUST ignore
+  everything else it receives — including its own broadcasts, which the host
+  loops back.
+- A probe carries nothing about the sender beyond its source address, and the
+  answer goes only there. Nothing in it is trusted.
+- A listener SHOULD probe about once a second while it is actually looking, and
+  MUST NOT rely on probing alone: on a network where broadcast reaches the phone
+  but not back, the passive path is the one that works.
+
 ## Discovery, on the listener
 
 1. Bind UDP `47654` with address reuse, and join in on every interface.
-2. Keep the most recent beacon per `(host, port)`. Drop an entry when its last
+2. Probe (above) while the pairing screen is open.
+3. Keep the most recent beacon per `(host, port)`. Drop an entry when its last
    beacon is older than **5 s**, or immediately on `state: "stopped"`.
-3. When the user enters two digits, connect to the entry whose `code` matches.
+4. When the user enters two digits, connect to the entry whose `code` matches.
    - No match → `ERR_CODE_NOT_FOUND`: the phone is not sharing, or is on another
      network.
    - More than one match → `ERR_CODE_AMBIGUOUS`: show the device names and let
@@ -116,7 +150,13 @@ establish, and one would only teach people to tap Allow without reading it.
 
 ## Compatibility
 
-The eight-character typed code stays supported for one release: a Windows build
-that predates this contract has no listener, and a phone that predates it sends
-no beacon. The Windows app accepts a two-digit code, an eight-character code, or
-a QR, and picks the path from what was typed.
+The eight-character typed code ([`typed-code.md`](typed-code.md)) still works,
+but it is no longer what either app leads with. The phone shows it only when it
+could not announce itself at all, and the PC's code box asks for two digits and
+keeps the long code behind a link that names the thing the user would be looking
+at: *"my phone shows a longer code"*.
+
+That asymmetry is the whole point. A box captioned "the 8-character code" in
+front of a phone showing `42` is not a fallback, it is a contradiction — the
+user reads it as *these two apps do not go together* and stops. Whatever the
+code box asks for has to be the thing the phone is currently showing.
