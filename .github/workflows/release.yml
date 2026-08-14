@@ -110,8 +110,11 @@ jobs:
       # its filters: before this, `git push origin v1.8.0` built and published
       # without a single test having run on that commit. The suites are a minute
       # and they are the ones that assert the two platforms agree.
+      # testDebugUnitTest, not testReleaseUnitTest: AGP 9 does not generate a
+      # unit-test task for a minified variant, and the suites are variant-
+      # independent — ci.yml runs exactly this task.
       - name: Unit tests
-        run: ./gradlew testReleaseUnitTest -PrelayVersion=${{ needs.version.outputs.version }} -PrelayRequireWg=true
+        run: ./gradlew testDebugUnitTest -PrelayRequireWg=true
 
       - name: Build signed APK and AAB
         env:
