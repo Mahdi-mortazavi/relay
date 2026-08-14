@@ -127,6 +127,16 @@ build, and the app is started afterwards. That sequence makes the platform
 reconcile signing keys, version codes and the native ABI it committed to on the
 previous install — none of which a clean install exercises.
 
+**Dormant since 1.8.0.** Every release before 1.8.0 was deleted from the
+Releases page (they shipped defects that made the app look broken; leaving them
+downloadable was worse than losing them), so there is no earlier release for the
+probe to upgrade *from*. It now reports that and passes having tested only a
+clean install. This wakes up on its own the moment 1.9.0 ships and 1.8.0 becomes
+the previous release — but until then, the upgrade path is untested in CI, and
+that is exactly the kind of green-but-proved-nothing result this document exists
+to refuse to hide. The 1.7.0 → 1.8.0 upgrade was instead verified by hand, on a
+real phone, before the release was cut.
+
 `release.yml` starts it as its last step, once the release exists, and it also
 runs monthly, since new Android versions change what sideloading accepts
 without any change of ours to trigger a run.
