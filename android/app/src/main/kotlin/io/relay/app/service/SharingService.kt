@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
+import java.net.DatagramSocket
 
 /**
  * Foreground service owning the SOCKS5 server (ADR-0003). Runs with a
@@ -179,6 +181,7 @@ class SharingService : Service() {
             host = payload.host,
             port = payload.port,
             deviceName = payload.name,
+            bindToLan = lanBinder(payload.host),
         ).also { it.start() }
         beacon = announcer
 
@@ -242,6 +245,41 @@ class SharingService : Service() {
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
         )
+    }
+
+    /**
+     * Pins a socket to the network that owns [host], so a probe answer leaves by
+     * the interface the PC is actually on
+     * (/shared/pairing-beacon.md → "The answer has to leave by the right
+     * interface").
+     *
+     * Without this, on a phone running a full-tunnel VPN — which is Relay's
+     * normal case, not an edge case — Android routes the app's unicast traffic
+     * by UID into the tunnel. The answer goes to the VPN's exit, `send()`
+     * reports success, and the PC hears nothing. The broadcast beacon is
+     * link-scoped and escapes the tunnel, so passive discovery keeps working and
+     * hides the fault on any PC that has a firewall rule for Relay. On a PC that
+     * does not — every fresh install — the phone simply never appears.
+     *
+     * Matched on the advertised address rather than on transport type: it is the
+     * address the client is being told to come back to, so it is by definition
+     * the interface the answer has to leave by. A phone acting as its own
+     * hotspot exposes no [android.net.Network] for the AP interface, so nothing
+     * matches and the socket is left on the default route, exactly as before.
+     */
+    private fun lanBinder(host: String): (DatagramSocket) -> Unit {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return {}
+        return { socket ->
+            runCatching {
+                val owner = manager.allNetworks.firstOrNull { network ->
+                    manager.getLinkProperties(network)?.linkAddresses.orEmpty()
+                        .any { it.address.hostAddress == host }
+                }
+                if (owner == null) LocalLog.add("No network owns $host; probe answers use the default route")
+                owner?.bindSocket(socket)
+            }.onFailure { LocalLog.add("Could not pin the probe socket to $host: ${it.message}") }
+            Unit
+        }
     }
 
     /** Binds the SOCKS server; preferred port (Advanced) first, then the fallback list. Returns the bound port or -1. */
@@ -389,6 +427,10 @@ class SharingService : Service() {
                 host = payload.host,
                 port = payload.port,
                 deviceName = payload.name,
+                // The new network is a different interface, so the pin has to be
+                // recomputed for it — a rebind that kept the old one would answer
+                // probes out of an interface the phone has left.
+                bindToLan = lanBinder(payload.host),
             ).also { it.start() }
             beacon = announcer
             // The new network may be able to carry the announcement where the

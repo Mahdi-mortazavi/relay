@@ -1,6 +1,7 @@
 package io.relay.app
 
 import io.relay.app.net.Beacon
+import java.net.DatagramSocket
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -53,6 +54,48 @@ class BeaconProbeTest {
         assertTrue("the contract lists nothing to ignore", shapes.isNotEmpty())
         for (shape in shapes) {
             assertFalse("should have stayed silent for: $shape", Beacon.isProbe(shape))
+        }
+    }
+
+    /**
+     * The half of the probe contract that is about *where the answer goes*
+     * (/shared/pairing-beacon.md → "The answer has to leave by the right
+     * interface").
+     *
+     * A phone running a full-tunnel VPN routes its apps' unicast traffic into
+     * the tunnel by UID, so an unpinned answer leaves for the VPN's exit instead
+     * of for the PC that asked — and nothing anywhere reports an error, because
+     * `send()` genuinely succeeds. The broadcast beacon is link-scoped and still
+     * arrives, so the phone stays visible to any PC that already has a firewall
+     * rule, and is invisible to every fresh install. Observed on a real handset
+     * before this test existed; `ip route get` named tun0 for the app's UID and
+     * wlan0 for a UID outside the tunnel, same destination.
+     *
+     * Asserted at the seam rather than on the routing, because the routing is
+     * the operating system's and the only thing this class controls is whether
+     * it pins the socket at all.
+     */
+    @Test
+    fun `pins the probe socket to the interface it advertises`() {
+        val pinned = mutableListOf<DatagramSocket>()
+        val beacon = Beacon(
+            code = "42",
+            mode = "socks5",
+            host = "192.168.1.14",
+            port = 1080,
+            deviceName = "test",
+            bindToLan = { pinned += it },
+        )
+        beacon.start()
+        try {
+            assertEquals(
+                "the probe socket must be pinned before it can answer anything",
+                1,
+                pinned.size,
+            )
+            assertEquals(Beacon.PORT, pinned.single().localPort)
+        } finally {
+            beacon.stop()
         }
     }
 

@@ -219,6 +219,40 @@ Run each row from an installable CI artifact; **pass = the app shows a correct s
 | M9 | Open Advanced on both; change theme (Android), change port (Android), view logs | Settings persist; logs are local-only and clearable |
 | M10 | Kill either app mid-session | Android: service stops cleanly; Windows: proxy restored on next launch |
 
+### The probe answer, on a phone that is its own hotspot
+
+A phone running a full-tunnel VPN routed its unicast probe answer into the
+tunnel instead of to the PC, so the PC never found it — see
+[`/shared/pairing-beacon.md`](../shared/pairing-beacon.md) → "The answer has to
+leave by the right interface". The responder now pins that socket to the
+`Network` that owns the address it advertises, which is verified on a phone
+sharing a **Wi-Fi/LAN** the laptop is also on.
+
+**The hotspot case is not verified and cannot currently be met.** A phone acting
+as its own access point exposes no `Network` for the AP interface, so nothing
+matches the advertised address and the socket stays on the default route — which,
+with a VPN up, is the tunnel. Whether the answer still escapes there is unknown:
+the AP interface may be reached by a different route rule than a station Wi-Fi
+one. To settle it, share from the phone's **own hotspot** with a full-tunnel VPN
+active, join the laptop to it, and probe from a program that has **no** Windows
+Firewall rule; an answer means the path works, silence means Full Mode's QR and
+the eight-character code are the only ways in on that topology.
+
+### Discovery through a firewall nobody configured
+
+The check in [`local-device-testing.md`](local-device-testing.md) — "the one that
+matters most" — requires a PC that has **never** been told to allow Relay
+through. It could not be run on the maintainer's laptop in August 2026: that
+machine already carried four `Query User` inbound allow rules for
+`Relay.App.exe` at two install paths, created by earlier firewall prompts.
+Passive discovery there proves nothing about a fresh install, because the
+beacon is being admitted by rule rather than by the probe's return path.
+
+Disabling those rules needs elevation. Until the check is run on a machine with
+no rule — or with those rules disabled — **discovery on a fresh install is
+unproven on real hardware**, and the probe path is the only thing standing
+between a fresh install and "no phone has that code".
+
 ### AC2.3 — brief hotspot drop auto-recovers within the bound
 
 1. Connect and start a download on the laptop.

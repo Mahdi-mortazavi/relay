@@ -41,6 +41,15 @@ class Beacon(
     private val port: Int,
     private val deviceName: String?,
     private val intervalMs: Long = INTERVAL_MS,
+    /**
+     * Pins the probe-answer socket to the interface that owns [host], so the
+     * answer cannot be routed into a VPN this phone is running
+     * (/shared/pairing-beacon.md → "The answer has to leave by the right
+     * interface"). Supplied by the service, which is the only thing here with a
+     * Context; the default no-op keeps this class free of Android types so the
+     * rule stays reachable from a plain JVM test.
+     */
+    private val bindToLan: (DatagramSocket) -> Unit = {},
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
@@ -111,6 +120,11 @@ class Beacon(
             broadcast = true
             soTimeout = PROBE_POLL_MS
             bind(java.net.InetSocketAddress(PORT))
+            // After bind, before any answer goes out: an unpinned socket on a
+            // phone with a full-tunnel VPN sends the answer to the VPN's exit
+            // instead of to the PC that asked, and nothing reports an error —
+            // send() succeeds, the datagram simply goes the wrong way.
+            bindToLan(this)
         }
     } catch (e: IOException) {
         Log.d(TAG, "not answering probes: ${e.message}")

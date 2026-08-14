@@ -118,6 +118,31 @@ Rules on both sides:
   MUST NOT rely on probing alone: on a network where broadcast reaches the phone
   but not back, the passive path is the one that works.
 
+### The answer has to leave by the right interface
+
+A responder MUST send the answer out of the interface that owns the address it
+is advertising in `host` — not through a VPN it is itself running.
+
+This is not a hypothetical. A phone running a full-tunnel VPN routes traffic by
+UID, and the sharing app is inside that tunnel whether or not it asked to be.
+Its *unicast* probe answer is then routed to the VPN's exit and never reaches
+the PC, while its *broadcast* beacon, being link-scoped, bypasses the tunnel and
+arrives normally. The two paths fail separately, and the one that fails is
+exactly the one a PC with an unconfigured firewall depends on. The result is the
+failure this whole mechanism exists to prevent — a phone showing a code and a PC
+insisting nobody has it — reachable only on a machine that has never been told
+to allow the listener through, which is every fresh install.
+
+Sharing a phone's VPN is Relay's entire purpose, so a VPN is present in the
+normal case and not an edge case.
+
+On Android this means binding the answering socket to the `Network` whose link
+addresses contain `host`. Where no such network exists — a phone acting as its
+own hotspot exposes no `Network` for the AP interface — a responder falls back
+to the default route, and on a phone with a VPN this contract cannot currently
+be met on that path; `docs/testing.md` records it as unproven rather than
+implying otherwise.
+
 ## Discovery, on the listener
 
 1. Bind UDP `47654` with address reuse, and join in on every interface.
