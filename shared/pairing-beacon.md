@@ -118,30 +118,48 @@ Rules on both sides:
   MUST NOT rely on probing alone: on a network where broadcast reaches the phone
   but not back, the passive path is the one that works.
 
-### The answer has to leave by the right interface
+### The answer cannot always be sent
 
 A responder MUST send the answer out of the interface that owns the address it
-is advertising in `host` — not through a VPN it is itself running.
+is advertising in `host`. **On Android it cannot do so while the phone's own VPN
+captures the app** — and that is Relay's normal case, not an edge case.
 
-This is not a hypothetical. A phone running a full-tunnel VPN routes traffic by
-UID, and the sharing app is inside that tunnel whether or not it asked to be.
-Its *unicast* probe answer is then routed to the VPN's exit and never reaches
-the PC, while its *broadcast* beacon, being link-scoped, bypasses the tunnel and
-arrives normally. The two paths fail separately, and the one that fails is
-exactly the one a PC with an unconfigured firewall depends on. The result is the
-failure this whole mechanism exists to prevent — a phone showing a code and a PC
-insisting nobody has it — reachable only on a machine that has never been told
-to allow the listener through, which is every fresh install.
+Android routes an app's traffic by UID. A full-tunnel VPN claims every UID but
+its own, so the responder's *unicast* answer is routed to the VPN's exit and
+never reaches the PC, while its *broadcast* beacon, being link-scoped, bypasses
+the tunnel and arrives normally. `send()` reports success either way, and
+nothing is logged: the datagram simply goes the wrong way.
 
-Sharing a phone's VPN is Relay's entire purpose, so a VPN is present in the
-normal case and not an edge case.
+There is no app-level escape, and all three obvious ones were tried on hardware:
 
-On Android this means binding the answering socket to the `Network` whose link
-addresses contain `host`. Where no such network exists — a phone acting as its
-own hotspot exposes no `Network` for the AP interface — a responder falls back
-to the default route, and on a phone with a VPN this contract cannot currently
-be met on that path; `docs/testing.md` records it as unproven rather than
-implying otherwise.
+| Attempt | Result |
+|---|---|
+| `Network.bindSocket` to the Wi-Fi network | `EPERM` — an app inside a VPN may not bind outside it |
+| Binding the source address to the LAN address | routing unchanged; the UID rule still wins |
+| `SO_BINDTODEVICE` | needs `CAP_NET_RAW` |
+
+Escaping requires `CONNECTIVITY_USE_RESTRICTED_NETWORKS`, which is
+signature-level and not available to a normal app.
+
+This is a real conflict between two of Relay's own requirements rather than an
+oversight. The proxy has to be *inside* the VPN or the shared traffic would not
+use the VPN at all — which is the entire product — and anything inside the VPN
+cannot answer a probe.
+
+Consequences a listener has to be built around:
+
+- Passive discovery is unaffected, so a PC that can receive unsolicited inbound
+  UDP finds the phone normally. This is why the fault is invisible on any PC
+  that has ever been told to allow the listener through.
+- A PC that depends on the probe — the default Windows Firewall case, which is
+  every fresh install — will **not** find a phone whose VPN captures it, however
+  long it waits.
+- The QR and the eight-character code carry the address and need no discovery,
+  so they remain the paths that always work.
+
+A responder that knows it is in this state SHOULD say so rather than present two
+digits that cannot be resolved; how the apps should surface it is not yet
+decided and is tracked in `docs/testing.md`.
 
 ## Discovery, on the listener
 

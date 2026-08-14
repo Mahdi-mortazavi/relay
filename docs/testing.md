@@ -219,24 +219,40 @@ Run each row from an installable CI artifact; **pass = the app shows a correct s
 | M9 | Open Advanced on both; change theme (Android), change port (Android), view logs | Settings persist; logs are local-only and clearable |
 | M10 | Kill either app mid-session | Android: service stops cleanly; Windows: proxy restored on next launch |
 
-### The probe answer, on a phone that is its own hotspot
+### The probe cannot be answered from inside the phone's VPN — undecided
 
-A phone running a full-tunnel VPN routed its unicast probe answer into the
-tunnel instead of to the PC, so the PC never found it — see
-[`/shared/pairing-beacon.md`](../shared/pairing-beacon.md) → "The answer has to
-leave by the right interface". The responder now pins that socket to the
-`Network` that owns the address it advertises, which is verified on a phone
-sharing a **Wi-Fi/LAN** the laptop is also on.
+Measured on an SM-A307FN (Android 11) sharing a Wi-Fi the laptop was also on,
+with a full-tunnel VPN active on the phone — Relay's normal case:
 
-**The hotspot case is not verified and cannot currently be met.** A phone acting
-as its own access point exposes no `Network` for the AP interface, so nothing
-matches the advertised address and the socket stays on the default route — which,
-with a VPN up, is the tunnel. Whether the answer still escapes there is unknown:
-the AP interface may be reached by a different route rule than a station Wi-Fi
-one. To settle it, share from the phone's **own hotspot** with a full-tunnel VPN
-active, join the laptop to it, and probe from a program that has **no** Windows
-Firewall rule; an answer means the path works, silence means Full Mode's QR and
-the eight-character code are the only ways in on that topology.
+```
+ip route get 192.168.1.13 uid 10201   -> dev tun0  src 26.26.26.1    (Relay)
+ip route get 192.168.1.13 uid 10601   -> dev wlan0 src 192.168.1.14  (outside the VPN)
+ip route get 192.168.1.255 uid 10201  -> dev wlan0                   (broadcast escapes)
+
+probe, VPN up   -> no answer
+probe, VPN down -> {"v":1,"code":"72","mode":"wireguard",...}
+```
+
+The broadcast beacon arrives; the unicast answer does not. `Network.bindSocket`
+to the Wi-Fi network was tried on hardware and fails with `EPERM` — an app
+inside a VPN may not bind outside it. See
+[`/shared/pairing-beacon.md`](../shared/pairing-beacon.md) → "The answer cannot
+always be sent" for the full table of what was tried.
+
+**What this costs:** a fresh Windows install has no firewall rule for Relay, so
+it depends on the probe. Against a phone with a full-tunnel VPN it will never
+find that phone, while the phone displays two digits. The QR and the
+eight-character code still work.
+
+**Undecided, and deliberately not fixed by guesswork.** The phone can detect the
+condition, but it cannot tell whether the PC in front of it needs the probe or
+can hear broadcasts, so always falling back to the eight-character code would
+regress every PC that can. The options — surface a warning, always offer the
+long code alongside the two digits, or have the PC say what to do when probes go
+unanswered — are a UX decision, not a bug fix.
+
+**Also unmeasured:** the same test with the phone as its own hotspot, and any
+phone whose VPN is split-tunnel or excludes Relay.
 
 ### Discovery through a firewall nobody configured
 
