@@ -26,10 +26,10 @@ public class CodeEntryParityTests
 
     private static string CodeBoxAttribute(string name)
     {
-        var box = Regex.Match(Xaml, """<TextBox x:Name="CodeBox".*?/>""", RegexOptions.Singleline);
+        var box = Regex.Match(Xaml, "<TextBox x:Name=\"CodeBox\".*?/>", RegexOptions.Singleline);
         Assert.True(box.Success, "CodeBox is gone from MainWindow.xaml — this test needs updating.");
 
-        var attribute = Regex.Match(box.Value, $"""{name}="([^"]*)\"""");
+        var attribute = Regex.Match(box.Value, name + "=\"([^\"]*)\"");
         Assert.True(attribute.Success, $"CodeBox has no {name}.");
         return attribute.Groups[1].Value;
     }

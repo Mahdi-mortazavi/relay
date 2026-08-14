@@ -30,14 +30,14 @@ public sealed class BgraQrDecoder
     private readonly BarcodeReaderGeneric _reader = new()
     {
         AutoRotate = true,
-        // A phone in dark mode renders the QR light-on-dark: a valid QR that a
-        // plain decoder will not see, and dark mode is the default on most of
-        // the phones this app is pointed at.
-        TryInverted = true,
         Options =
         {
             PossibleFormats = [BarcodeFormat.QR_CODE],
             TryHarder = true,
+            // A phone in dark mode renders the QR light-on-dark: a valid QR that
+            // a plain decoder will not see, and dark mode is the default on most
+            // of the phones this app is pointed at.
+            TryInverted = true,
         },
     };
 
