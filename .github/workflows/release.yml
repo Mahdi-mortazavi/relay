@@ -7,8 +7,19 @@
 # /releases/latest/download/<asset> resolving for every platform — which is what
 # the README download buttons point at.
 #
-# The older per-platform workflows (android-release.yml, windows-release.yml)
-# still exist for shipping one platform on its own; this is the normal path.
+# This is the only way to publish. The per-platform workflows that used to sit
+# beside it (android-release.yml, windows-release.yml) were deleted, because
+# what they actually did was ship a *different app* under a similar name: the
+# Android one never built the Full Mode library and never passed
+# -PrelayRequireWg, so it could publish a signed release offering a mode that
+# could not start, and it emitted no universal APK at all. Worse, a release
+# under a tag like `android-v1.7.1` is not semver, so GitHub could hand it the
+# "Latest" title — at which point every README download link, which points at
+# /releases/latest/download/<asset>, 404s.
+#
+# Two users comparing "the universal APK" against "the arm64 APK" in August 2026
+# were, without any way to tell, comparing artifacts from different releases.
+# One publishing path is the fix for that.
 #
 # workflow_dispatch builds the same artifacts. Leave `publish` off for a dry
 # run; turn it on to cut the release without pushing a tag first — `gh release
@@ -95,6 +106,13 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.pfx"
 
+      # ci.yml runs on branches and pull requests, so a tag push matches none of
+      # its filters: before this, `git push origin v1.8.0` built and published
+      # without a single test having run on that commit. The suites are a minute
+      # and they are the ones that assert the two platforms agree.
+      - name: Unit tests
+        run: ./gradlew testReleaseUnitTest -PrelayVersion=${{ needs.version.outputs.version }} -PrelayRequireWg=true
+
       - name: Build signed APK and AAB
         env:
           RELAY_KEYSTORE_FILE: ${{ runner.temp }}/release.pfx
@@ -157,13 +175,25 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v3
 
+      # Same reasoning as the Android job: a tag push does not trigger ci.yml,
+      # so without this the installers ship untested.
+      - name: Unit tests
+        shell: pwsh
+        run: |
+          dotnet test windows/Relay.App.Tests/Relay.App.Tests.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       - name: Publish x64 and x86 (self-contained)
         shell: pwsh
         run: |
           $proj = "windows/Relay.App/Relay.App.csproj"
+          # Stamp the tag into the assembly. Without this the SDK defaults to
+          # 1.0.0.0 and the app's diagnostic report tells every user -- and
+          # every bug report -- a version that has never existed.
+          $ver = "${{ needs.version.outputs.version }}"
           foreach ($arch in @('x64', 'x86')) {
             $pub = "$env:GITHUB_WORKSPACE\publish-$arch"
-            $props = "/p:Configuration=Release /p:Platform=$arch /p:RuntimeIdentifier=win-$arch /p:SelfContained=true /p:WindowsAppSDKSelfContained=true"
+            $props = "/p:Configuration=Release /p:Platform=$arch /p:RuntimeIdentifier=win-$arch /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:Version=$ver"
             # Build before Publish: the MRT PRI generation that produces
             # resources.pri only runs on Build, and the window fails to load
             # without it.
@@ -180,6 +210,14 @@ jobs:
               Write-Error "resources.pri missing for $arch - the app would crash at launch."
               exit 1
             }
+            # Prove the stamp landed. This is the check that would have caught
+            # seven releases of "App: 1.0.0", and it costs one line.
+            $stamped = (Get-Item "$pub\Relay.App.dll").VersionInfo.ProductVersion
+            if ($stamped -notlike "$ver*") {
+              Write-Error "Relay.App.dll says '$stamped' but the tag says '$ver'."
+              exit 1
+            }
+            Write-Host "$arch stamped as $stamped"
           }
 
       # Full Mode's tunnel process, and the driver library it loads. Both go

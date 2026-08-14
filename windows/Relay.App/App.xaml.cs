@@ -134,37 +134,34 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Builds the tray icon and its menu.
+    ///
+    /// Two things here are load-bearing, and both were learned from issue #18
+    /// and the field reports that followed it:
+    ///
+    /// 1. The icon is added to the window's visual tree. A <c>TaskbarIcon</c> is
+    ///    a FrameworkElement; created free-floating it has no XamlRoot, and the
+    ///    flyout it hosts has no live XAML island to route input through. The
+    ///    library's own WinUI sample parents it and sets ContextMenuMode; so do
+    ///    we.
+    /// 2. Nothing in a menu command may await an unbounded operation. Exit used
+    ///    to `await DisconnectAsync()` first, so any hang anywhere below it —
+    ///    say a tunnel handshake blocking on a pipe read while holding the
+    ///    session lock — left the user with a menu that opened, accepted the
+    ///    click, and did nothing, forever. Every command is now bounded, and
+    ///    Exit has a backstop that cannot be blocked by managed code at all.
+    /// </summary>
     private void CreateTrayIcon()
     {
         var open = new MenuFlyoutItem { Text = Strings.Get("TrayOpen") };
         open.Click += (_, _) => _window?.ShowNearTray();
 
         var disconnect = new MenuFlyoutItem { Text = Strings.Get("Disconnect") };
-        disconnect.Click += async (_, _) => await AppController.Instance.DisconnectAsync();
+        disconnect.Click += (_, _) => _ = DisconnectFromTrayAsync();
 
         var exit = new MenuFlyoutItem { Text = Strings.Get("TrayExit") };
-        exit.Click += async (_, _) =>
-        {
-            await AppController.Instance.DisconnectAsync();
-            // Exiting after a failed rollback would strand the system proxy
-            // pointing at a phone that is gone, with the app that could undo it
-            // now closed. Show the window instead so the user sees the error and
-            // its retry, and stay running.
-            if (AppController.Instance.ErrorCode == "ERR_ROLLBACK_INCOMPLETE")
-            {
-                _window?.ShowNearTray();
-                return;
-            }
-            _tray?.Dispose();
-            // Exit() works by closing the app's windows, so the popover has to
-            // stop cancelling its own close first (issue #18).
-            if (_window is not null)
-            {
-                _window.ExitRequested = true;
-                _window.Close();
-            }
-            Exit();
-        };
+        exit.Click += (_, _) => _ = ExitFromTrayAsync();
 
         var menu = new MenuFlyout();
         menu.Items.Add(open);
@@ -182,8 +179,19 @@ public partial class App : Application
             LeftClickCommand = openCommand,
             NoLeftClickDelay = true,
             IconSource = LoadTrayIconSource(),
+            // Give the menu a real window of its own to live in. The default
+            // mode assumes a hosting XAML island that an unpackaged tray app
+            // does not otherwise have.
+            ContextMenuMode = ContextMenuMode.SecondWindow,
         };
-        _tray.ForceCreate();
+
+        // Parent it, so it has a XamlRoot. It draws nothing and takes no space.
+        _window?.HostTrayIcon(_tray);
+
+        // enablesEfficiencyMode defaults to true and puts the whole process into
+        // EcoQoS — idle priority — which is not what an app forwarding a phone's
+        // traffic wants.
+        _tray.ForceCreate(enablesEfficiencyMode: false);
 
         AppController.Instance.StateChanged += () =>
         {
@@ -198,6 +206,82 @@ public partial class App : Application
                 if (_tray is not null) _tray.ToolTipText = Strings.Get("AppName") + suffix;
             });
         };
+    }
+
+    /// <summary>
+    /// How long a tray command will wait for a clean disconnect before deciding
+    /// the answer does not matter. Long enough for a registry write and a
+    /// read-back, short enough that nobody reaches for Task Manager.
+    /// </summary>
+    private static readonly TimeSpan TrayCommandTimeout = TimeSpan.FromSeconds(5);
+
+    private static async Task<bool> DisconnectWithTimeoutAsync()
+    {
+        try
+        {
+            var work = Task.Run(() => AppController.Instance.DisconnectAsync());
+            var finished = await Task.WhenAny(work, Task.Delay(TrayCommandTimeout));
+            if (finished != work)
+            {
+                LocalLog.Add("Disconnect did not finish in time; continuing anyway");
+                return false;
+            }
+            await work;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LocalLog.Add($"Disconnect failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task DisconnectFromTrayAsync()
+    {
+        if (!await DisconnectWithTimeoutAsync())
+        {
+            // Say so rather than leaving a menu click that visibly did nothing.
+            _window?.DispatcherQueue.TryEnqueue(() => _window?.ShowNearTray());
+        }
+    }
+
+    private async Task ExitFromTrayAsync()
+    {
+        var clean = await DisconnectWithTimeoutAsync();
+
+        // Exiting after a failed rollback would strand the system proxy pointing
+        // at a phone that is gone, with the app that could undo it now closed.
+        // Show the window so the user sees the error and its retry, and stay
+        // running. A *timeout* is not that case: we know nothing, and refusing
+        // to close on "we know nothing" is how the app became unclosable.
+        if (clean && AppController.Instance.ErrorCode == "ERR_ROLLBACK_INCOMPLETE")
+        {
+            _window?.DispatcherQueue.TryEnqueue(() => _window?.ShowNearTray());
+            return;
+        }
+
+        _window?.DispatcherQueue.TryEnqueue(() =>
+        {
+            try { _tray?.Dispose(); } catch { }
+            // Exit() works by closing the app's windows, so the popover has to
+            // stop cancelling its own close first (issue #18).
+            if (_window is not null)
+            {
+                _window.ExitRequested = true;
+                _window.Close();
+            }
+            try { Exit(); } catch { }
+        });
+
+        // The backstop. Everything above is managed code that something else
+        // can block; this is not. If the process is still alive shortly after
+        // being told to leave, it leaves. "Only Task Manager could close it"
+        // must never be a true sentence about this app again.
+        _ = Task.Delay(TimeSpan.FromSeconds(3)).ContinueWith(_ =>
+        {
+            try { LocalLog.Add("Exit backstop fired"); } catch { }
+            Environment.Exit(0);
+        });
     }
 
     private static void Cleanup()

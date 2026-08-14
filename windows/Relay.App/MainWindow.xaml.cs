@@ -200,6 +200,28 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Adopts the tray icon into this window's visual tree.
+    ///
+    /// A TaskbarIcon is a FrameworkElement, and its context flyout needs a
+    /// XamlRoot to route input through. Created free-floating — which is how it
+    /// was — the menu could open and its items could still never raise Click,
+    /// which is one half of "Exit and Disconnect do nothing" (issue #18, and the
+    /// August field reports that reopened it). It draws nothing and is pinned to
+    /// zero size, so it cannot disturb the layout it now lives in.
+    /// </summary>
+    public void HostTrayIcon(FrameworkElement trayIcon)
+    {
+        trayIcon.Width = 0;
+        trayIcon.Height = 0;
+        trayIcon.HorizontalAlignment = HorizontalAlignment.Left;
+        trayIcon.VerticalAlignment = VerticalAlignment.Top;
+        // Never let a hosting failure cost the user their tray icon entirely:
+        // an unparented icon is degraded, an exception here is no icon at all.
+        try { Root.Children.Add(trayIcon); }
+        catch (Exception ex) { LocalLog.Add($"Tray hosting failed: {ex.Message}"); }
+    }
+
     /// <summary>Positions the popover above the tray and brings it to the real foreground.</summary>
     public void ShowNearTray()
     {
@@ -372,6 +394,8 @@ public sealed partial class MainWindow : Window
         DisconnectButton.Content = Strings.Get("Disconnect");
         ErrorDismissButton.Content = Strings.Get("Dismiss");
         AdvancedHeader.Text = Strings.Get("Advanced");
+        AdvancedVersionLabel.Text = Strings.Get("AdvancedVersion");
+        AdvancedVersionValue.Text = AppVersion.Current;
         AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
         AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
         AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
@@ -424,14 +448,10 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void OnShareLogsClick(object sender, RoutedEventArgs e)
     {
-        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         var entries = LocalLog.Snapshot()
             .Select(entry => (entry.ElapsedSeconds, entry.Message))
             .ToList();
-        var report = DiagnosticReport.Build(
-            StateSummary(),
-            entries,
-            version is null ? "unknown" : $"{version.Major}.{version.Minor}.{version.Build}");
+        var report = DiagnosticReport.Build(StateSummary(), entries, AppVersion.Current);
 
         var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
         package.SetText(report);
@@ -570,6 +590,7 @@ public sealed partial class MainWindow : Window
             "ERR_CODE_INVALID" => ("ErrTitleCode", "ErrCodeInvalid", "EnterCode"),
             "ERR_CODE_NOT_FOUND" => ("ErrTitleCode", "ErrCodeNotFound", "EnterCode"),
             "ERR_CODE_AMBIGUOUS" => ("ErrTitleCode", "ErrCodeAmbiguous", "EnterCode"),
+            "ERR_FULL_MODE_NEEDS_QR" => ("ErrTitleCode", "ErrFullModeNeedsQr", "ScanQr"),
             "ERR_HOST_UNREACHABLE" => ("ErrTitleNoPhone", "ErrHostUnreachable", "TryAgain"),
             "ERR_WRONG_NETWORK" => ("ErrTitleNetwork", "ErrWrongNetwork", "TryAgain"),
             "ERR_CONNECTION_LOST" => ("ErrTitleLost", "ErrConnectionLost", "TryAgain"),
@@ -997,6 +1018,18 @@ public sealed partial class MainWindow : Window
     private async Task ConnectToAsync(LanDiscovery.Device device)
     {
         if (_connecting) return;
+
+        // A phone in Full Mode announces itself like any other, but its beacon
+        // cannot carry what Full Mode needs — the keys live in the QR and
+        // nowhere else. Connecting anyway produced "That's not a Relay code."
+        // in front of a perfectly correct code, which reads as the two apps
+        // being incompatible. Say what to do instead.
+        if (device.Mode == QrPayload.ModeWireguard)
+        {
+            ShowLocalError("ERR_FULL_MODE_NEEDS_QR");
+            return;
+        }
+
         _connecting = true;
         _localError = null;
         _mode = InputMode.None;

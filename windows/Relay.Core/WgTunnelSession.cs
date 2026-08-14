@@ -46,7 +46,12 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         /// <summary>Writes a line to the child's stdin.</summary>
         void WriteLine(string line);
 
-        /// <summary>Reads one line of the child's stdout, or null at end of stream.</summary>
+        /// <summary>
+        /// Reads one line of the child's stdout. Null means end of stream — the
+        /// child is gone. An empty string means "nothing yet"; implementations
+        /// must not block indefinitely, because the caller's timeout is only
+        /// re-checked between calls.
+        /// </summary>
         string? ReadLine();
 
         /// <summary>Closes stdin, which is how the child is asked to stop.</summary>
@@ -318,6 +323,9 @@ public sealed class ElevatedTunnelHost(string executablePath) : WgTunnelSession.
 
     private sealed class Handle : WgTunnelSession.IProcessHandle
     {
+        /// <summary>How long a single read may block before the caller's own deadline is re-checked.</summary>
+        private const int ReadSliceMs = 1000;
+
         private readonly Process _process;
         private readonly System.IO.Pipes.NamedPipeServerStream _pipe;
         private readonly StreamWriter _writer;
@@ -335,7 +343,36 @@ public sealed class ElevatedTunnelHost(string executablePath) : WgTunnelSession.
 
         public void WriteLine(string line) => _writer.WriteLine(line);
 
-        public string? ReadLine() => _reader.ReadLine();
+        /// <summary>
+        /// Reads a line, or returns empty when the child has simply not spoken
+        /// yet. The deadline in <c>WaitForReady</c> is only re-checked between
+        /// lines, so a blocking read is an unbounded one: a tunnel process that
+        /// connects the pipe and then says nothing used to park this thread
+        /// forever — while it held the session lock, which is the same lock
+        /// Disconnect and Exit take. That is how a tray menu ends up with two
+        /// dead commands and Task Manager as the only way out.
+        /// </summary>
+        public string? ReadLine()
+        {
+            try
+            {
+                _pipe.ReadTimeout = ReadSliceMs;
+                return _reader.ReadLine();
+            }
+            catch (TimeoutException)
+            {
+                // Empty (not null) so the caller loops and re-checks its own
+                // deadline; null means "the child is gone", which is different.
+                return string.Empty;
+            }
+            catch (InvalidOperationException)
+            {
+                // Some pipe configurations refuse a timeout. Falling back to a
+                // blocking read is still better than failing the connect, and
+                // the caller's deadline is the backstop for everything else.
+                return _reader.ReadLine();
+            }
+        }
 
         /// <summary>
         /// Closing the pipe is how the tunnel is told to stop — and because the

@@ -9,6 +9,83 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+### Fixed — the August field reports
+
+Five separate defects, reported together and for a while assumed to be one. The
+thread that connected them was that nothing in the product could say which build
+was in front of anybody.
+
+- **Browsers now actually go through Relay.** The system proxy was written as
+  `socks=host:port`. In WinINET's syntax that means SOCKS**4** — Chromium maps a
+  bare `socks` scheme to `SCHEME_SOCKS4` — and the phone only ever speaks
+  SOCKS5. So Chrome and Edge opened a socket, sent a SOCKS4 handshake, and had
+  it dropped, on every page, while Relay's own health probe spoke SOCKS5 by hand
+  and went on reporting **Connected**. Users found that entering the same
+  proxy by hand in a browser extension worked perfectly and concluded the app was
+  broken; it was. The value is now `socks=socks5://host:port`, asserted
+  literally by a test so no future edit can quietly walk it back.
+- **The Windows QR scanner reads a phone.** Camera frames arrive as BGRA8, four
+  bytes per pixel, and were handed to ZXing's three-argument constructor — which
+  does not auto-detect anything, and is hard-coded to three-byte RGB24. Every
+  frame was consumed at the wrong stride, squeezed by 4/3 with the alpha byte
+  folded in as a bright comb; no finder pattern survived, so scanning failed at
+  every distance in every build. The decode moved into `Relay.Core` as
+  `BgraQrDecoder`, where a test can render a real QR into a real BGRA buffer and
+  demand the payload back — which is why this went unnoticed for seven releases:
+  it lived in a WinUI project no test assembly can reference. Dark-mode QR codes
+  (light-on-dark) now decode too.
+- **Exit and Disconnect work from the tray.** Two independent causes, both
+  fixed. The tray icon was created free-floating, so its menu had no XamlRoot to
+  route clicks through; it now lives in the window's visual tree with an
+  explicit `ContextMenuMode`. And every menu command awaited an unbounded
+  operation: a Full Mode handshake blocking on a pipe read held the session lock
+  that Disconnect and Exit both need, so the menu opened, accepted the click and
+  did nothing, forever. Reads now have a deadline, commands have a timeout, and
+  Exit has a backstop that no managed code can block. "Only Task Manager could
+  close it" is not a sentence that should be true of a tray app.
+- **The camera preview is no longer mirrored on a right-to-left Windows.** The
+  window sets `FlowDirection` for RTL locales, which mirrors its whole subtree —
+  including the `Image` showing camera frames. The preview is pinned to
+  left-to-right. (Cosmetic on its own; it is not why scanning failed, and
+  treating it as the cause is part of what delayed finding the real one.)
+- **A phone sharing in Full Mode says so instead of being called invalid.**
+  Full Mode's keys exist only in the QR, so a pairing built from the beacon
+  alone was rejected with *"That's not a Relay code"* — in front of a code that
+  was entirely correct. New `ERR_FULL_MODE_NEEDS_QR` says to scan the QR.
+
+### Fixed — knowing which build you have
+
+- **The app reports its real version.** Nothing in the .NET build ever stamped
+  one, so the diagnostic report — the only place a Windows user ever sees a
+  version — said `1.0.0` from v1.0.0 through v1.7.0, while Add/Remove Programs
+  and the installer filename both said the truth. Every field report named a
+  version that did not exist. The tag is now stamped into the assembly, the
+  release job fails if the stamp did not land, and both apps show their version
+  in **Advanced**, where a user can read it out.
+- **One publishing path.** `android-release.yml` and `windows-release.yml` are
+  deleted. The Android one never built the Full Mode library and never passed
+  `-PrelayRequireWg`, so it could publish a signed release of an app offering a
+  mode that could not start, and it emitted no universal APK; both created
+  releases under non-semver tags that GitHub could promote to *Latest*, which
+  breaks every `releases/latest/download/…` link in the README at once. This is
+  the mechanism behind the report that the universal and arm64 APKs "have
+  different code": they were built from different releases and nothing on either
+  screen could say so. A tag that is not `v*.*.*` now releases nothing.
+- **A tag runs the tests before it ships.** `ci.yml` triggers on branches and
+  pull requests, so a tag push matched none of its filters and published without
+  a single test having run on that commit. Both release jobs now run their unit
+  suites first.
+- **The phone only shows two digits when two digits can be found.** The short
+  code carries no address; it works only if a PC can hear the phone. On a network
+  where neither broadcast nor probe-answer is possible it was still displayed,
+  so the PC searched for it forever — and the escape hatch on the PC ("my phone
+  shows a longer code") led to a code the phone had never printed. The phone now
+  checks, and falls back to the eight-character code, which needs no discovery.
+- `repo-maintenance.yml`'s "keep only the newest release" switch is restricted to
+  `v*` tags and orders by version rather than by creation date. As written it
+  could have kept a stray non-semver release and deleted the one the README
+  points at.
+
 ### Added
 
 - **Full Mode works on Android and can be switched on.** The phone runs a

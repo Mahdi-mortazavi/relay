@@ -10,4 +10,10 @@
     <RootNamespace>Relay.Core</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- QR decoding lives here, not in the WinUI project, so that it can be
+         tested at all. See BgraQrDecoder for why that mattered. -->
+    <PackageReference Include="ZXing.Net" Version="0.16.10" />
+  </ItemGroup>
+
 </Project>

@@ -83,7 +83,14 @@
                             <Border.Clip>
                                 <RectangleGeometry Rect="0,0,340,250" />
                             </Border.Clip>
-                            <Image x:Name="PreviewImage" Stretch="UniformToFill" />
+                            <!-- FlowDirection is pinned. Camera frames are not
+                                 UI: on a Persian (or any RTL) Windows the
+                                 window's RightToLeft flow mirrors everything in
+                                 its subtree, including this Image, so the
+                                 preview came out flipped while the Windows
+                                 Camera app looked normal (issue #40). -->
+                            <Image x:Name="PreviewImage" Stretch="UniformToFill"
+                                   FlowDirection="LeftToRight" />
                         </Border>
                     </Border>
 
@@ -217,6 +224,19 @@
                            Foreground="{StaticResource LabelTertiary}" />
             </Expander.Header>
             <StackPanel Spacing="12" Padding="2,8,2,2">
+                <!-- Which build this is, where a user can read it out. Two
+                     people comparing a stale download against a current one
+                     could not previously tell that was what they were doing,
+                     and the diagnostic report they sent claimed 1.0.0. -->
+                <Grid>
+                    <TextBlock x:Name="AdvancedVersionLabel" Style="{StaticResource CaptionText}"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="AdvancedVersionValue" HorizontalAlignment="Right"
+                               Style="{StaticResource MonoText}"
+                               IsTextSelectionEnabled="True"
+                               FlowDirection="LeftToRight"
+                               Foreground="{StaticResource LabelSecondary}" />
+                </Grid>
                 <Grid>
                     <TextBlock x:Name="AdvancedAddressLabel" Style="{StaticResource CaptionText}"
                                VerticalAlignment="Center" />

@@ -2,7 +2,6 @@ using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Storage.Streams;
-using ZXing;
 
 namespace Relay.App.Services;
 
@@ -17,15 +16,8 @@ public sealed class CameraQrScanner : IDisposable
     private long _lastDecodeTicks;
     private int _disposed;
 
-    private readonly BarcodeReaderGeneric _decoder = new()
-    {
-        AutoRotate = true,
-        Options =
-        {
-            PossibleFormats = [BarcodeFormat.QR_CODE],
-            TryHarder = true,
-        },
-    };
+    // The decode itself lives in Relay.Core, where a test can reach it.
+    private readonly Relay.Core.BgraQrDecoder _decoder = new();
 
     /// <summary>BGRA8 premultiplied preview frame, ready for SoftwareBitmapSource.</summary>
     public event Action<SoftwareBitmap>? PreviewFrame;
@@ -120,17 +112,15 @@ public sealed class CameraQrScanner : IDisposable
         {
             var width = bitmap.PixelWidth;
             var height = bitmap.PixelHeight;
-            var buffer = new Windows.Storage.Streams.Buffer((uint)(width * height * 4));
+            var buffer = new Windows.Storage.Streams.Buffer(
+                (uint)(width * height * Relay.Core.BgraQrDecoder.BytesPerPixel));
             bitmap.CopyToBuffer(buffer);
             var bytes = new byte[buffer.Length];
             using (var reader = DataReader.FromBuffer(buffer))
             {
                 reader.ReadBytes(bytes);
             }
-            // 3-arg ctor auto-detects 4 bytes/pixel; channel order (BGRA vs RGBA)
-            // is irrelevant for a black/white QR's luminance.
-            var luminance = new RGBLuminanceSource(bytes, width, height);
-            return _decoder.Decode(luminance)?.Text;
+            return _decoder.Decode(bytes, width, height);
         }
         catch (Exception)
         {

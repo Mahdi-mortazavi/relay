@@ -33,6 +33,7 @@
 
     <!-- Advanced -->
     <string name="advanced">پیشرفته</string>
+    <string name="advanced_version">نسخه</string>
     <string name="advanced_ip">نشانی هات‌اسپات</string>
     <string name="advanced_port">پورت ترجیحی</string>
     <string name="advanced_port_hint">۰ = خودکار</string>

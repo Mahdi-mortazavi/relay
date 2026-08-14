@@ -84,8 +84,10 @@ android {
     // x86_64, and while the Google APIs images can translate arm64, the AOSP
     // images cannot — `installDebug` there fails with "Could not find build of
     // variant which supports ... an ABI in x86_64, x86" and no test runs at all.
-    // Gated behind a property so release builds are completely unaffected and
-    // keep shipping exactly one APK.
+    // Gated behind a property so release builds are completely unaffected.
+    // (They ship two APKs, not one — arm64 and universal. The comment here used
+    // to say "exactly one", which contradicted `isUniversalApk = true` twelve
+    // lines below and was an invitation to "fix" the code to match the prose.)
     splits {
         abi {
             isEnable = true

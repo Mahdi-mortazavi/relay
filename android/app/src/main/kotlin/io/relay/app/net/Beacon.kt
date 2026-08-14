@@ -46,8 +46,37 @@ class Beacon(
     private var job: Job? = null
     private var answerJob: Job? = null
 
+    /**
+     * Whether this phone can be found on the network at all — i.e. whether the
+     * two-digit code means anything.
+     *
+     * The two-digit code is a *selector*: it carries no address, so it is only
+     * useful if a PC can hear this phone. On a network that supports neither
+     * path — no interface with a broadcast address, and 47654 already taken so
+     * probes go unanswered — the phone would still show two digits, the PC
+     * would search for them forever, and the "my phone shows a longer code"
+     * escape hatch on the PC led to a code the phone had decided not to print.
+     * Asking this lets the UI fall back to the self-describing eight-character
+     * code, which needs no discovery at all.
+     */
+    @Volatile
+    var canAnnounce: Boolean = false
+        private set
+
     fun start() {
         if (job != null) return
+
+        // Bind the probe socket here rather than inside the coroutine so that
+        // `canAnnounce` has an answer by the time start() returns — the caller
+        // decides what to put on screen from it, and cannot wait for a
+        // coroutine to be scheduled first. Both operations are local socket and
+        // interface lookups; neither talks to the network.
+        val probeSocket = openProbeSocket()
+        canAnnounce = probeSocket != null || broadcastAddresses().isNotEmpty()
+        if (!canAnnounce) {
+            Log.d(TAG, "no way to announce on this network; the short code would be a dead end")
+        }
+
         job = scope.launch {
             DatagramSocket().use { socket ->
                 socket.broadcast = true
@@ -58,7 +87,7 @@ class Beacon(
                 }
             }
         }
-        answerJob = scope.launch { answerProbes() }
+        answerJob = probeSocket?.let { socket -> scope.launch { answerProbes(socket) } }
     }
 
     /**
@@ -76,18 +105,19 @@ class Beacon(
      * happens on its own socket and the passive path still works. Failing to
      * bind must not stop the phone from sharing.
      */
-    private suspend fun answerProbes() {
-        val socket = try {
-            DatagramSocket(null).apply {
-                reuseAddress = true
-                broadcast = true
-                soTimeout = PROBE_POLL_MS
-                bind(java.net.InetSocketAddress(PORT))
-            }
-        } catch (e: IOException) {
-            Log.d(TAG, "not answering probes: ${e.message}")
-            return
+    private fun openProbeSocket(): DatagramSocket? = try {
+        DatagramSocket(null).apply {
+            reuseAddress = true
+            broadcast = true
+            soTimeout = PROBE_POLL_MS
+            bind(java.net.InetSocketAddress(PORT))
         }
+    } catch (e: IOException) {
+        Log.d(TAG, "not answering probes: ${e.message}")
+        null
+    }
+
+    private suspend fun answerProbes(socket: DatagramSocket) {
         socket.use {
             val answer = payload(STATE_SHARING)
             val buffer = ByteArray(512)

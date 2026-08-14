@@ -61,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -677,6 +678,13 @@ private fun AdvancedSection(
                 modifier = Modifier.fillMaxWidth().glassPanel(radius = 16.dp).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                // Which build this is. Two people holding two APKs with the same
+                // name and different vintages had no way to discover that was
+                // what they were doing, and the report they sent named a version
+                // that never existed. Read from the installed package, so it is
+                // the truth about this APK rather than about the source tree.
+                LabeledValue(stringResource(R.string.advanced_version), installedVersion())
+
                 // Hotspot address (read-only, from current state)
                 val host = when (state) {
                     is ConnectionState.Advertising -> "${state.payload.host}:${state.payload.port}"
@@ -754,6 +762,17 @@ private fun AdvancedSection(
                 }
             }
         }
+    }
+}
+
+/** The versionName of the APK actually installed, or "unknown". */
+@Composable
+private fun installedVersion(): String {
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: "unknown"
     }
 }
 

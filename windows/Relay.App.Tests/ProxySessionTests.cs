@@ -39,6 +39,27 @@ public class ProxySessionTests
     private static readonly ProxySnapshot UserSnapshot =
         new(true, "http=corp-proxy:8080", "intranet;<local>", "http://corp/proxy.pac");
 
+    /// <summary>
+    /// The literal string, asserted literally, because its exact spelling is
+    /// the difference between every browser working and none of them working.
+    ///
+    /// WinINET's bare <c>socks=host:port</c> means SOCKS<b>4</b> — Chromium's
+    /// proxy_config.cc maps the "socks" scheme to SCHEME_SOCKS4 by default — and
+    /// the phone only speaks SOCKS5. So Chrome and Edge opened a socket, sent a
+    /// SOCKS4 CONNECT, and had it dropped, while Relay's own probe (which speaks
+    /// SOCKS5 directly) went on reporting "Connected". Users found the SOCKS5
+    /// proxy worked perfectly when entered by hand in a browser extension and
+    /// concluded, reasonably, that the app was broken. It was.
+    ///
+    /// The other tests compare against AppliedFor(), so they would have followed
+    /// the mistake anywhere it went. This one does not.
+    /// </summary>
+    [Fact]
+    public void The_applied_server_names_socks5_explicitly()
+    {
+        Assert.Equal("socks=socks5://192.168.43.1:1080", ProxySession.AppliedFor("192.168.43.1", 1080).Server);
+    }
+
     [Fact]
     public void Connect_applies_socks_proxy_and_persists_backup_first()
     {
