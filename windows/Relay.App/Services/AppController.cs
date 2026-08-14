@@ -206,9 +206,16 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     /// than cosmetic. Relay changes nothing on this machine here — the adapter
     /// and its routes belong to the tunnel process and vanish with it — so
     /// there is no snapshot to take, no rollback to verify, and no recovery
-    /// hook to arm against a crash. There is also no probe: the tunnel reports
-    /// ready only after a WireGuard handshake, which is a stronger statement
-    /// than "something answered on that port".
+    /// hook to arm against a crash.
+    ///
+    /// There is no probe because the tunnel reports ready only after a real
+    /// WireGuard handshake, which is a stronger statement than "something
+    /// answered on that port". That was written before it was true: the client
+    /// used to print READY as soon as the adapter existed, so this said
+    /// "Connected (Full Mode)" over a tunnel whose peer had never answered, and
+    /// — with no probe and no supervision, on the strength of this very comment
+    /// — went on saying it. The client now waits for the handshake, and
+    /// <see cref="StartTunnelWatch"/> keeps watching afterwards.
     /// </summary>
     private async Task ConnectFullModeAsync(QrPayload payload)
     {
@@ -249,7 +256,47 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             return;
         }
         LocalLog.Add("Connected (Full Mode)");
+        StartTunnelWatch();
     }
+
+    /// <summary>
+    /// Full Mode's liveness, which nothing used to check.
+    ///
+    /// The tunnel process exits when its peer stops handshaking, and the adapter
+    /// goes with it, so the process being gone *is* "the tunnel is dead" — one
+    /// signal rather than two that can disagree. No reconnect schedule here, and
+    /// that is deliberate: the phone mints fresh keys every time sharing
+    /// restarts, so the configuration this session was built from cannot be
+    /// dialled again. Re-pairing is the only honest recovery, and saying so
+    /// beats retrying five times against keys that no longer exist.
+    /// </summary>
+    private void StartTunnelWatch()
+    {
+        StopSupervisor();
+        var watch = new CancellationTokenSource();
+        _supervisor = watch;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!watch.IsCancellationRequested)
+                {
+                    await Task.Delay(TunnelWatchInterval, watch.Token).ConfigureAwait(false);
+                    if (_tunnel.IsRunning) continue;
+                    LocalLog.Add("The tunnel stopped — the phone is no longer answering");
+                    Fail("ERR_CONNECTION_LOST");
+                    return;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Disconnect cancelled us; that is the ordinary way out.
+            }
+        }, watch.Token);
+    }
+
+    /// <summary>How often the tunnel is checked for having gone.</summary>
+    private static readonly TimeSpan TunnelWatchInterval = TimeSpan.FromSeconds(5);
 
     public void DismissError() => Dispatch("dismiss");
 

@@ -100,6 +100,7 @@ public static class Strings
         ["ErrTitleTunnel"] = "The tunnel didn't start",
         ["ErrWgElevationDeclined"] = "Full Mode has to create a network adapter, which Windows only allows with your permission. Choose Yes on the prompt, or switch the phone to Fast Mode.",
         ["ErrWgStartFailed"] = "Relay couldn't bring the tunnel up. Close any other VPN that is running, then try again — or switch the phone to Fast Mode.",
+        ["ErrWgNoHandshake"] = "The tunnel came up but the phone never answered. Its QR code changes every time sharing restarts, so scan the one the phone is showing now.",
         ["ErrWgStopFailed"] = "The tunnel process wouldn't stop. Restart Relay; the adapter and its routes are removed when it exits.",
         ["ErrCameraDenied"] = "Relay can't use the camera — it may be missing, in use by another app, or blocked. Allow camera access in Windows Settings > Privacy, or enter the code manually.",
     };
@@ -175,6 +176,7 @@ public static class Strings
         ["ErrTitleTunnel"] = "تونل بالا نیامد",
         ["ErrWgElevationDeclined"] = "حالت کامل باید یک آداپتور شبکه بسازد و ویندوز این کار را فقط با اجازهٔ شما انجام می‌دهد. در پنجرهٔ ویندوز «بله» را بزنید، یا گوشی را روی حالت سریع بگذارید.",
         ["ErrWgStartFailed"] = "رله نتوانست تونل را بالا بیاورد. اگر VPN دیگری روشن است ببندید و دوباره تلاش کنید — یا گوشی را روی حالت سریع بگذارید.",
+        ["ErrWgNoHandshake"] = "تونل بالا آمد ولی گوشی پاسخی نداد. کد QR گوشی با هر بار شروع دوبارهٔ اشتراک عوض می‌شود؛ همان کدی را که الان روی گوشی است اسکن کنید.",
         ["ErrWgStopFailed"] = "پروسهٔ تونل بسته نشد. رله را دوباره اجرا کنید؛ آداپتور و مسیرهایش با بسته شدن آن پاک می‌شوند.",
         ["ErrCameraDenied"] = "رله به دوربین دسترسی ندارد — ممکن است نبودن دوربین، اشغال توسط برنامه‌ای دیگر، یا مسدودبودن باشد. در تنظیمات ویندوز > حریم خصوصی دسترسی دوربین را فعال کنید، یا کد را دستی وارد کنید.",
     };

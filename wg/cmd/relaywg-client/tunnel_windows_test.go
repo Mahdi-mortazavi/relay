@@ -146,6 +146,86 @@ func TestTheAdapterComesUpAndCarriesRoutedTraffic(t *testing.T) {
 	}
 }
 
+// READY has to mean the peer answered, not merely that the adapter exists.
+//
+// Creating a WinTun adapter, addressing it and routing into it all succeed
+// whether or not anything is listening at the far end, so for four releases the
+// client reported READY the moment configureAdapter returned. The app took that
+// as "Connected (Full Mode)" and — having no probe and no supervision — went on
+// saying it over a tunnel that had never handshaked. The way in was ordinary:
+// the phone mints fresh keys every time sharing restarts, so a QR scanned a few
+// minutes earlier names keys the endpoint no longer has.
+//
+// Here nothing is listening on the endpoint port at all, which is the same thing
+// from the client's side as a peer whose keys have moved on.
+func TestReadyIsWithheldWhenThePeerNeverAnswers(t *testing.T) {
+	binary := os.Getenv("RELAYWG_CLIENT")
+	if binary == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+
+	clientPrivate, _ := keyPair(t)
+	_, serverPublic := keyPair(t)
+	port := freeUDPPort(t) // deliberately nobody listening
+
+	client := exec.Command(binary,
+		"-name", "RelayTestDead",
+		"-address", "10.13.37.2/32",
+		"-routes", "198.51.100.0/24",
+	)
+	stdin, err := client.StdinPipe()
+	if err != nil {
+		t.Fatalf("stdin: %v", err)
+	}
+	stdout, err := client.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout: %v", err)
+	}
+	client.Stderr = os.Stderr
+	if err := client.Start(); err != nil {
+		t.Fatalf("starting the client: %v", err)
+	}
+	defer func() {
+		stdin.Close()
+		client.Wait()
+	}()
+
+	fmt.Fprintf(stdin, "private_key=%s\npublic_key=%s\nendpoint=127.0.0.1:%d\n"+
+		"allowed_ip=0.0.0.0/0\npersistent_keepalive_interval=1\n%s\n",
+		clientPrivate, serverPublic, port, configTerminator)
+
+	lines := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			text := strings.TrimSpace(scanner.Text())
+			if text != "" {
+				lines <- text
+				return
+			}
+		}
+		lines <- ""
+	}()
+
+	select {
+	case line := <-lines:
+		if line == "READY" {
+			t.Fatal("READY was reported for a tunnel whose peer never answered — " +
+				"this is the bug where the app says Connected over a dead tunnel")
+		}
+		if line != noHandshakeLine {
+			t.Fatalf("expected %q or a clean exit, got %q", noHandshakeLine, line)
+		}
+	case <-time.After(handshakeTimeout + 40*time.Second):
+		client.Process.Kill()
+		t.Fatal("the client neither reported the missing handshake nor exited")
+	}
+
+	if adapterExists(t, "RelayTestDead") {
+		t.Error("the adapter is still there after the client gave up on the peer")
+	}
+}
+
 func waitForReady(t *testing.T, stdout io.Reader, client *exec.Cmd) {
 	t.Helper()
 	ready := make(chan string, 1)

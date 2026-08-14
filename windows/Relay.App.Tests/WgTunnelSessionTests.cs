@@ -116,6 +116,28 @@ public class WgTunnelSessionTests
     }
 
     [Fact]
+    public void APeerThatNeverAnswersIsReportedAsAStaleQrNotAsABrokenTunnel()
+    {
+        // The failure a person actually hits: the phone mints fresh WireGuard
+        // keys every time sharing restarts, so a QR scanned a few minutes ago
+        // names keys the endpoint no longer has. The adapter still comes up —
+        // nothing about it depends on the peer — so this used to be reported as
+        // success, and the app said "Connected (Full Mode)" over a tunnel that
+        // could not carry a byte. Rescanning is the fix, so the error has to say
+        // that rather than send someone to close their other VPN.
+        var process = new StubProcess();
+        process.Output.Enqueue(WgTunnelSession.NoHandshakeLine);
+        var session = new WgTunnelSession(new StubHost(process));
+
+        var result = session.Connect(Params(), "192.168.43.1");
+
+        Assert.False(result.Ok);
+        Assert.Equal("ERR_WG_NO_HANDSHAKE", result.ErrorCode);
+        Assert.True(process.InputClosed || process.Killed);
+        Assert.False(session.IsRunning);
+    }
+
+    [Fact]
     public void AChildThatNeverBecomesReadyIsNotLeftRunning()
     {
         // The dangerous shape: a tunnel process alive with an adapter up, while
