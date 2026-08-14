@@ -56,12 +56,19 @@ object ConnectionRepository {
      * After a reconnect that rebinds on a new hotspot IP, the old QR/code and any
      * client count are stale: return to Advertising with the fresh payload.
      * Only valid while sharing (Advertising/Connected); ignored otherwise.
+     *
+     * [shortCode] has to be carried through. It is the same code for the life of
+     * the session — the whole point of drawing it once is that the number on
+     * screen never changes under someone who is reading it — and dropping it
+     * here made the phone fall back to displaying the eight-character code the
+     * moment the hotspot changed address, while the PC was still being told to
+     * ask for two digits.
      */
     @Synchronized
-    fun reissue(payload: io.relay.app.core.QrPayload, typedCode: String?) {
+    fun reissue(payload: io.relay.app.core.QrPayload, typedCode: String?, shortCode: String?) {
         _state.update { current ->
             if (current is ConnectionState.Advertising || current is ConnectionState.Connected) {
-                ConnectionState.Advertising(payload, typedCode)
+                ConnectionState.Advertising(payload, typedCode, shortCode)
             } else {
                 current
             }

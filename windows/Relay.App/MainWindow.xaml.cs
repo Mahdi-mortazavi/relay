@@ -45,6 +45,15 @@ public sealed partial class MainWindow : Window
     private bool _shown;
     private bool _pulsing;
 
+    /// <summary>
+    /// True while the code box is asking for the eight-character fallback
+    /// instead of the two digits the phone normally shows.
+    /// </summary>
+    private bool _longCode;
+
+    /// <summary>Guards the two paths that can resolve a code at the same moment.</summary>
+    private bool _connecting;
+
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -90,6 +99,9 @@ public sealed partial class MainWindow : Window
 
         _controller.StateChanged += () => DispatcherQueue.TryEnqueue(Render);
         LocalLog.Changed += () => DispatcherQueue.TryEnqueue(RefreshLogs);
+        // Discovery runs on its own socket thread; everything it touches here
+        // is UI, so it is marshalled rather than handled where it arrives.
+        _discovery.DevicesChanged += _ => DispatcherQueue.TryEnqueue(OnDevicesChanged);
         Root.ActualThemeChanged += (_, _) => Render();
         AttachPressFeedback();
         AttachKeyboard();
@@ -192,6 +204,10 @@ public sealed partial class MainWindow : Window
     public void ShowNearTray()
     {
         _shown = true;
+        // Ask the network who is there only while someone is looking. A tray
+        // app that broadcasts once a second all day would be a bad neighbour,
+        // and discovery is worth nothing when the window is hidden.
+        try { _discovery.SetProbing(true); } catch (Exception ex) { LocalLog.Add($"Probe failed: {ex.Message}"); }
         PositionWindow(MinPopupHeight);
         _shownAtTick = Environment.TickCount64;
         AppWindow.Show();
@@ -234,6 +250,7 @@ public sealed partial class MainWindow : Window
     private void HideToTray()
     {
         StopScanning();
+        _discovery.SetProbing(false);
         _shown = false;
         AppWindow.Hide();
     }
@@ -345,6 +362,8 @@ public sealed partial class MainWindow : Window
         ScanHintText.Text = Strings.Get("ScanAiming");
         ScanCancelButton.Content = Strings.Get("Cancel");
         CodeHintText.Text = Strings.Get("CodeHint");
+        CodeModeLink.Content = Strings.Get("CodeUseLong");
+        FoundHeader.Text = Strings.Get("CodeNearby");
         CodeConnectButton.Content = Strings.Get("Connect");
         CodeCancelButton.Content = Strings.Get("Cancel");
         BusyText.Text = Strings.Get("BusyConnecting");
@@ -710,31 +729,157 @@ public sealed partial class MainWindow : Window
     {
         _localError = null;
         _mode = InputMode.Code;
+        _longCode = false;
+        _connecting = false;
         CodeBox.Text = string.Empty;
+        ApplyCodeMode();
+        // Ask straight away rather than waiting out a probe tick: the phone can
+        // answer before the box has finished animating in, and a list that
+        // fills a second after the user starts typing has already lost them.
+        try { _discovery.Probe(); } catch (Exception ex) { LocalLog.Add($"Probe failed: {ex.Message}"); }
+        PopulateFoundList();
         Render();
         CodeBox.Focus(FocusState.Programmatic);
     }
 
     /// <summary>
-    /// Validates as the user types and connects the moment a complete, valid
-    /// code is entered. The code carries a checksum, so "is this right" is
-    /// answerable immediately — making the user finish typing, read the button,
-    /// aim at it and click was a step the app could simply take itself.
+    /// Switches between the two digits the phone normally shows and the eight
+    /// characters it falls back to when it could not announce itself at all.
     /// </summary>
-    private void OnCodeChanged(object sender, TextChangedEventArgs e)
+    private void OnCodeModeClick(object sender, RoutedEventArgs e)
     {
-        // Two shapes are legal now. Two digits means "find the phone announcing
-        // that code on this network" (/shared/pairing-beacon.md); eight
-        // characters is the older code that carries the address itself, kept
-        // working for one release so a phone that has not updated still pairs.
-        var raw = CodeBox.Text ?? string.Empty;
-        var digits = LanDiscovery.NormalizeCode(raw);
-        if (digits is not null)
+        _longCode = !_longCode;
+        CodeBox.Text = string.Empty;
+        ApplyCodeMode();
+        CodeBox.Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>
+    /// Shapes the box to the code it is asking for. The width of the box is
+    /// itself an instruction — a nine-character field says "type nine
+    /// characters" more loudly than any caption under it.
+    /// </summary>
+    private void ApplyCodeMode()
+    {
+        CodeBox.MaxLength = _longCode ? TypedCode.Length + 1 : LanDiscovery.CodeLength;
+        CodeBox.PlaceholderText = _longCode ? "XXXX-XXXX" : "00";
+        CodeHintText.Text = Strings.Get(_longCode ? "CodeHintLong" : "CodeHint");
+        CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+        CodeModeLink.Content = Strings.Get(_longCode ? "CodeUseShort" : "CodeUseLong");
+        CodeConnectButton.IsEnabled = false;
+        FoundPanel.Visibility = Show(!_longCode && FoundList.Children.Count > 0);
+    }
+
+    /// <summary>
+    /// Validates as the user types and connects the moment the code resolves to
+    /// exactly one phone — making someone finish typing, read the button, aim
+    /// at it and click was a step the app could simply take itself.
+    /// </summary>
+    private void OnCodeChanged(object sender, TextChangedEventArgs e) => EvaluateCode(mayConnect: true);
+
+    private void EvaluateCode(bool mayConnect)
+    {
+        if (_longCode) { EvaluateLongCode(mayConnect); return; }
+
+        var typed = new string((CodeBox.Text ?? string.Empty).Where(ch => !char.IsWhiteSpace(ch)).ToArray());
+
+        if (typed.Length == 0)
         {
-            OnShortCodeTyped(digits, sender);
+            CodeHintText.Text = Strings.Get("CodeHint");
+            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+            CodeConnectButton.IsEnabled = false;
             return;
         }
 
+        // Named separately from "that code is wrong": the phone shows digits, so
+        // a letter here means the user is reading the wrong thing off the
+        // screen, and saying which thing is the useful half of the message.
+        if (!typed.All(char.IsAsciiDigit))
+        {
+            CodeHintText.Text = Strings.Get("CodeDigitsOnly");
+            CodeHintText.Foreground = ThemeBrush("WarningBrush");
+            CodeConnectButton.IsEnabled = false;
+            Motion.Reject(CodeBox);
+            return;
+        }
+
+        // Codes start at 10 precisely so there is no "did I need the leading
+        // zero" moment; a typed zero is someone who has misread the screen.
+        if (typed[0] == '0')
+        {
+            CodeHintText.Text = Strings.Get("CodeNoLeadingZero");
+            CodeHintText.Foreground = ThemeBrush("WarningBrush");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+
+        if (typed.Length < LanDiscovery.CodeLength)
+        {
+            CodeHintText.Text = Strings.Get("CodeHintShort");
+            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+
+        var digits = LanDiscovery.NormalizeCode(typed);
+        if (digits is null)
+        {
+            CodeHintText.Text = Strings.Get("CodeDigitsOnly");
+            CodeHintText.Foreground = ThemeBrush("WarningBrush");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+        OnShortCodeTyped(digits, mayConnect);
+    }
+
+    /// <summary>
+    /// Two digits were typed. Unlike the long code there is nothing to decode —
+    /// the answer is whichever phone on this network is announcing that number,
+    /// so the failure modes are "nobody yet" and "more than one" rather than
+    /// "malformed".
+    /// </summary>
+    private void OnShortCodeTyped(string digits, bool mayConnect)
+    {
+        var matches = _discovery.Match(digits);
+        switch (matches.Count)
+        {
+            case 0:
+                // Not an error, and it must not read as one: the phone's next
+                // beacon is at most a second away, and this same check runs
+                // again the moment it lands. Saying "no phone has that code"
+                // in red to someone whose phone is about to appear is how a
+                // working setup gets abandoned.
+                CodeHintText.Text = Strings.Get("CodeLooking");
+                CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+                CodeConnectButton.IsEnabled = false;
+                return;
+            case 1:
+                CodeHintText.Text = matches[0].Name is { Length: > 0 } name
+                    ? string.Format(Strings.Get("CodeFoundNamed"), name)
+                    : Strings.Get("CodeReady");
+                CodeHintText.Foreground = ThemeBrush("AccentBrush");
+                CodeConnectButton.IsEnabled = true;
+                if (mayConnect) _ = ConnectToAsync(matches[0]);
+                return;
+            default:
+                // Rare, and the only honest thing to do is ask. Picking the
+                // first would connect someone to a stranger's phone without
+                // ever telling them there was a choice.
+                CodeHintText.Text = string.Format(
+                    Strings.Get("CodeAmbiguous"),
+                    string.Join(", ", matches.Select(m => m.Name ?? m.Host)));
+                CodeHintText.Foreground = ThemeBrush("WarningBrush");
+                CodeConnectButton.IsEnabled = false;
+                return;
+        }
+    }
+
+    /// <summary>
+    /// The eight-character fallback. Unchanged in substance: it carries the
+    /// address itself, so it can be judged without the network's help.
+    /// </summary>
+    private void EvaluateLongCode(bool mayConnect)
+    {
         // Normalise exactly as TypedCode.Decode does, because that is what
         // judges the code a moment later. This used to strip every character
         // that was not a letter or digit, which is a wider rule than the
@@ -744,22 +889,11 @@ public sealed partial class MainWindow : Window
         // auto-connected, and the decoder then saw the raw nine characters and
         // rejected them as ERR_CODE_INVALID. The code was correct; the app
         // refused it and blamed the user.
-        var clean = TypedCode.Normalize(raw);
+        var clean = TypedCode.Normalize(CodeBox.Text);
 
         if (clean.Length == 0)
         {
-            CodeHintText.Text = Strings.Get("CodeHint");
-            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
-            CodeConnectButton.IsEnabled = false;
-            return;
-        }
-
-        // A single digit is someone halfway through typing a two-digit code,
-        // not a broken long one. Saying "that isn't one of the letters on your
-        // phone" at that moment would be wrong and alarming.
-        if (clean.Length == 1 && char.IsAsciiDigit(clean[0]))
-        {
-            CodeHintText.Text = Strings.Get("CodeHintShort");
+            CodeHintText.Text = Strings.Get("CodeHintLong");
             CodeHintText.Foreground = ThemeBrush("LabelTertiary");
             CodeConnectButton.IsEnabled = false;
             return;
@@ -797,53 +931,102 @@ public sealed partial class MainWindow : Window
         CodeHintText.Text = Strings.Get("CodeReady");
         CodeHintText.Foreground = ThemeBrush("AccentBrush");
         CodeConnectButton.IsEnabled = true;
-        OnCodeConnectClick(sender, new RoutedEventArgs());
+        if (mayConnect) OnCodeConnectClick(this, new RoutedEventArgs());
     }
 
     /// <summary>
-    /// Two digits were typed. Unlike the long code there is nothing to decode —
-    /// the answer is whichever phone on this network is announcing that number,
-    /// so the failure modes are "nobody" and "more than one" rather than
-    /// "malformed".
+    /// Rebuilds the list of phones announcing themselves right now. Each row is
+    /// the device's name and the code it is showing, so the two screens can be
+    /// checked against one another — and clicking one skips typing entirely.
     /// </summary>
-    private void OnShortCodeTyped(string digits, object sender)
+    private void PopulateFoundList()
     {
-        var matches = _discovery.Match(digits);
-        switch (matches.Count)
+        var devices = _discovery.Devices;
+        FoundList.Children.Clear();
+
+        foreach (var device in devices)
         {
-            case 0:
-                CodeHintText.Text = Strings.Get("CodeNoDevice");
-                CodeHintText.Foreground = ThemeBrush("WarningBrush");
-                CodeConnectButton.IsEnabled = false;
-                return;
-            case 1:
-                CodeHintText.Text = matches[0].Name is { Length: > 0 } name
-                    ? string.Format(Strings.Get("CodeFoundNamed"), name)
-                    : Strings.Get("CodeReady");
-                CodeHintText.Foreground = ThemeBrush("AccentBrush");
-                CodeConnectButton.IsEnabled = true;
-                OnCodeConnectClick(sender, new RoutedEventArgs());
-                return;
-            default:
-                // Rare, and the only honest thing to do is ask. Picking the
-                // first would connect someone to a stranger's phone without
-                // ever telling them there was a choice.
-                CodeHintText.Text = string.Format(
-                    Strings.Get("CodeAmbiguous"),
-                    string.Join(", ", matches.Select(m => m.Name ?? m.Host)));
-                CodeHintText.Foreground = ThemeBrush("WarningBrush");
-                CodeConnectButton.IsEnabled = false;
-                return;
+            var button = new Button
+            {
+                // The code first and monospaced, because that is the thing the
+                // eye is comparing against the phone.
+                Content = device.Name is { Length: > 0 } name
+                    ? $"{device.Code}   {name}"
+                    : $"{device.Code}   {device.Host}",
+                Tag = device,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+            };
+            if (Application.Current.Resources.TryGetValue("QuietButton", out var style) &&
+                style is Style quiet) button.Style = quiet;
+            button.Click += OnFoundPhoneClick;
+            FoundList.Children.Add(button);
+        }
+
+        FoundHeader.Text = Strings.Get("CodeNearby");
+        FoundPanel.Visibility = Show(!_longCode && FoundList.Children.Count > 0);
+    }
+
+    private void OnFoundPhoneClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: LanDiscovery.Device device }) _ = ConnectToAsync(device);
+    }
+
+    /// <summary>
+    /// A phone appeared, moved or stopped sharing. Re-runs the same judgement
+    /// the keystroke would have: someone who types two digits in under a second
+    /// can easily beat the first beacon, and without this they are left looking
+    /// at "still looking" while the phone sits in the list right below it.
+    /// </summary>
+    private void OnDevicesChanged()
+    {
+        if (!ReferenceEquals(_visiblePanel, CodePanel)) return;
+        PopulateFoundList();
+        EvaluateCode(mayConnect: true);
+        // A row appearing or leaving changes how tall the panel is, and the
+        // window does not resize itself.
+        ResizeToContent();
+    }
+
+    /// <summary>
+    /// Hands a resolved phone to the controller. Guarded, because two paths can
+    /// arrive here at once — the keystroke that completed the code and the
+    /// beacon that arrived in the same moment — and connecting twice tears the
+    /// first attempt down underneath itself.
+    /// </summary>
+    private async Task ConnectToAsync(LanDiscovery.Device device)
+    {
+        if (_connecting) return;
+        _connecting = true;
+        _localError = null;
+        _mode = InputMode.None;
+        try
+        {
+            await _controller.ConnectAsync(new QrPayload
+            {
+                V = QrPayloadCodec.SupportedVersion,
+                Mode = device.Mode,
+                Host = device.Host,
+                Port = device.PortNumber,
+                Name = device.Name,
+            });
+        }
+        finally
+        {
+            _connecting = false;
         }
     }
 
     private async void OnCodeConnectClick(object sender, RoutedEventArgs e)
     {
-        // Short code first: it is the path people will take, and it resolves
-        // through discovery rather than by decoding anything.
-        var digits = LanDiscovery.NormalizeCode(CodeBox.Text);
-        if (digits is not null)
+        if (!_longCode)
         {
+            var digits = LanDiscovery.NormalizeCode(CodeBox.Text);
+            if (digits is null)
+            {
+                ShowLocalError("ERR_CODE_INVALID");
+                return;
+            }
             var matches = _discovery.Match(digits);
             if (matches.Count != 1)
             {
@@ -853,17 +1036,7 @@ public sealed partial class MainWindow : Window
                 ShowLocalError(matches.Count == 0 ? "ERR_CODE_NOT_FOUND" : "ERR_CODE_AMBIGUOUS");
                 return;
             }
-            var device = matches[0];
-            _localError = null;
-            _mode = InputMode.None;
-            await _controller.ConnectAsync(new QrPayload
-            {
-                V = QrPayloadCodec.SupportedVersion,
-                Mode = device.Mode,
-                Host = device.Host,
-                Port = device.PortNumber,
-                Name = device.Name,
-            });
+            await ConnectToAsync(matches[0]);
             return;
         }
 

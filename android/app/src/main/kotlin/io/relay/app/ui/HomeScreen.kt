@@ -524,8 +524,10 @@ private fun PairingPanel(
             Box(modifier = qrFrame)
         }
 
-        // The eight-character code stays available for one release, for a PC
-        // that is too old to listen for the beacon (/shared/pairing-beacon.md).
+        // The eight-character code, shown only when this phone could not
+        // announce itself at all — then the QR and this are the only ways in.
+        // The PC keeps a way to type it, behind a link that names what the user
+        // would be looking at (/shared/pairing-beacon.md → Compatibility).
         if (shortCode == null && typedCode != null) {
             Spacer(Modifier.height(20.dp))
             Text(

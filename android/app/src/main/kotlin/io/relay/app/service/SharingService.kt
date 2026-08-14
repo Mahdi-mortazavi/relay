@@ -351,9 +351,28 @@ class SharingService : Service() {
                 )
             }
         }
+        // The beacon was built with the address the phone had a moment ago, and
+        // it carries that address in every datagram. Left alone it goes on
+        // announcing an address nothing answers at, so a PC that finds the code
+        // connects to the old IP and fails with no visible cause. Restart it on
+        // the new one, keeping the code: the number on screen must not change
+        // under someone who is part-way through typing it.
+        val code = shortCode
+        if (code != null) {
+            beacon?.stop()
+            beacon = Beacon(
+                code = code,
+                mode = payload.mode,
+                host = payload.host,
+                port = payload.port,
+                deviceName = payload.name,
+            ).also { it.start() }
+            LocalLog.add("Re-announcing $code on ${payload.host}:${payload.port}")
+        }
+
         // Present the fresh payload in place; the client count (if any) is stale
         // after a rebind, so drop back to Advertising until a client reconnects.
-        ConnectionRepository.reissue(payload, pairing.issueTypedCode(payload))
+        ConnectionRepository.reissue(payload, pairing.issueTypedCode(payload), code)
     }
 
     /**

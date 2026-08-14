@@ -10,6 +10,9 @@ public static class SharedContracts
 {
     public static readonly string Dir = Locate();
 
+    /// <summary>The repository root — the directory /shared sits in.</summary>
+    public static string RepoRoot => Directory.GetParent(Dir)!.FullName;
+
     public static JsonDocument Json(string name) =>
         JsonDocument.Parse(File.ReadAllText(Path.Combine(Dir, name)));
 

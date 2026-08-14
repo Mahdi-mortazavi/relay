@@ -148,5 +148,22 @@
     "serverTunnelIp": "10.13.37.1",
     "clientTunnelIp": "10.13.37.2",
     "ipc": "private_key=3f6189d5a5906f952bacb34b97f8b0617fc003c2ba0bf052f4bd5ed899dec29a\nlisten_port=51820\npublic_key=6a531cd4a6884f0fef6d85b73e6354b9beacc0ff1dfabc372347eed3515579f7\nallowed_ip=10.13.37.2/32\n"
+  },
+  "pairingProbe": {
+    "$comment": "The datagram a listener broadcasts to ask who is sharing, and the shapes a phone must and must not answer. See pairing-beacon.md → The probe. Windows asserts it emits exactly `datagram`; Android asserts it answers every `answered` shape and stays silent for every `ignored` one. Both halves matter: a phone that answers anything arriving on this port announces to the whole network that it is sharing and at what address, and a phone that answers nothing is invisible to a PC whose firewall drops unsolicited inbound UDP — which is the Windows default.",
+    "datagram": "{\"v\":1,\"probe\":1}",
+    "answered": [
+      "{\"v\":1,\"probe\":1}",
+      "{\"v\":1,\"probe\":true}"
+    ],
+    "ignored": [
+      "{\"v\":2,\"probe\":1}",
+      "{\"v\":1,\"probe\":0}",
+      "{\"v\":1,\"probe\":false}",
+      "{\"v\":1}",
+      "{\"v\":1,\"code\":\"42\",\"mode\":\"socks5\",\"host\":\"192.168.43.1\",\"port\":1080,\"state\":\"sharing\"}",
+      "not json at all",
+      ""
+    ]
   }
 }

@@ -54,7 +54,7 @@ Windows warns on first run because the installer isn't code-signed yet — **Mor
 
 **On your PC**
 
-4. Open Relay and either click **Scan QR** and hold the phone up to your webcam, or click **Enter Code** and type those two digits.
+4. Open Relay. It lists the phones sharing right now, each with the code it is showing — click yours. Or click **Scan QR** and hold the phone up to your webcam, or **Enter the 2-digit code** and type those two digits.
 5. Approve the request that appears on your phone.
 
 That's it — your browser, your apps, everything goes through the phone. Press **Disconnect** when you're done and Windows goes back exactly as it was.

@@ -83,8 +83,9 @@ python3 - <<'PY'
 import glob, sys, xml.etree.ElementTree as ET
 
 required = {
-    "io.relay.app.e2e.GoldenJourneyTest",   # the journey a person takes
-    "io.relay.app.e2e.FullModeTest",        # Full Mode really starting on a device
+    "io.relay.app.e2e.GoldenJourneyTest",     # the journey a person takes
+    "io.relay.app.e2e.FullModeTest",          # Full Mode really starting on a device
+    "io.relay.app.e2e.PairingDiscoveryTest",  # the PC being able to find the phone at all
 }
 
 files = glob.glob("android/app/build/outputs/androidTest-results/**/*.xml", recursive=True)
