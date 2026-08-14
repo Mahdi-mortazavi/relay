@@ -55,6 +55,14 @@ class SharingService : Service() {
     private val settings by lazy { Settings(this) }
     private var server: Socks5Server? = null
     private var beacon: Beacon? = null
+
+    /**
+     * The code this session announces. Kept even when it is not shown, so a
+     * rebind re-announces the same number rather than drawing a new one.
+     */
+    private var pairingCode: String? = null
+
+    /** The code the UI shows — null when announcing cannot work here (see [pairingCode]). */
     private var shortCode: String? = null
 
     /**
@@ -165,18 +173,33 @@ class SharingService : Service() {
         // the PC shows both device names and asks which one -- so paying an ANR
         // risk to make it rarer is the wrong trade.
         val code = PairingCode.draw()
-        shortCode = code
-        beacon = Beacon(
+        val announcer = Beacon(
             code = code,
             mode = payload.mode,
             host = payload.host,
             port = payload.port,
             deviceName = payload.name,
         ).also { it.start() }
-        LocalLog.add("Pairing code: $code")
+        beacon = announcer
+
+        // Only show the two digits if they can actually be found. They carry no
+        // address of their own, so on a network where this phone can neither
+        // broadcast nor answer a probe they are a dead end: the PC searches for
+        // them forever and the person is left comparing two screens that look
+        // right. Withholding the short code makes the UI fall back to the
+        // eight-character code, which describes the address itself and needs no
+        // discovery — and makes the PC's "my phone shows a longer code" link
+        // true rather than aspirational.
+        val announced = announcer.canAnnounce
+        pairingCode = code
+        shortCode = code.takeIf { announced }
+        LocalLog.add(
+            if (announced) "Pairing code: $code"
+            else "Cannot announce on this network; showing the 8-character code instead",
+        )
 
         ConnectionRepository.dispatch("ready") {
-            ConnectionState.Advertising(payload, pairing.issueTypedCode(payload), code)
+            ConnectionState.Advertising(payload, pairing.issueTypedCode(payload), shortCode)
         }
         startHotspotWatcher()
     }
@@ -357,22 +380,30 @@ class SharingService : Service() {
         // connects to the old IP and fails with no visible cause. Restart it on
         // the new one, keeping the code: the number on screen must not change
         // under someone who is part-way through typing it.
-        val code = shortCode
+        val code = pairingCode
         if (code != null) {
             beacon?.stop()
-            beacon = Beacon(
+            val announcer = Beacon(
                 code = code,
                 mode = payload.mode,
                 host = payload.host,
                 port = payload.port,
                 deviceName = payload.name,
             ).also { it.start() }
-            LocalLog.add("Re-announcing $code on ${payload.host}:${payload.port}")
+            beacon = announcer
+            // The new network may be able to carry the announcement where the
+            // old one could not, or the other way round. Re-ask rather than
+            // keeping an answer that was true of a network we have left.
+            shortCode = code.takeIf { announcer.canAnnounce }
+            LocalLog.add(
+                if (announcer.canAnnounce) "Re-announcing $code on ${payload.host}:${payload.port}"
+                else "Cannot announce on this network; showing the 8-character code instead",
+            )
         }
 
         // Present the fresh payload in place; the client count (if any) is stale
         // after a rebind, so drop back to Advertising until a client reconnects.
-        ConnectionRepository.reissue(payload, pairing.issueTypedCode(payload), code)
+        ConnectionRepository.reissue(payload, pairing.issueTypedCode(payload), shortCode)
     }
 
     /**
@@ -413,6 +444,7 @@ class SharingService : Service() {
         // leaving the beacon broadcasting after the user pressed Stop.
         beacon?.stop()
         beacon = null
+        pairingCode = null
         shortCode = null
         clientGate.reset()
         // Full Mode: stop watching before stopping the endpoint, or the next

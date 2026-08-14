@@ -54,6 +54,15 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
 | `name`  | string | Device name, ≤ 32 chars, for display. MAY be absent.               |
 | `state` | string | `sharing` or `stopped`.                                           |
 
+A beacon with `mode: wireguard` announces a phone that **cannot be paired from
+this beacon**. Full Mode's keys exist only inside the QR payload, so a listener
+that builds a connection out of the beacon's fields alone produces a
+configuration the other end will refuse. A listener MAY show such a phone in its
+device list — knowing it is there is useful — but MUST NOT offer it as
+connectable, and MUST say that the QR is the way in (`ERR_FULL_MODE_NEEDS_QR`)
+rather than reporting the code as invalid. Reporting a correct code as invalid
+is how a working pair of apps comes to look incompatible.
+
 A datagram that fails any rule is dropped in silence. Beacons are not
 authenticated, so a listener MUST treat every field as untrusted display data:
 `name` in particular is attacker-controlled and must never be interpolated
@@ -152,7 +161,13 @@ establish, and one would only teach people to tap Allow without reading it.
 
 The eight-character typed code ([`typed-code.md`](typed-code.md)) still works,
 but it is no longer what either app leads with. The phone shows it only when it
-could not announce itself at all, and the PC's code box asks for two digits and
+could not announce itself at all — which means the phone MUST actually check:
+it draws a short code, and shows it only if it has at least one interface with a
+broadcast address or has bound the probe port. Showing two digits that no PC can
+resolve is worse than showing eight that any PC can decode offline, and for
+several releases the phone showed them unconditionally, so the "could not
+announce" path documented here did not exist in either app. The PC's code box
+asks for two digits and
 keeps the long code behind a link that names the thing the user would be looking
 at: *"my phone shows a longer code"*.
 

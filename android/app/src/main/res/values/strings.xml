@@ -33,6 +33,7 @@
 
     <!-- Advanced -->
     <string name="advanced">Advanced</string>
+    <string name="advanced_version">Version</string>
     <string name="advanced_ip">Hotspot address</string>
     <string name="advanced_port">Preferred port</string>
     <string name="advanced_port_hint">0 = automatic</string>

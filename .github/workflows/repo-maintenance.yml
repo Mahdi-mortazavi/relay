@@ -105,8 +105,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release list --limit 200 --json tagName,createdAt \
-            --jq 'sort_by(.createdAt) | reverse | .[].tagName' > all.txt
+          # Restricted to v*, and ordered by version rather than by date.
+          # Neither used to be true: a release under a non-semver tag could be
+          # "newest" by creation date, so this switch would have kept that and
+          # deleted the v* release the README points at. Sorting by date also
+          # made a hotfix cut after a bigger version the survivor.
+          gh release list --limit 200 --json tagName,createdAt,isDraft \
+            --jq '[.[] | select(.isDraft | not) | select(.tagName | test("^v[0-9]"))] | .[].tagName' \
+            | sort -V -r > all.txt
           NEWEST=$(head -1 all.txt || true)
           if [ -z "$NEWEST" ]; then
             echo "No releases at all; nothing to do."

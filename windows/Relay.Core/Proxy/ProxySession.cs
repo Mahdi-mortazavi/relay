@@ -15,8 +15,23 @@ public sealed class ProxySession(IProxyStore store, IBackupStore backup)
         public static Result Fail(string code) => new(false, code);
     }
 
+    /// <summary>
+    /// The registry value WinINET consumers read. The scheme prefix is not
+    /// decoration: in WinINET's syntax a bare <c>socks=host:port</c> means
+    /// SOCKS<b>4</b>, and Chromium hard-codes that reading — see
+    /// net/proxy_resolution/proxy_config.cc, where <c>url_scheme == "socks"</c>
+    /// sets <c>default_scheme = SCHEME_SOCKS4</c>. The phone only ever speaks
+    /// SOCKS5 (Socks5Server.kt rejects any version byte but 5), so every
+    /// browser opened a socket, sent a SOCKS4 CONNECT, and had it dropped —
+    /// while Relay's own probe, which speaks SOCKS5 by hand, kept reporting
+    /// "Connected". That is the whole of the "only the SwitchyOmega extension
+    /// works" reports: the extension bypasses this value entirely.
+    ///
+    /// Writing the scheme explicitly overrides the SOCKS4 default and costs
+    /// nothing for consumers that ignore it.
+    /// </summary>
     public static ProxySnapshot AppliedFor(string host, int port) =>
-        new(Enabled: true, Server: $"socks={host}:{port}", Override: "<local>", AutoConfigUrl: null);
+        new(Enabled: true, Server: $"socks=socks5://{host}:{port}", Override: "<local>", AutoConfigUrl: null);
 
     /// <summary>Applies the SOCKS system proxy; on any verification failure the original state is restored.</summary>
     public Result Connect(string host, int port)

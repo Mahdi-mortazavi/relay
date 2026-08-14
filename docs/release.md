@@ -17,17 +17,17 @@ toggle. Leave `publish` off for a dry run; turn it on to cut the release without
 pushing a tag — `gh release create` makes the tag itself, which is the only
 route from an environment where pushing tags is blocked.
 
-The per-platform workflows below still exist for shipping one platform alone.
-They are not the normal path.
+There is no per-platform release path, and deliberately so. `android-release.yml`
+and `windows-release.yml` were removed: the Android one never built the Full Mode
+library and never passed `-PrelayRequireWg`, so it could publish a signed release
+of an app offering a mode that could not start, and it shipped no universal APK.
+Both created releases under non-semver tags (`android-v1.7.1`), which GitHub can
+promote to "Latest" — breaking every `releases/latest/download/…` link in the
+README at once. **A tag that does not match `v*.*.*` does not release anything.**
 
-| Platform | Tag | Workflow | Artifacts |
-|---|---|---|---|
-| Android | `android-v*.*.*` | `android-release.yml` | `relay-arm64-v8a-<version>.apk` + `relay-<version>.aab` |
-| Windows | `windows-v*.*.*` | `windows-release.yml` | `Relay-Setup-x64-<version>.exe` + `Relay-Setup-x86-<version>.exe` |
-
-Every release also carries **`SHA256SUMS.txt`**, generated in the same job that
-builds the artifacts. Until the Windows installer is code-signed it is the only
-integrity check a user has, so it is not optional:
+Every release also carries **`SHA256SUMS.txt`**, computed in the publish job over
+exactly the artifacts it is about to upload. Until the Windows installer is
+code-signed it is the only integrity check a user has, so it is not optional:
 
 ```bash
 sha256sum -c SHA256SUMS.txt          # Linux/macOS
