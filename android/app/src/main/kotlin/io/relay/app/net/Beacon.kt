@@ -105,6 +105,11 @@ class Beacon(
      * happens on its own socket and the passive path still works. Failing to
      * bind must not stop the phone from sharing.
      */
+    // Note: on a phone whose own VPN captures this app, an answer sent from this
+    // socket is routed into the tunnel and never reaches the PC — send() still
+    // succeeds. It cannot be fixed here; Network.bindSocket fails EPERM for an
+    // app inside a VPN. See /shared/pairing-beacon.md → "The answer cannot
+    // always be sent".
     private fun openProbeSocket(): DatagramSocket? = try {
         DatagramSocket(null).apply {
             reuseAddress = true

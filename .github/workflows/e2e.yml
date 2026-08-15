@@ -168,15 +168,34 @@ jobs:
           ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
           Write-Host "Running as Administrator: $admin"
           Get-ChildItem (Split-Path $env:RELAYWG_CLIENT) | Format-Table Name, Length
-          go test -count=1 -v -timeout 15m ./cmd/relaywg-client
+          # Captured, because both of these tests skip themselves when
+          # RELAYWG_CLIENT is unset — and a job that skipped its only meaningful
+          # assertion is also green. Same discipline as device-tests.sh; keep the
+          # list current when adding a test that matters here.
+          $output = go test -count=1 -v -timeout 15m ./cmd/relaywg-client 2>&1 |
+            ForEach-Object { Write-Host $_; $_ }
+          if ($LASTEXITCODE -ne 0) { Write-Error "the Full Mode client tests failed" }
+
+          $required = @(
+            'TestTheAdapterComesUpAndCarriesRoutedTraffic',  # the adapter comes up and carries routed traffic
+            'TestReadyIsWithheldWhenThePeerNeverAnswers'     # READY means a handshake, not merely an adapter
+          )
+          foreach ($name in $required) {
+            if (-not ($output | Select-String -SimpleMatch "--- PASS: $name" -Quiet)) {
+              Write-Error "$name did not run — this job proves nothing without it"
+            }
+          }
+          Write-Host "All required Full Mode client tests ran."
 
       - name: The machine's networking must be as we found it
         if: always()
         shell: pwsh
         run: |
-          $left = Get-NetAdapter -Name 'RelayTest' -ErrorAction SilentlyContinue
+          # Wildcard: the tests use RelayTest and RelayTestDead, and an adapter
+          # left behind holds its routes.
+          $left = Get-NetAdapter -Name 'RelayTest*' -ErrorAction SilentlyContinue
           if ($left) {
-            Write-Error "The test left an adapter behind: $($left.Name)"
+            Write-Error "The test left an adapter behind: $($left.Name -join ', ')"
           }
           Write-Host "No Relay adapters remain."
 

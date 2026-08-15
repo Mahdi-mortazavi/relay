@@ -219,6 +219,82 @@ Run each row from an installable CI artifact; **pass = the app shows a correct s
 | M9 | Open Advanced on both; change theme (Android), change port (Android), view logs | Settings persist; logs are local-only and clearable |
 | M10 | Kill either app mid-session | Android: service stops cleanly; Windows: proxy restored on next launch |
 
+### Full Mode, phone → PC over real Wi-Fi — proved on hardware (2026-08-15)
+
+The row above says the Windows client cannot be reached by CI, and that is still
+true of CI. It has now been done by hand, on an SM-A307FN and a Windows 11
+laptop on one Wi-Fi, with a full-tunnel VPN active on the phone:
+
+```
+phone   1 device connected · ↑ 11.8 MB ↓ 12.9 MB
+adapter Relay · Up · 10.13.37.2/32
+route   0.0.0.0/0 metric 0 on the Relay adapter
+        Find-NetRoute 1.1.1.1 -> InterfaceAlias Relay
+egress  167.233.126.217   (the laptop's own exit is 109.125.167.231)
+```
+
+The egress differing from the laptop's own is what makes it a proof rather than
+an adapter that merely exists: the traffic left through the tunnel, through the
+phone, and out of the phone's VPN. The UAC prompt was accepted by the
+maintainer; that step still cannot be automated.
+
+**Observed in passing, and worth knowing:** upgrading the APK killed the process
+and `START_STICKY` restarted the service by itself — `Starting sharing` with no
+one touching the phone — which minted fresh WireGuard keys and a fresh pairing
+code. Any QR already scanned is silently dead at that moment. That is the
+mechanism behind "Full Mode worked once and never again"; it is now surfaced as
+`ERR_WG_NO_HANDSHAKE` rather than reported as a successful connection.
+
+### The probe cannot be answered from inside the phone's VPN — undecided
+
+Measured on an SM-A307FN (Android 11) sharing a Wi-Fi the laptop was also on,
+with a full-tunnel VPN active on the phone — Relay's normal case:
+
+```
+ip route get 192.168.1.13 uid 10201   -> dev tun0  src 26.26.26.1    (Relay)
+ip route get 192.168.1.13 uid 10601   -> dev wlan0 src 192.168.1.14  (outside the VPN)
+ip route get 192.168.1.255 uid 10201  -> dev wlan0                   (broadcast escapes)
+
+probe, VPN up   -> no answer
+probe, VPN down -> {"v":1,"code":"72","mode":"wireguard",...}
+```
+
+The broadcast beacon arrives; the unicast answer does not. `Network.bindSocket`
+to the Wi-Fi network was tried on hardware and fails with `EPERM` — an app
+inside a VPN may not bind outside it. See
+[`/shared/pairing-beacon.md`](../shared/pairing-beacon.md) → "The answer cannot
+always be sent" for the full table of what was tried.
+
+**What this costs:** a fresh Windows install has no firewall rule for Relay, so
+it depends on the probe. Against a phone with a full-tunnel VPN it will never
+find that phone, while the phone displays two digits. The QR and the
+eight-character code still work.
+
+**Undecided, and deliberately not fixed by guesswork.** The phone can detect the
+condition, but it cannot tell whether the PC in front of it needs the probe or
+can hear broadcasts, so always falling back to the eight-character code would
+regress every PC that can. The options — surface a warning, always offer the
+long code alongside the two digits, or have the PC say what to do when probes go
+unanswered — are a UX decision, not a bug fix.
+
+**Also unmeasured:** the same test with the phone as its own hotspot, and any
+phone whose VPN is split-tunnel or excludes Relay.
+
+### Discovery through a firewall nobody configured
+
+The check in [`local-device-testing.md`](local-device-testing.md) — "the one that
+matters most" — requires a PC that has **never** been told to allow Relay
+through. It could not be run on the maintainer's laptop in August 2026: that
+machine already carried four `Query User` inbound allow rules for
+`Relay.App.exe` at two install paths, created by earlier firewall prompts.
+Passive discovery there proves nothing about a fresh install, because the
+beacon is being admitted by rule rather than by the probe's return path.
+
+Disabling those rules needs elevation. Until the check is run on a machine with
+no rule — or with those rules disabled — **discovery on a fresh install is
+unproven on real hardware**, and the probe path is the only thing standing
+between a fresh install and "no phone has that code".
+
 ### AC2.3 — brief hotspot drop auto-recovers within the bound
 
 1. Connect and start a download on the laptop.

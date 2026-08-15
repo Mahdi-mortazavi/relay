@@ -17,7 +17,9 @@
 // stdin and stdout when run by hand:
 //
 //	in      the wireguard-go IPC configuration, ended by "END-CONFIG"
-//	out     "READY" once traffic can flow, then nothing
+//	out     "READY" once the peer has handshaked and traffic can flow, or
+//	        "NO-HANDSHAKE" if the adapter came up and the peer never answered;
+//	        then nothing
 //	stderr  human-readable progress and errors
 //	exit    tear the tunnel down when the stream closes, or on Ctrl+Break
 //
@@ -42,8 +44,10 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/conn"
@@ -63,6 +67,25 @@ const (
 
 	// Ends the configuration on stdin without closing it. See [readConfig].
 	configTerminator = "END-CONFIG"
+
+	// Printed instead of READY when the adapter came up but the peer never
+	// answered. Distinct from a generic failure because the user's next action
+	// is different: rescan the QR, because the phone has almost certainly minted
+	// new keys since that one was drawn.
+	noHandshakeLine = "NO-HANDSHAKE"
+
+	// How long to wait for the first handshake before giving up on the peer.
+	// A handshake on a working link completes in well under a second; this is
+	// long enough to ride out a phone that is still bringing its endpoint up.
+	handshakeTimeout = 20 * time.Second
+
+	// How stale the last handshake may get before the peer counts as gone.
+	// Matches the phone's own PEER_ALIVE_SECONDS: WireGuard rekeys at two
+	// minutes, so three leaves a minute of margin without holding a dead tunnel
+	// open behind a UI that says "Connected".
+	handshakeStale = 3 * time.Minute
+
+	handshakePoll = 250 * time.Millisecond
 )
 
 func main() {
@@ -138,15 +161,99 @@ func run(name, address, dns, routes, pipe string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)
+
+	// Readiness is the handshake, not the adapter.
+	//
+	// This used to report READY as soon as the adapter existed, which is equally
+	// true of a tunnel whose peer is gone, whose keys have been rotated, or that
+	// is pointed at nothing at all. The app then said "Connected" over a tunnel
+	// that could never carry a byte, and — having no probe and no supervision,
+	// on the strength of a comment claiming this line already meant a handshake
+	// — went on saying it. A stale QR is the ordinary way in: the phone mints
+	// fresh keys every time sharing restarts, so a code scanned minutes ago is
+	// no longer one the endpoint will answer.
+	if !waitForHandshake(dev, handshakeTimeout) {
+		fmt.Fprintln(os.Stderr, "no handshake: the peer never answered")
+		// Best effort — if the parent is already gone this fails and the error
+		// below is still the right one.
+		io.WriteString(channel, noHandshakeLine+"\n")
+		return errors.New("the peer never completed a handshake")
+	}
+
 	if _, err := io.WriteString(channel, "READY\n"); err != nil {
 		return fmt.Errorf("reporting readiness: %w", err)
 	}
 
-	waitForShutdown(reader, parentGone)
+	waitForShutdown(reader, parentGone, peerLost(dev))
 	fmt.Fprintln(os.Stderr, "tearing down")
 	// The deferred Close calls remove the adapter, and Windows drops its
 	// addresses and routes with it.
 	return nil
+}
+
+// waitForHandshake reports whether the peer answered within [within].
+func waitForHandshake(dev *device.Device, within time.Duration) bool {
+	deadline := time.Now().Add(within)
+	for {
+		if lastHandshakeUnix(dev) > 0 {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(handshakePoll)
+	}
+}
+
+// peerLost closes when the peer stops handshaking.
+//
+// The tunnel process leaving is what tells the app the tunnel is dead — the
+// adapter goes with it — so this turns "the phone stopped answering" into the
+// one signal the app already watches for, rather than a second mechanism that
+// can disagree with the first.
+//
+// ponytail: the goroutine runs until the process exits, which is immediately
+// after this fires or after shutdown. Nothing to cancel in a single-purpose
+// process; give it a context if this ever becomes a library.
+func peerLost(dev *device.Device) <-chan struct{} {
+	lost := make(chan struct{})
+	go func() {
+		defer close(lost)
+		for {
+			time.Sleep(time.Second)
+			last := lastHandshakeUnix(dev)
+			if last == 0 {
+				continue // gated before READY, so this cannot be "never"
+			}
+			if time.Since(time.Unix(last, 0)) > handshakeStale {
+				fmt.Fprintln(os.Stderr, "the peer stopped handshaking; tearing down")
+				return
+			}
+		}
+	}()
+	return lost
+}
+
+// lastHandshakeUnix reads the peer's last handshake out of the device itself,
+// for the same reason [relaywg.Endpoint] does: a second copy of this state is a
+// second thing that can disagree with the tunnel.
+func lastHandshakeUnix(dev *device.Device) int64 {
+	status, err := dev.IpcGet()
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(status, "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "last_handshake_time_sec=")
+		if !ok {
+			continue
+		}
+		seconds, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return seconds
+	}
+	return 0
 }
 
 // configureAdapter gives the tunnel its address, DNS and routes.
@@ -293,12 +400,15 @@ func readConfig(stdin *bufio.Reader) (config string, parentGone bool, err error)
 // Both matter. The parent closing stdin is the ordinary Disconnect; the signal
 // is what a person pressing Ctrl+C in a console window sends. Waiting on only
 // one of them leaves a tunnel running with nobody watching it.
-func waitForShutdown(channel *bufio.Reader, parentAlreadyGone bool) {
+func waitForShutdown(channel *bufio.Reader, parentAlreadyGone bool, peerGone <-chan struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
 	if parentAlreadyGone {
-		<-signals
+		select {
+		case <-signals:
+		case <-peerGone:
+		}
 		return
 	}
 
@@ -311,5 +421,6 @@ func waitForShutdown(channel *bufio.Reader, parentAlreadyGone bool) {
 	select {
 	case <-signals:
 	case <-closed:
+	case <-peerGone:
 	}
 }

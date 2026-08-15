@@ -70,8 +70,16 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     public sealed class ElevationDeclined(Exception? inner = null)
         : Exception("The elevation prompt was declined", inner);
 
-    /// <summary>What the client prints once traffic can flow.</summary>
+    /// <summary>What the client prints once traffic can flow — i.e. once the peer has handshaked.</summary>
     public const string ReadyLine = "READY";
+
+    /// <summary>
+    /// What the client prints when the adapter came up but the peer never
+    /// answered. Its own code because the next action differs from a tunnel
+    /// that would not start: the QR is stale and needs rescanning, since the
+    /// phone mints fresh keys every time sharing restarts.
+    /// </summary>
+    public const string NoHandshakeLine = "NO-HANDSHAKE";
 
     /// <summary>Ends the configuration without closing stdin. Must match the client.</summary>
     public const string ConfigTerminator = "END-CONFIG";
@@ -138,10 +146,11 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
             return Result.Fail("ERR_WG_START_FAILED");
         }
 
-        if (!WaitForReady(tunnel))
+        var failure = WaitForReady(tunnel);
+        if (failure is not null)
         {
             Stop(tunnel);
-            return Result.Fail("ERR_WG_START_FAILED");
+            return Result.Fail(failure);
         }
 
         _tunnel = tunnel;
@@ -191,7 +200,8 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         }
     }
 
-    private static bool WaitForReady(IProcessHandle tunnel)
+    /// <summary>Null when the tunnel came up; otherwise the error code to surface.</summary>
+    private static string? WaitForReady(IProcessHandle tunnel)
     {
         var deadline = DateTimeOffset.UtcNow + ReadyTimeout;
         while (DateTimeOffset.UtcNow < deadline)
@@ -199,10 +209,12 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
             // Null means the child's stdout ended: it exited without ever being
             // ready, which is what a refused adapter looks like from here.
             var line = tunnel.ReadLine();
-            if (line is null) return false;
-            if (line.Trim() == ReadyLine) return true;
+            if (line is null) return "ERR_WG_START_FAILED";
+            var trimmed = line.Trim();
+            if (trimmed == ReadyLine) return null;
+            if (trimmed == NoHandshakeLine) return "ERR_WG_NO_HANDSHAKE";
         }
-        return false;
+        return "ERR_WG_START_FAILED";
     }
 
     /// <summary>
