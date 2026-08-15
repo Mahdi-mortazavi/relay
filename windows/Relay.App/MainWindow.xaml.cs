@@ -36,7 +36,7 @@ public sealed partial class MainWindow : Window
     private readonly LanDiscovery _discovery = new();
     private CameraQrScanner? _scanner;
     private long _lastPreviewTicks;
-    private enum InputMode { None, Scanning, Code }
+    private enum InputMode { None, Scanning, Code, Pairing }
     private InputMode _mode = InputMode.None;
     private string? _localError;
     private long _shownAtTick;
@@ -488,6 +488,9 @@ public sealed partial class MainWindow : Window
         ShowOnly(
             state == "Idle" && _mode == InputMode.Scanning ? ScanPanel
             : state == "Idle" && _mode == InputMode.Code ? CodePanel
+            // Asking the phone happens before the controller has any state
+            // of its own, so this is the one busy screen the window owns.
+            : state == "Idle" && _mode == InputMode.Pairing ? BusyPanel
             : state == "Idle" ? IdlePanel
             : state is "Preparing" or "Advertising" ? BusyPanel
             : state == "Connected" ? ConnectedPanel
@@ -1022,12 +1025,13 @@ public sealed partial class MainWindow : Window
     {
         if (_connecting) return;
 
-        // A phone in Full Mode announces itself like any other, but its beacon
-        // cannot carry what Full Mode needs — the keys live in the QR and
-        // nowhere else. Connecting anyway produced "That's not a Relay code."
-        // in front of a perfectly correct code, which reads as the two apps
-        // being incompatible. Say what to do instead.
-        if (device.Mode == QrPayload.ModeWireguard)
+        // The beacon cannot carry keys — it is broadcast, and anything on the
+        // network can read it — so a code alone is not a pairing. The phone
+        // offers a port to ask on instead, and a phone that could not bind that
+        // port says so by leaving it out. Then the QR is the only way in, and
+        // saying that is better than "That's not a Relay code." in front of a
+        // perfectly correct one, which reads as the two apps being incompatible.
+        if (!device.CanPairByCode)
         {
             ShowLocalError("ERR_FULL_MODE_NEEDS_QR");
             return;
@@ -1035,17 +1039,11 @@ public sealed partial class MainWindow : Window
 
         _connecting = true;
         _localError = null;
-        _mode = InputMode.None;
         try
         {
-            await _controller.ConnectAsync(new QrPayload
-            {
-                V = QrPayloadCodec.SupportedVersion,
-                Mode = device.Mode,
-                Host = device.Host,
-                Port = device.PortNumber,
-                Name = device.Name,
-            });
+            var payload = await PairAsync(device.Host, device.PairingPort!.Value, device.Name);
+            if (payload is null) return; // PairAsync surfaced the reason
+            await _controller.ConnectAsync(payload);
         }
         finally
         {
@@ -1082,15 +1080,53 @@ public sealed partial class MainWindow : Window
             ShowLocalError("ERR_CODE_INVALID");
             return;
         }
+        // The eight-character code carries an address and nothing else. Since
+        // ADR-0009 that is enough: ask at that address, on the port every phone
+        // offers, and the keys come back over the exchange.
         _localError = null;
+        var fetched = await PairAsync(decoded.Value.Host, PairingDefaultPort, null);
+        if (fetched is not null) await _controller.ConnectAsync(fetched);
+    }
+
+    /// <summary>Where a phone offers configurations (/shared/pairing-beacon.md).</summary>
+    private const int PairingDefaultPort = 47655;
+
+    /// <summary>
+    /// Asks a phone for a configuration, and turns it into something dialable.
+    ///
+    /// This blocks on a person: the phone holds the request until someone taps
+    /// Allow, for up to a minute. So the window says what it is waiting for
+    /// rather than appearing to hang — "look at your phone" is the whole
+    /// instruction, and a spinner alone would not give it.
+    /// </summary>
+    private async Task<QrPayload?> PairAsync(string host, int pairingPort, string? name)
+    {
+        BusyText.Text = Strings.Get("BusyPairing");
+        BusyDetailText.Text = Strings.Get("BusyPairingDetail");
+        _mode = InputMode.Pairing;
+        Render();
+
+        var result = await Task.Run(() =>
+            new PairingClient().Fetch(host, pairingPort, Environment.MachineName));
+
         _mode = InputMode.None;
-        await _controller.ConnectAsync(new QrPayload
+        BusyText.Text = Strings.Get("BusyConnecting");
+
+        if (!result.Ok)
+        {
+            ShowLocalError(result.ErrorCode ?? "ERR_HOST_UNREACHABLE");
+            return null;
+        }
+
+        return new QrPayload
         {
             V = QrPayloadCodec.SupportedVersion,
-            Mode = QrPayload.ModeSocks5,
-            Host = decoded.Value.Host,
-            Port = decoded.Value.Port,
-        });
+            Mode = QrPayload.ModeWireguard,
+            Host = result.Host ?? host,
+            Port = result.Port,
+            Name = name,
+            Wg = result.Wg,
+        };
     }
 
     /// <summary>The recovery the error itself suggests, so there is always a way forward.</summary>

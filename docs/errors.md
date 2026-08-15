@@ -33,7 +33,7 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_CODE_INVALID` | Error | Typed code isn't a shape the scheme could have issued (two digits, or the long code's length/alphabet/checksum) | Re-check the code on the phone and try again |
 | `ERR_CODE_NOT_FOUND` | Error | No phone on this network is announcing the two digits that were typed | Check the phone is still sharing and this PC is on its hotspot or the same Wi-Fi |
 | `ERR_CODE_AMBIGUOUS` | Error | More than one phone is announcing that code (see `/shared/pairing-beacon.md`) | Stop sharing on the phone you don't want, then try again |
-| `ERR_FULL_MODE_NEEDS_QR` | Error | The phone that answered is sharing in Full Mode, whose keys exist only in the QR payload — a beacon cannot carry them | Scan the QR code on the phone |
+| `ERR_FULL_MODE_NEEDS_QR` | Error | The phone is sharing but is not offering a pairing port, so a code cannot fetch a configuration | Scan its QR code instead |
 | `ERR_HOST_UNREACHABLE` | Error | SOCKS5 probe to the phone failed on first connect (proxy rolled back) | Connect this PC to the phone's hotspot Wi-Fi, then try again |
 | `ERR_WRONG_NETWORK` | Error | The phone's host IP is not on any connected interface's subnet | This PC isn't on the phone's hotspot. Join the phone's Wi-Fi, then try again |
 | `ERR_CONNECTION_LOST` | Transient → Error | An established connection dropped and did not recover within the reconnect bound | The phone became unreachable. Re-check the hotspot and connect again |
