@@ -147,7 +147,8 @@ jobs:
         # device-tests.sh and the Full Mode client job; keep the list current
         # when adding a suite that matters.
         run: |
-          reports=android/app/build/test-results/testDebugUnitTest
+          # Relative to this job's working-directory, which is android/.
+          reports=app/build/test-results/testDebugUnitTest
           if [ ! -d "$reports" ]; then
             echo "::error::no test results at $reports — the suite did not run"
             exit 1
