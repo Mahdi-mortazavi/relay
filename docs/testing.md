@@ -71,12 +71,14 @@ app uses — against it through an `adb forward` tunnel:
 - the Windows decoder reads the phone's **actual** QR string, so a drift
   between the two implementations fails CI instead of a user;
 - both platforms must agree on when the typed code exists at all;
-- real HTTP traffic goes host → phone → a destination the phone dials itself;
-- domain destinations are resolved **on the phone** (this is what keeps DNS
-  inside the phone's VPN);
-- BIND and unknown address types are refused correctly and the proxy keeps
-  serving afterwards;
-- eight concurrent tunnels, the normal case for a browser.
+- the shipping Windows client completes the **pairing exchange** against the
+  shipping phone: it asks, the phone's gate is answered, and the configuration
+  that comes back is compared field-for-field against the one in the QR. Both
+  sides are already asserted against `/shared/test-vectors.json` separately,
+  which catches one platform drifting from the contract; only this catches the
+  contract being wrong, or both sides reading it the same wrong way;
+- a version the phone does not speak is answered rather than dropped, and the
+  answer carries no key material.
 
 No production code is modified to make this testable: the rendezvous is two
 marker files, and the app under test is the same APK a user would install.

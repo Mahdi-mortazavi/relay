@@ -43,7 +43,7 @@ class PairingDiscoveryTest {
 
     private fun startBeacon(): Beacon = Beacon(
         code = CODE,
-        mode = "socks5",
+        mode = "wireguard",
         host = HOST,
         port = PORT,
         deviceName = "Relay Test Phone",
@@ -64,7 +64,7 @@ class PairingDiscoveryTest {
         val json = JSONObject(reply)
         assertEquals(Beacon.VERSION, json.getInt("v"))
         assertEquals(CODE, json.getString("code"))
-        assertEquals("socks5", json.getString("mode"))
+        assertEquals("wireguard", json.getString("mode"))
         // The address and port are the whole point of the answer: the code only
         // selects a phone, the beacon is what says where it is.
         assertEquals(HOST, json.getString("host"))
@@ -136,7 +136,7 @@ class PairingDiscoveryTest {
         const val ATTEMPTS = 20
 
         val NOT_PROBES = listOf(
-            """{"v":1,"code":"42","mode":"socks5","host":"192.168.43.1","port":1080,"state":"sharing"}""",
+            """{"v":1,"code":"42","mode":"wireguard","host":"192.168.43.1","port":51820,"state":"sharing"}""",
             """{"v":2,"probe":1}""",
             """{"v":1,"probe":0}""",
             """{"v":1}""",

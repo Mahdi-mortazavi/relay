@@ -21,11 +21,8 @@
     <string name="status_reconnecting">در حال اتصال مجدد…</string>
 
     <!-- Transport modes -->
-    <string name="mode_fast">سریع</string>
-    <string name="mode_full">کامل</string>
-    <string name="mode_fast_desc">بهترین برای مرور و پخش.</string>
-    <string name="mode_full_desc">بهترین برای بازی و تماس تصویری.</string>
-    <string name="mode_full_unavailable">حالت کامل در نسخه‌های بعدی می‌آید. حالت سریع برای مرور و پخش کافی است.</string>
+    <string name="mode_full_desc">هر چیزی که گوشی به آن دسترسی دارد به اشتراک گذاشته می‌شود — مرور، تماس تصویری و بازی.</string>
+    <string name="mode_full_unavailable">این نسخه بخش تونل را ندارد و نمی‌تواند چیزی به اشتراک بگذارد. رله را دوباره از صفحهٔ انتشارها نصب کنید.</string>
 
     <!-- Warnings (non-blocking banners) -->
     <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>
@@ -35,11 +32,6 @@
     <string name="advanced">پیشرفته</string>
     <string name="advanced_version">نسخه</string>
     <string name="advanced_ip">نشانی هات‌اسپات</string>
-    <string name="advanced_port">پورت ترجیحی</string>
-    <string name="advanced_port_hint">۰ = خودکار</string>
-    <string name="advanced_port_saved">ذخیره شد. از دفعهٔ بعدِ شروع اشتراک‌گذاری اعمال می‌شود.</string>
-    <string name="advanced_port_invalid">پورتی بین ۱ تا ۶۵۵۳۵ وارد کنید.</string>
-    <string name="advanced_port_save">ذخیره</string>
     <string name="advanced_theme">ظاهر</string>
     <string name="theme_system">سیستم</string>
     <string name="theme_dark">تیره</string>

@@ -23,7 +23,7 @@ APK="${1:?usage: universal-apk-e2e.sh <apk> <output-directory>}"
 OUT="${2:?usage: universal-apk-e2e.sh <apk> <output-directory>}"
 PKG=io.relay.app
 HOST_PORT=11080
-ECHO_PORT=8099
+PAIRING_PORT=47655
 
 mkdir -p "$OUT"
 RESULTS="${OUT}/universal-apk-results.txt"
@@ -34,7 +34,7 @@ fail() { printf '%-42s FAIL  %s\n' "$1" "${2:-}" | tee -a "$RESULTS"; FAILED=1; 
 FAILED=0
 
 cleanup() {
-  [ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null || true
+  [ -n "${APPROVER_PID:-}" ] && kill "$APPROVER_PID" 2>/dev/null || true
   adb forward --remove tcp:${HOST_PORT} >/dev/null 2>&1 || true
   # Collect logs from inside the emulator's lifetime; doing it after teardown
   # blocks forever (that hung this lab for 45 minutes once already).
@@ -147,33 +147,76 @@ approve_when_asked() {
   return 1
 }
 
-echo "::group::Relay real traffic through it"
+echo "::group::Pair with it over the real protocol"
 approve_when_asked &
 APPROVER_PID=$!
-# Self-contained target: served by this runner, reached back through the phone.
-python3 -m http.server "$ECHO_PORT" --bind 0.0.0.0 --directory "$OUT" \
-  > "${OUT}/http-server.log" 2>&1 &
-SERVER_PID=$!
-echo "relay-universal-ok" > "${OUT}/probe.txt"
-sleep 2
 
-DEVICE_PORT=""
-for p in 1080 1081 10800; do
-  adb forward --remove tcp:${HOST_PORT} >/dev/null 2>&1 || true
-  adb forward tcp:${HOST_PORT} tcp:${p} >/dev/null 2>&1 || continue
-  if curl -s --max-time 20 --socks5-hostname "127.0.0.1:${HOST_PORT}" \
-       "http://10.0.2.2:${ECHO_PORT}/probe.txt" -o "${OUT}/relayed.txt" 2>/dev/null; then
-    if grep -q 'relay-universal-ok' "${OUT}/relayed.txt" 2>/dev/null; then
-      DEVICE_PORT="$p"; break
-    fi
-  fi
-done
+adb forward --remove "tcp:${HOST_PORT}" >/dev/null 2>&1 || true
+adb forward "tcp:${HOST_PORT}" "tcp:${PAIRING_PORT}" >/dev/null 2>&1 || true
 
-if [ -n "$DEVICE_PORT" ]; then
-  pass "proxy.relays-real-http" "SOCKS5 on device port ${DEVICE_PORT}"
+# The published APK has to serve a real configuration to a real request, with
+# the person tapping Allow -- which is the only path a laptop without a camera
+# has. A phone that installs, launches, and then cannot be paired with is still
+# a broken download.
+RESPONSE="$(python3 - "$HOST_PORT" <<'PYEOF' 2>>"${OUT}/pairing.log"
+import socket, sys
+try:
+    sock = socket.create_connection(("127.0.0.1", int(sys.argv[1])), 15)
+except OSError as exc:
+    print("CONNECT-FAILED", exc, file=sys.stderr)
+    raise SystemExit(0)
+sock.settimeout(90)
+sock.sendall(b'{"v":1,"pair":1,"name":"universal-apk-e2e"}\n')
+data = b""
+try:
+    while not data.endswith(b"\n"):
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+except OSError as exc:
+    print("READ-FAILED", exc, file=sys.stderr)
+print(data.decode("utf-8", "replace").strip())
+PYEOF
+)"
+
+if printf '%s' "$RESPONSE" | grep -q '"ok":1' && \
+   printf '%s' "$RESPONSE" | grep -q 'clientPrivateKey'; then
+  pass "pairing.serves-configuration" "device port ${PAIRING_PORT} handed over a tunnel"
 else
-  fail "proxy.relays-real-http" "no candidate port relayed the request"
+  fail "pairing.serves-configuration" "no configuration came back: ${RESPONSE:-<nothing>}"
+  echo "--- pairing log ---"; cat "${OUT}/pairing.log" 2>/dev/null || true
   echo "--- app log ---"; adb logcat -d | grep -i relay | tail -40 || true
+fi
+
+# And the half that needs no human: a version this phone does not speak must be
+# told so, not left to time out, and must never carry key material.
+VERSION_REPLY="$(python3 - "$HOST_PORT" <<'PYEOF' 2>/dev/null
+import socket, sys
+try:
+    sock = socket.create_connection(("127.0.0.1", int(sys.argv[1])), 15)
+except OSError:
+    raise SystemExit(0)
+sock.settimeout(20)
+sock.sendall(b'{"v":2,"pair":1}\n')
+data = b""
+try:
+    while not data.endswith(b"\n"):
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+except OSError:
+    pass
+print(data.decode("utf-8", "replace").strip())
+PYEOF
+)"
+
+if printf '%s' "$VERSION_REPLY" | grep -q 'ERR_PAIRING_VERSION' && \
+   ! printf '%s' "$VERSION_REPLY" | grep -q 'clientPrivateKey'; then
+  pass "pairing.refuses-unknown-version" "answered without handing out a key"
+else
+  fail "pairing.refuses-unknown-version" "got: ${VERSION_REPLY:-<nothing>}"
 fi
 echo "::endgroup::"
 

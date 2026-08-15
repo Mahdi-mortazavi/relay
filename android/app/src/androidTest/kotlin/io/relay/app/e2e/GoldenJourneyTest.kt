@@ -14,34 +14,38 @@ import io.relay.app.R
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.TypedCode
+import io.relay.app.net.PairingServer
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.SharingService
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.net.SocketTimeoutException
-import kotlin.concurrent.thread
 
 /**
  * The golden user journey, on a real Android image, driven through the real UI:
  *
- *     open the app → Start Sharing → QR appears → a device connects →
- *     real bytes flow → Stop → everything is torn down
+ *     open the app → Start Sharing → QR appears → a laptop pairs by code →
+ *     the person allows it → Stop → the phone stops offering keys
  *
  * Nothing here is mocked: the real [SharingService] runs as a real foreground
- * service, the real SOCKS5 server binds the address the app actually chose to
- * advertise, and the traffic is a real HTTP exchange over real sockets. The
- * pairing payload the app issues is written out for the cross-platform leg,
- * where the Windows-side decoder consumes exactly this string.
+ * service, the real endpoint binds the address the app actually chose to
+ * advertise, and the pairing exchange happens over a real socket against the
+ * real approval gate. The pairing payload the app issues is written out for the
+ * cross-platform leg, where the Windows-side decoder consumes exactly this
+ * string.
+ *
+ * What this deliberately does not do is carry traffic. Since ADR-0009 the only
+ * transport is WireGuard, and standing up a peer that completes a handshake
+ * belongs to [FullModeTest] and to the Go suite, which already do it. Faking it
+ * here would produce a test that passes for the wrong reason.
  */
 @RunWith(AndroidJUnit4::class)
 class GoldenJourneyTest {
@@ -64,7 +68,7 @@ class GoldenJourneyTest {
 
     @Test
     fun openScanConnected() {
-        DeviceEvidence.note("=== Golden journey: open → start → pair → transfer → stop ===")
+        DeviceEvidence.note("=== Golden journey: open → start → pair by code → stop ===")
 
         // 1. The app opens on the idle screen with a single obvious action.
         val startLabel = compose.activity.getString(R.string.action_start)
@@ -90,12 +94,13 @@ class GoldenJourneyTest {
 
         val payload = advertising.payload
         DeviceEvidence.note("Advertising ${payload.mode} on ${payload.host}:${payload.port}")
-        assertEquals("Fast Mode must issue a socks5 payload", "socks5", payload.mode)
+        assertEquals("there is one transport now (ADR-0009)", "wireguard", payload.mode)
         assertTrue("advertised port must be real", payload.port in 1..65535)
         assertTrue(
             "must advertise a routable IPv4, not loopback (got ${payload.host})",
             payload.host != "127.0.0.1" && payload.host.count { it == '.' } == 3,
         )
+        assertTrue("a wireguard payload must carry its keys", payload.wg != null)
 
         // The QR string is the wire contract; the Windows side decodes this exact
         // text in the cross-platform leg of this workflow.
@@ -110,89 +115,77 @@ class GoldenJourneyTest {
             advertising.typedCode,
         )
 
-        // 4. A client connects to the advertised address — not to loopback, so
-        //    this also proves LocalAddress picked an address that is actually
-        //    bound and reachable on this device.
-        val destination = startHttpDestination()
-        val client = connectWithApproval(payload.host, payload.port, destination.localPort)
+        // 4. The other way in: two digits and no camera. A laptop asks on the
+        //    pairing port and the person holding the phone allows it — which is
+        //    the only thing standing between a stranger and these keys.
+        val configuration = pairWithApproval(payload.host)
         DeviceEvidence.screenshot("approved")
 
-        // 5. Real bytes, both directions.
-        client.getOutputStream().write("GET /probe HTTP/1.1\r\nHost: relay-e2e\r\n\r\n".toByteArray())
-        client.getOutputStream().flush()
-        val response = readAvailable(client)
-        assertTrue("expected a real HTTP response, got: $response", response.startsWith("HTTP/1.1 200"))
-        assertTrue("expected the body to come back", response.contains(BODY))
-        DeviceEvidence.note("Relayed a real HTTP exchange through the phone's SOCKS5 server")
+        // 5. What came back has to be the same tunnel the QR describes, or the
+        //    two ways in are two different products.
+        val offered = JSONObject(configuration)
+        assertEquals(1, offered.getInt("ok"))
+        assertEquals(payload.host, offered.getString("host"))
+        assertEquals(payload.port, offered.getInt("port"))
+        val wg = offered.getJSONObject("wg")
+        assertEquals(payload.wg!!.serverPublicKey, wg.getString("serverPublicKey"))
+        assertEquals(payload.wg!!.clientPrivateKey, wg.getString("clientPrivateKey"))
+        assertEquals(payload.wg!!.endpointPort, wg.getInt("endpointPort"))
+        DeviceEvidence.note("Pairing by code returned the same tunnel the QR describes")
 
-        // 6. The phone reports the connected device.
-        val connected = awaitState<ConnectionState.Connected>()
-        assertEquals(1, connected.clientCount)
-        compose.waitForIdle()
-        DeviceEvidence.screenshot("connected")
-
-        // 7. Stop means stop: the state returns to Idle, the tunnel is torn down,
-        //    and the port stops accepting. (Regression: stop() used to leave
-        //    established tunnels relaying.)
+        // 6. Stop means stop: the state returns to Idle and the phone stops
+        //    offering configurations. (A pairing port that outlived Stop would
+        //    hand out keys for a tunnel that no longer exists.)
         compose.onNodeWithText(compose.activity.getString(R.string.action_stop))
             .performScrollTo()
             .performClick()
         awaitState<ConnectionState.Idle>()
         DeviceEvidence.screenshot("stopped")
 
-        client.soTimeout = 5_000
-        val eof = try {
-            client.getInputStream().read()
-        } catch (_: SocketTimeoutException) {
-            throw AssertionError("the tunnel outlived Stop: the client's read never ended")
-        } catch (_: IOException) {
-            -1
-        }
-        assertEquals("the tunnel must be closed by Stop", -1, eof)
-
         var refused = false
         try {
-            Socket().use { it.connect(InetSocketAddress(payload.host, payload.port), 3_000) }
+            Socket().use {
+                it.connect(InetSocketAddress(payload.host, PairingServer.DEFAULT_PORT), 3_000)
+            }
         } catch (_: IOException) {
             refused = true
         }
-        assertTrue("the SOCKS port must stop accepting after Stop", refused)
-        DeviceEvidence.note("Stop tore down the listener and the live tunnel")
+        assertTrue("the pairing port must stop accepting after Stop", refused)
+        DeviceEvidence.note("Stop closed the pairing port")
     }
 
     /**
-     * Failure injection: the preferred SOCKS port is already taken. The user
-     * should never see this — the phone picks another port and puts it in the QR.
+     * Failure injection: something else already holds the pairing port.
+     *
+     * This must degrade, not fail. Offering a configuration by code is a
+     * convenience; the QR carries everything by itself, so a phone that cannot
+     * bind that port is still a phone you can pair with. Refusing to share at
+     * all here would turn a missing convenience into a broken product.
      */
     @Test
-    fun fallsBackToAnotherPortWhenTheFirstIsTaken() {
+    fun aPhoneThatCannotOfferPairingStillShares() {
         val squatter = ServerSocket()
         squatter.reuseAddress = true
-        squatter.bind(InetSocketAddress(SharingService.CANDIDATE_PORTS.first()), 4)
+        squatter.bind(InetSocketAddress(PairingServer.DEFAULT_PORT), 4)
         destinations += squatter
 
         compose.onNodeWithText(compose.activity.getString(R.string.action_start)).performClick()
         val advertising = awaitState<ConnectionState.Advertising>()
 
-        DeviceEvidence.note("Port ${squatter.localPort} occupied → advertised ${advertising.payload.port}")
-        assertTrue(
-            "must not advertise the occupied port",
-            advertising.payload.port != squatter.localPort,
+        DeviceEvidence.note(
+            "Pairing port ${squatter.localPort} occupied → still advertising " +
+                "${advertising.payload.mode} on ${advertising.payload.host}:${advertising.payload.port}"
         )
-        assertTrue(
-            "must fall back to a known candidate port",
-            advertising.payload.port in SharingService.CANDIDATE_PORTS,
-        )
+        assertEquals("wireguard", advertising.payload.mode)
+        assertTrue("the QR must still carry a usable tunnel", advertising.payload.wg != null)
 
-        // And the fallback port must actually work.
-        val destination = startHttpDestination()
-        val client = connectWithApproval(
-            advertising.payload.host, advertising.payload.port, destination.localPort,
-        )
-        client.getOutputStream().write("GET / HTTP/1.1\r\nHost: relay-e2e\r\n\r\n".toByteArray())
-        client.getOutputStream().flush()
-        assertTrue(readAvailable(client).contains(BODY))
-        DeviceEvidence.screenshot("port-fallback")
+        // And the QR is still on screen, which is the way in that remains.
+        val qrDescription = compose.activity.getString(R.string.qr_content_description)
+        compose.waitUntil(timeoutMillis = 15_000) {
+            compose.onAllNodesWithContentDescription(qrDescription)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        DeviceEvidence.screenshot("pairing-port-taken")
     }
 
     /** Every surfaced state must be a state the UI can actually render. */
@@ -228,25 +221,35 @@ class GoldenJourneyTest {
         )
     }
 
-    /** A destination "on the internet", running on the device behind the proxy. */
     /**
-     * Connects a client and answers the phone's approval prompt while it waits.
+     * Asks the phone for a configuration and answers the prompt while it waits.
      *
-     * The prompt is not incidental to the journey -- it is the thing that makes
-     * a two-digit pairing code safe (/shared/pairing-beacon.md), so a test that
-     * routed around it would be testing a product nobody ships. It has to
-     * happen on another thread because the connection blocks in the SOCKS
-     * handshake until someone taps Allow, and that someone is this test.
+     * The prompt is not incidental to the journey -- it is the only thing
+     * standing between a stranger on the network and these keys
+     * (/shared/pairing-beacon.md), so a test that routed around it would be
+     * testing a product nobody ships. It has to happen on another thread
+     * because the request blocks until someone taps Allow, and that someone is
+     * this test.
      */
-    private fun connectWithApproval(host: String, port: Int, destinationPort: Int): Socket {
+    private fun pairWithApproval(host: String): String {
         val pending = java.util.concurrent.CompletableFuture.supplyAsync {
-            socksConnect(host, port, "127.0.0.1", destinationPort)
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, PairingServer.DEFAULT_PORT), 5_000)
+                socket.soTimeout = 30_000
+                // One line, newline-terminated, exactly as the contract says.
+                val request = """{"v":1,"pair":1,"name":"Relay E2E"}""" + Char(10)
+                socket.getOutputStream().write(request.toByteArray())
+                socket.getOutputStream().flush()
+                socket.getInputStream().bufferedReader().readLine()
+                    ?: throw AssertionError("the phone closed without answering")
+            }
         }
-        // Assert the person is actually asked -- that is the part worth
-        // proving, and the part a regression would remove.
-        // Matched on the dialog's title, not its button: the battery banner
-        // also has a button reading "Allow", so the button text finds two nodes
-        // and the assertion fails on the ambiguity rather than on anything real.
+
+        // Assert the person is actually asked -- that is the part worth proving,
+        // and the part a regression would remove.
+        // Matched on the dialog's title, not its button: the battery banner also
+        // has a button reading "Allow", so the button text finds two nodes and
+        // the assertion fails on the ambiguity rather than on anything real.
         val prompt = compose.activity.getString(R.string.approve_title)
         compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(prompt).fetchSemanticsNodes().isNotEmpty()
@@ -254,12 +257,12 @@ class GoldenJourneyTest {
         compose.onNodeWithText(prompt).assertIsDisplayed()
         DeviceEvidence.screenshot("approval-prompt")
 
-        // Answer it through the gate rather than by tapping. A Compose dialog
+        // Answer through the gate rather than by tapping. A Compose dialog
         // renders in its own window, and injecting touch into that window fails
         // on these images with "Failed to inject touch input" -- an emulator
         // limitation, not a product one. The assertion above already proves the
         // prompt reached the screen; this only supplies the answer, and an
-        // unapproved client still never gets through.
+        // unapproved client still never gets a key.
         val waiting = ConnectionRepository.clientGate.pending.value
         assertTrue("the gate should have a client waiting", waiting != null)
         DeviceEvidence.note("Approval prompt shown for ${waiting!!.address}; allowing")
@@ -267,96 +270,4 @@ class GoldenJourneyTest {
         return pending.get(30, java.util.concurrent.TimeUnit.SECONDS)
     }
 
-    private fun startHttpDestination(): ServerSocket {
-        val server = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
-        destinations += server
-        thread(isDaemon = true) {
-            while (!server.isClosed) {
-                val socket = try {
-                    server.accept()
-                } catch (_: IOException) {
-                    return@thread
-                }
-                thread(isDaemon = true) {
-                    socket.use {
-                        runCatching {
-                            it.getInputStream().read(ByteArray(4096))
-                            it.getOutputStream().write(
-                                ("HTTP/1.1 200 OK\r\nContent-Length: ${BODY.length}\r\n" +
-                                    "Connection: close\r\n\r\n$BODY").toByteArray()
-                            )
-                            it.getOutputStream().flush()
-                        }
-                    }
-                }
-            }
-        }
-        return server
-    }
-
-    /** Full SOCKS5 greeting + CONNECT, exactly as a client would speak it. */
-    private fun socksConnect(
-        proxyHost: String,
-        proxyPort: Int,
-        destinationHost: String,
-        destinationPort: Int,
-    ): Socket {
-        val socket = Socket()
-        sockets += socket
-        socket.connect(InetSocketAddress(proxyHost, proxyPort), 10_000)
-        socket.soTimeout = 15_000
-        socket.tcpNoDelay = true
-
-        val output = socket.getOutputStream()
-        output.write(byteArrayOf(0x05, 0x01, 0x00))
-        output.flush()
-        val greeting = ByteArray(2)
-        readFully(socket, greeting)
-        assertEquals("SOCKS version in greeting reply", 5, greeting[0].toInt())
-        assertEquals("server must accept no-auth", 0, greeting[1].toInt())
-
-        val host = destinationHost.split(".").map { it.toInt().toByte() }.toByteArray()
-        output.write(
-            byteArrayOf(0x05, 0x01, 0x00, 0x01) + host +
-                byteArrayOf((destinationPort shr 8).toByte(), (destinationPort and 0xFF).toByte())
-        )
-        output.flush()
-        val reply = ByteArray(10)
-        readFully(socket, reply)
-        assertEquals("SOCKS version in CONNECT reply", 5, reply[0].toInt())
-        assertEquals("CONNECT must succeed", 0, reply[1].toInt())
-        assertNotNull(socket)
-        return socket
-    }
-
-    private fun readFully(socket: Socket, into: ByteArray) {
-        var offset = 0
-        while (offset < into.size) {
-            val read = socket.getInputStream().read(into, offset, into.size - offset)
-            if (read < 0) throw AssertionError("peer closed after $offset of ${into.size} bytes")
-            offset += read
-        }
-    }
-
-    /** Reads until the peer closes or the response is clearly complete. */
-    private fun readAvailable(socket: Socket): String {
-        socket.soTimeout = 15_000
-        val buffer = ByteArray(8192)
-        val text = StringBuilder()
-        while (true) {
-            val read = try {
-                socket.getInputStream().read(buffer)
-            } catch (_: SocketTimeoutException) {
-                break
-            }
-            if (read < 0) break
-            text.append(String(buffer, 0, read, Charsets.UTF_8))
-            if (text.contains(BODY)) break
-        }
-        return text.toString()
-    }
-
-    private companion object {
-        const val BODY = "relay-e2e-ok"
-    }
 }

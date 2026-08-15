@@ -221,4 +221,48 @@ public class LanDiscoveryTests
     public void NormalizeCode_matches_the_contract(string? input, string? expected)
         => Assert.Equal(expected, LanDiscovery.NormalizeCode(input));
 
+    [Fact]
+    public void A_phone_that_offers_a_pairing_port_can_be_reached_by_code()
+    {
+        const string json =
+            """{"v":1,"code":"42","mode":"wireguard","host":"192.168.1.14","port":51820,"state":"sharing","pairingPort":47655}""";
+
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(json), Now, out var device, out _));
+        Assert.Equal(47655, device!.PairingPort);
+        Assert.True(device.CanPairByCode);
+    }
+
+    [Fact]
+    public void A_beacon_without_a_pairing_port_is_still_valid_but_QR_only()
+    {
+        // The phone could not bind that port. It is still sharing and still
+        // worth showing — it just cannot be reached by two digits, and saying
+        // "scan the QR" is the truthful answer rather than calling a correct
+        // code invalid.
+        const string json =
+            """{"v":1,"code":"42","mode":"wireguard","host":"192.168.1.14","port":51820,"state":"sharing"}""";
+
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(json), Now, out var device, out _));
+        Assert.Null(device!.PairingPort);
+        Assert.False(device.CanPairByCode);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("65536")]
+    [InlineData("-1")]
+    [InlineData("\"47655\"")]
+    public void A_nonsense_pairing_port_is_dropped_rather_than_believed(string raw)
+    {
+        // Everything in a beacon is attacker-controlled: anything on the network
+        // can send one. A port out of range would send the client dialling
+        // somewhere meaningless, so the field is discarded and the phone falls
+        // back to QR-only rather than the whole beacon being thrown away.
+        var json =
+            $$"""{"v":1,"code":"42","mode":"wireguard","host":"192.168.1.14","port":51820,"state":"sharing","pairingPort":{{raw}}}""";
+
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(json), Now, out var device, out _));
+        Assert.Null(device!.PairingPort);
+        Assert.False(device.CanPairByCode);
+    }
 }

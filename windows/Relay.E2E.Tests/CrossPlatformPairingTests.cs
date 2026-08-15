@@ -1,6 +1,4 @@
-using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
 using Relay.Core;
 using Xunit;
@@ -17,7 +15,7 @@ namespace Relay.E2E.Tests;
 ///
 /// Configured entirely by environment, set by <c>.github/workflows/e2e.yml</c>:
 ///   RELAY_PAIRING_FILE  pairing.json pulled off the device
-///   RELAY_SOCKS_PORT    local port that adb-forwards to the phone's SOCKS server
+///   RELAY_PAIRING_PORT  local port that adb-forwards to the phone's pairing port
 ///   RELAY_HOST_ALIAS    address the phone uses to reach this runner (10.0.2.2)
 /// </summary>
 [Collection("e2e")]
@@ -37,7 +35,8 @@ public sealed class CrossPlatformPairingTests
         Assert.True(result.IsOk, $"Windows rejected the phone's QR payload: {result.Reason}");
         var payload = result.Payload!;
         Assert.Equal(QrPayloadCodec.SupportedVersion, payload.V);
-        Assert.Equal(QrPayload.ModeSocks5, payload.Mode);
+        Assert.Equal(QrPayload.ModeWireguard, payload.Mode);
+        Assert.NotNull(payload.Wg);
         Assert.Equal(Device.Host, payload.Host);
         Assert.Equal(Device.Port, payload.Port);
         Assert.False(string.IsNullOrWhiteSpace(payload.Name));
@@ -74,91 +73,59 @@ public sealed class CrossPlatformPairingTests
     }
 
     /// <summary>
-    /// The whole point of the product, end to end and off-device: this process
-    /// pushes an HTTP request through the phone's SOCKS5 server and back out to
-    /// a destination the phone dials on its own.
+    /// The assertion this whole leg exists for: the shipping Windows client and
+    /// the shipping phone completing the pairing exchange against each other.
+    ///
+    /// Both sides are asserted against /shared/test-vectors.json in their own
+    /// suites, which catches a platform drifting from the contract. It cannot
+    /// catch the contract being wrong, or both sides reading it the same wrong
+    /// way. This can: nothing here is a fixture, the bytes cross a real socket
+    /// into a real app, and the phone answers with keys it really minted.
     /// </summary>
     [Fact]
-    public async Task RealTrafficFlowsThroughThePhone()
+    public void TheWindowsClientPairsWithTheLivePhone()
     {
-        const string body = "relay-cross-platform-ok";
-        using var destination = new HttpProbeServer(body);
+        var result = new PairingClient().Fetch("127.0.0.1", Config.PairingPort, "cross-platform-e2e");
 
-        using var proxy = await SocksClient.ConnectAsync(
-            Config.SocksPort, Config.HostAlias, destination.Port);
+        Assert.True(result.Ok, $"pairing failed: {result.ErrorCode}");
+        Assert.NotNull(result.Wg);
 
-        var response = await proxy.RequestAsync("GET /through-the-phone HTTP/1.1\r\nHost: relay\r\n\r\n", body);
-
-        Assert.Contains("HTTP/1.1 200", response);
-        Assert.Contains(body, response);
-        Assert.True(destination.WasHit, "the phone never dialled the destination");
+        // What came back has to be the tunnel the QR describes, or the two ways
+        // in are two different products.
+        var fromQr = QrPayloadCodec.Decode(Device.Qr).Payload!.Wg!;
+        Assert.Equal(fromQr.ServerPublicKey, result.Wg!.ServerPublicKey);
+        Assert.Equal(fromQr.ClientPrivateKey, result.Wg.ClientPrivateKey);
+        Assert.Equal(fromQr.EndpointPort, result.Wg.EndpointPort);
+        Assert.Equal(fromQr.AllowedIps, result.Wg.AllowedIps);
     }
 
     /// <summary>
-    /// Domain destinations are resolved <em>on the phone</em> — that is what puts
-    /// DNS inside the phone's VPN instead of leaking it from the PC.
+    /// A key is only ever handed to a request the phone accepted, and a request
+    /// it never understood is not accepted. The phone must say so rather than
+    /// hang up, or a newer PC learns nothing and reports the phone as missing.
     /// </summary>
     [Fact]
-    public async Task ThePhoneResolvesDomainNamesForTheClient()
+    public void APhoneRefusesAVersionItDoesNotSpeak()
     {
-        using var proxy = await SocksClient.ConnectByNameAsync(Config.SocksPort, "example.com", 80);
-        var response = await proxy.RequestAsync(
-            "GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n", "</html>");
+        using var socket = new TcpClient();
+        socket.Connect("127.0.0.1", Config.PairingPort);
+        socket.ReceiveTimeout = 15_000;
 
-        Assert.StartsWith("HTTP/1.1", response);
-    }
-
-    /// <summary>Red team: the proxy must reject what it does not implement, not hang or die.</summary>
-    [Fact]
-    public async Task ThePhoneRejectsUnsupportedSocksRequests()
-    {
-        // BIND is not implemented; the reply must say so.
-        var reply = await SocksClient.RawRequestAsync(
-            Config.SocksPort, command: 0x02, host: "127.0.0.1", port: 80);
-        Assert.Equal((byte)0x05, reply[0]);
-        Assert.Equal((byte)0x07, reply[1]); // REP_COMMAND_NOT_SUPPORTED
-
-        // An unknown address type, likewise.
-        var atyp = await SocksClient.RawRequestAsync(
-            Config.SocksPort, command: 0x01, host: "127.0.0.1", port: 80, addressType: 0x09);
-        Assert.Equal((byte)0x08, atyp[1]); // REP_ADDRESS_TYPE_NOT_SUPPORTED
-
-        // And it is still serving afterwards.
-        const string body = "still-alive";
-        using var destination = new HttpProbeServer(body);
-        using var proxy = await SocksClient.ConnectAsync(
-            Config.SocksPort, Config.HostAlias, destination.Port);
-        Assert.Contains(body, await proxy.RequestAsync("GET / HTTP/1.1\r\nHost: relay\r\n\r\n", body));
-    }
-
-    /// <summary>Several clients at once is the normal case for a browser.</summary>
-    [Fact]
-    public async Task ThePhoneServesConcurrentTunnels()
-    {
-        const string body = "concurrent-ok";
-        using var destination = new HttpProbeServer(body);
-
-        var requests = Enumerable.Range(0, 8).Select(async _ =>
+        var writer = new StreamWriter(socket.GetStream())
         {
-            using var proxy = await SocksClient.ConnectAsync(
-                Config.SocksPort, Config.HostAlias, destination.Port);
-            return await proxy.RequestAsync("GET / HTTP/1.1\r\nHost: relay\r\n\r\n", body);
-        });
+            AutoFlush = true,
+            NewLine = ((char)10).ToString(),
+        };
+        writer.WriteLine("""{"v":2,"pair":1}""");
+        var reply = new StreamReader(socket.GetStream()).ReadLine();
 
-        foreach (var response in await Task.WhenAll(requests))
-        {
-            Assert.Contains(body, response);
-        }
+        Assert.Equal("ERR_PAIRING_VERSION", PairingClient.Parse(reply!).ErrorCode);
+        Assert.DoesNotContain("clientPrivateKey", reply, StringComparison.Ordinal);
     }
-
-    // --- fixtures -------------------------------------------------------------
 
     private static class Config
     {
-        public static int SocksPort => int.Parse(Require("RELAY_SOCKS_PORT"));
-
-        /// <summary>The emulator's alias for the host loopback.</summary>
-        public static string HostAlias => Environment.GetEnvironmentVariable("RELAY_HOST_ALIAS") ?? "10.0.2.2";
+        public static int PairingPort => int.Parse(Require("RELAY_PAIRING_PORT"));
 
         public static string Require(string name) =>
             Environment.GetEnvironmentVariable(name)
@@ -180,61 +147,6 @@ public sealed class CrossPlatformPairingTests
                 root.GetProperty("typedCode").ValueKind == JsonValueKind.Null
                     ? null
                     : root.GetProperty("typedCode").GetString());
-        }
-    }
-
-    /// <summary>A destination on this runner that the phone has to dial back to.</summary>
-    private sealed class HttpProbeServer : IDisposable
-    {
-        private readonly TcpListener _listener;
-        private readonly CancellationTokenSource _cts = new();
-
-        public HttpProbeServer(string body)
-        {
-            _listener = new TcpListener(IPAddress.Any, 0);
-            _listener.Start();
-            Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            _ = ServeAsync(body, _cts.Token);
-        }
-
-        public int Port { get; }
-        public bool WasHit { get; private set; }
-
-        private async Task ServeAsync(string body, CancellationToken token)
-        {
-            var response = Encoding.ASCII.GetBytes(
-                $"HTTP/1.1 200 OK\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}");
-            while (!token.IsCancellationRequested)
-            {
-                TcpClient client;
-                try { client = await _listener.AcceptTcpClientAsync(token); }
-                catch (OperationCanceledException) { return; }
-                catch (SocketException) { return; }
-                catch (ObjectDisposedException) { return; }
-
-                WasHit = true;
-                _ = Task.Run(async () =>
-                {
-                    using (client)
-                    {
-                        try
-                        {
-                            var stream = client.GetStream();
-                            await stream.ReadAsync(new byte[4096], token);
-                            await stream.WriteAsync(response, token);
-                            await stream.FlushAsync(token);
-                        }
-                        catch (Exception) { /* the peer went away; nothing to do */ }
-                    }
-                }, token);
-            }
-        }
-
-        public void Dispose()
-        {
-            _cts.Cancel();
-            _listener.Stop();
-            _cts.Dispose();
         }
     }
 }

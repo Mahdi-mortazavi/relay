@@ -70,7 +70,7 @@ fi
 
 ENDPOINT="$(device_read "${EVIDENCE}/ready")"
 DEVICE_PORT="${ENDPOINT##*:}"
-echo "Phone is advertising on ${ENDPOINT}"
+echo "Phone is reachable for pairing on ${ENDPOINT}"
 echo "::endgroup::"
 
 echo "::group::Bridge the host to the phone"
@@ -89,7 +89,7 @@ echo "::endgroup::"
 echo "::group::Windows-side client against the live phone"
 set +e
 RELAY_PAIRING_FILE="$(cd "$(dirname "${OUT}/pairing.json")" && pwd)/pairing.json" \
-RELAY_SOCKS_PORT="${HOST_PORT}" \
+RELAY_PAIRING_PORT="${HOST_PORT}" \
 RELAY_HOST_ALIAS="10.0.2.2" \
   dotnet test windows/Relay.E2E.Tests/Relay.E2E.Tests.csproj \
     --configuration Release \

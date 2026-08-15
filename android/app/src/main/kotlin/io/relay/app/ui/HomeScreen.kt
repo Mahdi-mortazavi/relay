@@ -76,7 +76,6 @@ import io.relay.app.core.ConnectionState
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
-import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
 import io.relay.app.service.LocalLog
 import io.relay.app.ui.theme.LocalGlass
@@ -90,9 +89,7 @@ fun HomeScreen(
     batteryExempt: Boolean,
     warnings: Set<WarningCode>,
     themeMode: String,
-    transportMode: TransportMode,
     fullModeAvailable: Boolean,
-    preferredPort: Int,
     logs: List<LocalLog.Entry>,
     onStart: () -> Unit,
     onStop: () -> Unit,
@@ -101,8 +98,6 @@ fun HomeScreen(
     onAllowBattery: () -> Unit,
     onDismissWarning: (WarningCode) -> Unit,
     onSetTheme: (String) -> Unit,
-    onSetMode: (TransportMode) -> Unit,
-    onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
     onShareLogs: () -> Unit = {},
     /** Version string of a newer release, or null when this build is current. */
@@ -143,7 +138,7 @@ fun HomeScreen(
             ) { current ->
                 when (current) {
                     is ConnectionState.Idle ->
-                        IdlePanel(transportMode, fullModeAvailable, onSetMode, onStart)
+                        IdlePanel(fullModeAvailable, onStart)
                     is ConnectionState.Preparing -> PreparingPanel()
                     is ConnectionState.Advertising ->
                         PairingPanel(
@@ -180,7 +175,7 @@ fun HomeScreen(
                 BatteryBanner(onAllowBattery)
                 Spacer(Modifier.height(12.dp))
             }
-            AdvancedSection(state, themeMode, preferredPort, logs, onSetTheme, onSetPort, onClearLogs, onShareLogs)
+            AdvancedSection(state, themeMode, logs, onSetTheme, onClearLogs, onShareLogs)
         }
 
         // Inside the Box and after the scrolling Column, so it sits above the
@@ -295,9 +290,7 @@ private fun rememberQrText(payload: QrPayload): String =
 
 @Composable
 private fun IdlePanel(
-    transportMode: TransportMode,
     fullModeAvailable: Boolean,
-    onSetMode: (TransportMode) -> Unit,
     onStart: () -> Unit,
 ) {
     val glass = LocalGlass.current
@@ -307,78 +300,31 @@ private fun IdlePanel(
             style = MaterialTheme.typography.bodyMedium,
             color = glass.textSecondary,
         )
-        Spacer(Modifier.height(20.dp))
-        ModeToggle(transportMode, fullModeAvailable, onSetMode)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
+        // One transport since ADR-0009, so there is nothing to choose here --
+        // just a sentence saying what pressing the button will do.
         Text(
             text = stringResource(
-                when {
-                    transportMode == TransportMode.FULL -> R.string.mode_full_desc
-                    fullModeAvailable -> R.string.mode_fast_desc
-                    // Say plainly why the other segment can't be picked instead
-                    // of letting the user tap it and hit an error.
-                    else -> R.string.mode_full_unavailable
-                }
+                if (fullModeAvailable) R.string.mode_full_desc else R.string.mode_full_unavailable
             ),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(20.dp))
-        PrimaryButton(text = stringResource(R.string.action_start), onClick = onStart)
+        // A build without the forwarder cannot share at all now that there is no
+        // second transport, so the button is not offered rather than offered and
+        // guaranteed to fail.
+        PrimaryButton(
+            text = stringResource(R.string.action_start),
+            onClick = onStart,
+            enabled = fullModeAvailable,
+        )
         Spacer(Modifier.height(16.dp))
         Text(
             text = stringResource(R.string.tagline),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
-        )
-    }
-}
-
-/** Segmented Fast/Full selector — one glass pill with the active segment in accent. */
-@Composable
-private fun ModeToggle(mode: TransportMode, fullModeAvailable: Boolean, onSet: (TransportMode) -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .glassPanel(radius = 999.dp)
-            .padding(4.dp)
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        ModeSegment(
-            label = stringResource(R.string.mode_fast),
-            selected = mode == TransportMode.FAST,
-            enabled = true,
-        ) { onSet(TransportMode.FAST) }
-        ModeSegment(
-            label = stringResource(R.string.mode_full),
-            selected = mode == TransportMode.FULL,
-            enabled = fullModeAvailable,
-        ) { onSet(TransportMode.FULL) }
-    }
-}
-
-@Composable
-private fun ModeSegment(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val glass = LocalGlass.current
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) glass.accent else Color.Transparent)
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .minimumInteractiveComponentSize()
-            .padding(horizontal = 22.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = when {
-                selected -> glass.onAccent
-                enabled -> glass.textSecondary
-                else -> glass.textTertiary
-            },
         )
     }
 }
@@ -647,10 +593,8 @@ private fun UpdateBanner(version: String, onGet: () -> Unit) {
 private fun AdvancedSection(
     state: ConnectionState,
     themeMode: String,
-    preferredPort: Int,
     logs: List<LocalLog.Entry>,
     onSetTheme: (String) -> Unit,
-    onSetPort: (Int) -> Unit,
     onClearLogs: () -> Unit,
     onShareLogs: () -> Unit,
 ) {
@@ -705,7 +649,6 @@ private fun AdvancedSection(
                 }
 
                 // Preferred port
-                PortField(preferredPort, onSetPort)
 
                 // Local-only activity log
                 Column {
@@ -806,83 +749,22 @@ private fun ThemeChip(value: String, labelRes: Int, current: String, onSet: (Str
 }
 
 @Composable
-private fun PortField(preferredPort: Int, onSetPort: (Int) -> Unit) {
-    val glass = LocalGlass.current
-    // rememberSaveable: a half-typed port survived neither rotation nor the
-    // activity being recreated behind the battery-settings screen.
-    var text by rememberSaveable(preferredPort) {
-        mutableStateOf(if (preferredPort == 0) "" else preferredPort.toString())
-    }
-    var saved by rememberSaveable { mutableStateOf(false) }
-    // The field used to accept 65536-99999 and Save silently stored "automatic"
-    // (0) while the field went on displaying the rejected number — no error, no
-    // confirmation, and a value the user believed was applied. Out-of-range
-    // input is now rejected as it is typed, so what is on screen is always what
-    // will be saved.
-    val outOfRange = text.isNotEmpty() && (text.toIntOrNull() ?: 0) !in 1..65535
-    Column {
-        Text(stringResource(R.string.advanced_port), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextField(
-                value = text,
-                onValueChange = {
-                    if (it.length <= 5 && it.all(Char::isDigit)) {
-                        text = it
-                        saved = false
-                    }
-                },
-                placeholder = { Text(stringResource(R.string.advanced_port_hint), color = glass.textTertiary) },
-                singleLine = true,
-                isError = outOfRange,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = glass.fill,
-                    unfocusedContainerColor = glass.fill,
-                    focusedTextColor = glass.textPrimary,
-                    unfocusedTextColor = glass.textPrimary,
-                ),
-                modifier = Modifier.weight(1f),
-            )
-            SubtleButton(
-                text = stringResource(R.string.advanced_port_save),
-                enabled = !outOfRange,
-                onClick = {
-                    onSetPort(text.toIntOrNull() ?: 0)
-                    saved = true
-                },
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        // Saving used to be entirely silent, so there was no way to tell whether
-        // anything had happened.
-        Text(
-            text = when {
-                outOfRange -> stringResource(R.string.advanced_port_invalid)
-                saved -> stringResource(R.string.advanced_port_saved)
-                else -> stringResource(R.string.advanced_port_hint)
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = if (outOfRange) glass.error else glass.textTertiary,
-        )
-    }
-}
-
-// --- buttons -----------------------------------------------------------------
-
-@Composable
-private fun PrimaryButton(text: String, onClick: () -> Unit) {
+private fun PrimaryButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val glass = LocalGlass.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(glass.accent)
-            .clickable(role = Role.Button, onClick = onClick)
+            .background(if (enabled) glass.accent else glass.accent.copy(alpha = 0.35f))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .minimumInteractiveComponentSize()
             .padding(horizontal = 32.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = glass.onAccent)
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (enabled) glass.onAccent else glass.onAccent.copy(alpha = 0.6f),
+        )
     }
 }
 

@@ -44,7 +44,20 @@ class DirectPairingStrategy(
             wg = wg,
         )
 
-    /** Full Mode key material doesn't fit a human code — typed codes are Fast Mode only. */
+    /**
+     * The eight-character code, which carries an address and nothing else.
+     *
+     * It used to be Fast Mode only, because Full Mode's key material does not
+     * fit in a human code and an address alone could not build a tunnel. Since
+     * ADR-0009 an address alone is enough: the PC dials the pairing port there
+     * and the keys come over that exchange, gated by the person holding the
+     * phone.
+     *
+     * It has to keep working, and not only as a nicety. The two-digit code is
+     * withheld when the phone cannot announce itself, so if this returned null
+     * as well, a phone on a network with no broadcast would display no code at
+     * all -- shareable only by QR, with nothing on screen saying why.
+     */
     override fun issueTypedCode(payload: QrPayload): String? =
-        if (payload.mode == QrPayload.MODE_SOCKS5) TypedCode.encode(payload.host, payload.port) else null
+        TypedCode.encode(payload.host, payload.port)
 }
