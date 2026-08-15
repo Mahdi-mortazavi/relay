@@ -26,6 +26,7 @@ import io.relay.app.core.WgConfig
 import io.relay.app.net.LocalAddress
 import io.relay.app.core.PairingCode
 import io.relay.app.net.Beacon
+import io.relay.app.net.PairingServer
 import io.relay.app.net.Socks5Server
 import io.relay.app.net.VpnStatus
 import io.relay.app.net.wg.WgForwarder
@@ -55,6 +56,9 @@ class SharingService : Service() {
     private val settings by lazy { Settings(this) }
     private var server: Socks5Server? = null
     private var beacon: Beacon? = null
+
+    /** Null when the port could not be bound, which makes this phone QR-only. */
+    private var pairingServer: PairingServer? = null
 
     /**
      * The code this session announces. Kept even when it is not shown, so a
@@ -179,6 +183,7 @@ class SharingService : Service() {
             host = payload.host,
             port = payload.port,
             deviceName = payload.name,
+            pairingPort = pairingServer?.boundPort,
         ).also { it.start() }
         beacon = announcer
 
@@ -238,10 +243,47 @@ class SharingService : Service() {
         wgKeys = keys
         LocalLog.add("WireGuard endpoint up on $host:${keys.endpointPort}")
         startPeerWatcher(forwarder)
+        startPairingServer()
         return pairing.issuePayload(
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
         )
+    }
+
+    /**
+     * Opens the port a laptop asks on when it has only two digits and no camera
+     * (ADR-0009). Best effort by design: a phone that cannot bind it is still a
+     * phone you can pair by QR, so the beacon simply omits `pairingPort` and the
+     * PC says to scan — which is true — rather than reporting a correct code as
+     * invalid.
+     */
+    private fun startPairingServer() {
+        pairingServer?.stop()
+        val server = PairingServer(
+            preferredPort = PairingServer.DEFAULT_PORT,
+            gate = clientGate,
+            // Read at approval time, not captured: a rebind onto a new hotspot
+            // address mid-session would otherwise send the laptop to where this
+            // phone used to be.
+            configuration = {
+                val keys = wgKeys
+                val host = currentHost
+                if (keys == null || host == null) null
+                else PairingServer.Configuration(
+                    host = host,
+                    port = keys.endpointPort,
+                    wg = WgConfig.toWgParams(keys),
+                )
+            },
+        )
+        pairingServer = try {
+            server.start()
+            LocalLog.add("Pairing by code available on ${server.boundPort}")
+            server
+        } catch (e: IOException) {
+            LocalLog.add("Pairing port busy; this phone is QR-only: ${e.message}")
+            null
+        }
     }
 
     /** Binds the SOCKS server; preferred port (Advanced) first, then the fallback list. Returns the bound port or -1. */
@@ -389,6 +431,9 @@ class SharingService : Service() {
                 host = payload.host,
                 port = payload.port,
                 deviceName = payload.name,
+                // The pairing server survives a rebind — it listens on a port,
+                // not on an address — so it keeps announcing the same one.
+                pairingPort = pairingServer?.boundPort,
             ).also { it.start() }
             beacon = announcer
             // The new network may be able to carry the announcement where the
@@ -444,6 +489,10 @@ class SharingService : Service() {
         // leaving the beacon broadcasting after the user pressed Stop.
         beacon?.stop()
         beacon = null
+        // Stop offering configurations before the keys they describe are
+        // discarded, or a laptop could be handed a tunnel that no longer exists.
+        pairingServer?.stop()
+        pairingServer = null
         pairingCode = null
         shortCode = null
         clientGate.reset()
