@@ -236,10 +236,9 @@ class GoldenJourneyTest {
             Socket().use { socket ->
                 socket.connect(InetSocketAddress(host, PairingServer.DEFAULT_PORT), 5_000)
                 socket.soTimeout = 30_000
-                socket.getOutputStream().write(
-                    ("""{"v":1,"pair":1,"name":"Relay E2E"}""" + "
-").toByteArray()
-                )
+                // One line, newline-terminated, exactly as the contract says.
+                val request = """{"v":1,"pair":1,"name":"Relay E2E"}""" + Char(10)
+                socket.getOutputStream().write(request.toByteArray())
                 socket.getOutputStream().flush()
                 socket.getInputStream().bufferedReader().readLine()
                     ?: throw AssertionError("the phone closed without answering")
