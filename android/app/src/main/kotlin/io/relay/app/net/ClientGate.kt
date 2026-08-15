@@ -91,6 +91,14 @@ class ClientGate(
      * than running it here.
      */
     fun resolve(address: String, allowed: Boolean) {
+        // TEMPORARY DIAGNOSTIC (issue: the gate self-answers Allow on hardware).
+        // Records who called, because the only caller in the source is a button's
+        // onClick and something is reaching it without a touch.
+        android.util.Log.w(
+            "RelayGate",
+            "resolve(address=$address, allowed=$allowed)",
+            Throwable("caller"),
+        )
         val decision = if (allowed) Decision.ALLOWED else Decision.DENIED
         decisions[address] = decision
         waiters.remove(address)?.complete(decision)
