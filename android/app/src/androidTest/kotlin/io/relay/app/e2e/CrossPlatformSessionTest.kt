@@ -10,6 +10,7 @@ import io.relay.app.R
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
+import io.relay.app.net.PairingServer
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.SharingService
 import org.junit.After
@@ -76,7 +77,30 @@ class CrossPlatformSessionTest {
         DeviceEvidence.screenshot("host-harness-advertising")
 
         // Tell the workflow the session is up and where to reach it.
-        File(evidence, "ready").writeText("${payload.host}:${payload.port}")
+        // The pairing port, not the endpoint: the endpoint is UDP and the host
+        // reaches this phone through `adb forward`, which is TCP only. This is
+        // also the port the interesting cross-platform assertion uses -- the two
+        // implementations completing the pairing exchange against each other.
+        File(evidence, "ready").writeText("${payload.host}:${PairingServer.DEFAULT_PORT}")
+
+        // Stand in for the person holding the phone.
+        //
+        // The exchange is gated on a human tapping Allow, and there is no human
+        // on a runner. Approving from here keeps the gate in the path -- the
+        // request still blocks until something answers, and an unapproved client
+        // still gets nothing -- while letting the host half run unattended.
+        // GoldenJourneyTest is where the prompt itself is asserted to reach the
+        // screen; this one is about the two platforms agreeing on the wire.
+        kotlin.concurrent.thread(isDaemon = true, name = "relay-e2e-approver") {
+            val deadline = System.currentTimeMillis() + 120_000
+            while (System.currentTimeMillis() < deadline) {
+                ConnectionRepository.clientGate.pending.value?.let {
+                    DeviceEvidence.note("Host asked to pair from ${it.address}; allowing")
+                    ConnectionRepository.clientGate.resolve(it.address, allowed = true)
+                }
+                Thread.sleep(50)
+            }
+        }
 
         // Stand in for the person holding the phone, for as long as this test
         // needs one. The gate holds every unapproved address until someone

@@ -64,15 +64,17 @@ Windows warns on first run because the installer isn't code-signed yet — **Mor
 That's it — your browser, your apps, everything goes through the phone. Press **Disconnect** when you're done and Windows goes back exactly as it was.
 
 <details>
-<summary><b>Fast Mode or Full Mode?</b></summary>
+<summary><b>Why Windows asks for permission once</b></summary>
 
 <br>
 
-**Fast Mode** is the default and needs no permissions. It carries TCP — browsing, video, downloads, most apps.
+Relay carries **everything** — browsing, downloads, video calls, games. TCP and UDP both, because it builds a real WireGuard tunnel rather than a proxy that only some apps honour.
 
-**Full Mode** carries **TCP and UDP**, so games and some video calls work too. It uses WireGuard, and Windows asks for permission once when you connect, because creating a network adapter needs it. Only that one small tunnel process gets the permission — never the whole app.
+A tunnel needs a network adapter, and Windows only creates one with your permission. So the first time you connect, you get a **UAC prompt** — click **Yes**.
 
-Switch modes on the phone before you tap Start Sharing.
+Only the small tunnel process gets that permission, never the whole app, and it lasts exactly as long as the connection. Relay itself installs for you alone and never asks for admin anywhere else.
+
+There used to be a second mode that skipped this prompt. It only carried TCP, so games and calls silently didn't work, and it did it by editing a Windows-wide proxy setting that Relay then had to put back correctly every time — including after a crash. One clear prompt is a better trade than a setting that can be left broken. ([ADR-0009](docs/adr/0009-full-mode-only-and-code-pairing.md))
 
 </details>
 
@@ -105,17 +107,19 @@ So Relay has no accounts, no servers, no telemetry, no subscription. Your traffi
 
 ## 🔐 Honest about security
 
-Fast Mode's transport is a **SOCKS5 proxy with no password**. That's a deliberate trade — Windows can't supply proxy credentials system-wide, and requiring them would break the "no configuration" promise that is the whole point.
+Your traffic travels inside **WireGuard**, with keys that are made fresh for one session and thrown away when you stop sharing. Nothing is written to disk, and nothing leaves your two devices.
 
-So instead: **your phone asks you before any computer is allowed through.** The two-digit code just picks your phone out of the ones nearby; the approval is what keeps strangers out. Full Mode doesn't ask, because there the PC proves itself with a key that existed only inside your QR code.
+The interesting question is not the tunnel, it's who gets to use it. The two-digit code is **not a password** — ninety numbers never could be. It only picks your phone out of the ones nearby. **What keeps strangers out is you:** when a computer asks for the keys, your phone stops and asks you first, showing which computer is asking. Nobody gets in while your phone is in your pocket — no answer within a minute counts as no.
 
-Safe on your own hotspot. On shared or public Wi-Fi, prefer Full Mode. The full threat model is in [SECURITY.md](SECURITY.md) — including what Relay does *not* protect you from.
+Scanning the QR skips that question, because holding your phone up to a camera already answered it.
+
+The full threat model is in [SECURITY.md](SECURITY.md) — including what Relay does *not* protect you from.
 
 ---
 
 ## 🧪 How it's tested
 
-Every commit installs the real app on real Android images (API 30–36), drives it through its own UI, and pushes real bytes through the real proxy. The Windows client's own code runs against a **live phone** over `adb`. The real installer is installed, launched and uninstalled, with the system proxy checked at every stage. Full Mode's tunnel is brought up on a real WinTun adapter and a real WireGuard handshake is verified across it.
+Every commit installs the real app on real Android images (API 30–36) and drives it through its own UI: start sharing, show a QR, let a laptop pair by code, answer the prompt, stop. The Windows client's own code runs against a **live phone** over `adb`. The real installer is installed, launched and uninstalled. The tunnel is brought up on a real WinTun adapter and a real WireGuard handshake is verified across it — and the client refuses to report "connected" until that handshake actually happens.
 
 Then the *published* APK is installed on Android 11 through 16 — because a release nobody can install is not a release.
 
@@ -127,8 +131,8 @@ What hardware still has to prove is written down in [docs/testing.md](docs/testi
 
 | | |
 |:---|:---|
-| ⚡ Fast Mode (SOCKS5, TCP) | ✅ **Shipping** |
-| 🚀 Full Mode (WireGuard, TCP + UDP) | ✅ **Shipping** — both platforms |
+| 🚀 WireGuard tunnel, TCP + UDP | ✅ **Shipping** — both platforms |
+| 🔢 Pair by QR **or** two-digit code | ✅ **Shipping** |
 | 🔄 Auto-reconnect, actionable errors, EN + FA | ✅ **Shipping** |
 | ✍️ Signed Windows installer | 🔨 Planned |
 | 🍎 macOS client | 💭 Later |
