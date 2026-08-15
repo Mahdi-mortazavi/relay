@@ -221,8 +221,15 @@ Then the phone closes the connection, in both cases.
 
 Rules:
 
-- The phone MUST NOT mint or send keys before the person has allowed it. A
-  request that is denied or times out leaves no key material in existence.
+- The phone MUST NOT send keys before the person has allowed it. A request that
+  is denied or times out learns nothing beyond the fact that something is
+  listening, which the beacon already said.
+- **One client per sharing session.** The endpoint is configured with a single
+  peer, so the QR and this exchange hand out the *same* client key — they are
+  two ways to receive one configuration, not two configurations. A second
+  computer pairing while a first is connected takes the tunnel over rather than
+  joining it. Fast Mode allowed several clients at once; this does not, and a
+  listener MUST NOT present it as though it does.
 - The phone MUST answer a `v` it does not know with
   `{"v":1,"error":"ERR_PAIRING_VERSION"}` rather than silence, so a newer PC
   learns it is talking to an older phone instead of waiting out a timeout.

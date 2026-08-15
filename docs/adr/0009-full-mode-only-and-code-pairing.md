@@ -67,6 +67,14 @@ for a laptop with no camera, or a phone the camera cannot focus on.
 - **The proxy risk is gone**, and with it `ProxySession`, `WinInetProxyStore`,
   `ShutdownRecoveryHook`, `--restore-proxy`, and the uninstaller step that calls
   it. Nothing Relay does now outlives its process.
+- **One client at a time.** `WgConfig.serverConfig` configures the endpoint with
+  a single peer, so the QR and the exchange deliver the *same* client key: two
+  ways to receive one configuration, not two configurations. Fast Mode could
+  serve several computers at once and this cannot. That is a real loss, accepted
+  because sharing a phone's connection with two laptops simultaneously is rare
+  enough that nobody reported it, while the proxy risk was hit constantly.
+  Multiple peers would mean minting a key per pairing and adding it to the
+  running endpoint, which the forwarder does not currently support.
 - **The keys are as exposed as the SOCKS port was**, and no more. Anything on
   the LAN can open the pairing port, exactly as anything on the LAN could open
   the SOCKS port; in both designs the person holding the phone is what stands

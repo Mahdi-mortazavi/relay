@@ -40,6 +40,14 @@ class Beacon(
     private val host: String,
     private val port: Int,
     private val deviceName: String?,
+    /**
+     * Where this phone will hand out a tunnel configuration, or null when it
+     * could not bind that port. Null means the beacon omits `pairingPort`, which
+     * the contract defines as "QR only" — the PC then says to scan rather than
+     * reporting a correct code as invalid.
+     * See /shared/pairing-beacon.md → "The pairing exchange".
+     */
+    private val pairingPort: Int? = null,
     private val intervalMs: Long = INTERVAL_MS,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -190,6 +198,7 @@ class Beacon(
             .put("port", port)
             .put("state", state)
         deviceName?.take(NAME_MAX)?.let { json.put("name", it) }
+        pairingPort?.let { json.put("pairingPort", it) }
         return json.toString().toByteArray(Charsets.UTF_8)
     }
 
