@@ -219,6 +219,32 @@ Run each row from an installable CI artifact; **pass = the app shows a correct s
 | M9 | Open Advanced on both; change theme (Android), change port (Android), view logs | Settings persist; logs are local-only and clearable |
 | M10 | Kill either app mid-session | Android: service stops cleanly; Windows: proxy restored on next launch |
 
+### Full Mode, phone → PC over real Wi-Fi — proved on hardware (2026-08-15)
+
+The row above says the Windows client cannot be reached by CI, and that is still
+true of CI. It has now been done by hand, on an SM-A307FN and a Windows 11
+laptop on one Wi-Fi, with a full-tunnel VPN active on the phone:
+
+```
+phone   1 device connected · ↑ 11.8 MB ↓ 12.9 MB
+adapter Relay · Up · 10.13.37.2/32
+route   0.0.0.0/0 metric 0 on the Relay adapter
+        Find-NetRoute 1.1.1.1 -> InterfaceAlias Relay
+egress  167.233.126.217   (the laptop's own exit is 109.125.167.231)
+```
+
+The egress differing from the laptop's own is what makes it a proof rather than
+an adapter that merely exists: the traffic left through the tunnel, through the
+phone, and out of the phone's VPN. The UAC prompt was accepted by the
+maintainer; that step still cannot be automated.
+
+**Observed in passing, and worth knowing:** upgrading the APK killed the process
+and `START_STICKY` restarted the service by itself — `Starting sharing` with no
+one touching the phone — which minted fresh WireGuard keys and a fresh pairing
+code. Any QR already scanned is silently dead at that moment. That is the
+mechanism behind "Full Mode worked once and never again"; it is now surfaced as
+`ERR_WG_NO_HANDSHAKE` rather than reported as a successful connection.
+
 ### The probe cannot be answered from inside the phone's VPN — undecided
 
 Measured on an SM-A307FN (Android 11) sharing a Wi-Fi the laptop was also on,
