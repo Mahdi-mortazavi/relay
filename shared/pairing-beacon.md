@@ -53,15 +53,23 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
 | `port`  | int    | 1–65535.                                                          |
 | `name`  | string | Device name, ≤ 32 chars, for display. MAY be absent.               |
 | `state` | string | `sharing` or `stopped`.                                           |
+| `pairingPort` | int | 1–65535. Where to ask for a configuration. MAY be absent, and then this phone can only be paired by QR. |
 
-A beacon with `mode: wireguard` announces a phone that **cannot be paired from
-this beacon**. Full Mode's keys exist only inside the QR payload, so a listener
-that builds a connection out of the beacon's fields alone produces a
-configuration the other end will refuse. A listener MAY show such a phone in its
-device list — knowing it is there is useful — but MUST NOT offer it as
-connectable, and MUST say that the QR is the way in (`ERR_FULL_MODE_NEEDS_QR`)
-rather than reporting the code as invalid. Reporting a correct code as invalid
-is how a working pair of apps comes to look incompatible.
+The keys a `mode: wireguard` phone needs are **not** in the beacon and never can
+be: a beacon is broadcast, unauthenticated, and readable by anything on the
+network. A listener that tried to build a tunnel out of the beacon's fields
+alone would produce a configuration the other end refuses.
+
+The code still works, because the beacon carries a `pairingPort` instead of
+keys, and the configuration is fetched over a short TCP exchange that the person
+holding the phone has to allow — see [The pairing exchange](#the-pairing-exchange)
+below, and [ADR-0009](../docs/adr/0009-full-mode-only-and-code-pairing.md) for
+why it is shaped this way. A beacon that omits `pairingPort` announces a phone
+that can only be paired by QR; a listener MUST show it, MUST NOT offer it as
+connectable by code, and MUST say the QR is the way in
+(`ERR_FULL_MODE_NEEDS_QR`) rather than reporting the code as invalid. Reporting
+a correct code as invalid is how a working pair of apps comes to look
+incompatible.
 
 A datagram that fails any rule is dropped in silence. Beacons are not
 authenticated, so a listener MUST treat every field as untrusted display data:
@@ -174,17 +182,77 @@ decided and is tracked in `docs/testing.md`.
      the user pick. Ninety codes and two phones collide about one time in
      forty-five, so this is uncommon but not rare enough to leave unhandled.
 
+## The pairing exchange
+
+Two digits select a phone. This is how the PC then gets a configuration it can
+actually dial, without a key ever touching a broadcast.
+
+The phone listens on TCP `pairingPort` while it is sharing. One request per
+connection, UTF-8 JSON, one object per line, `\n`-terminated.
+
+**The PC asks:**
+
+```json
+{"v":1,"pair":1,"name":"MAHDI-LAPTOP"}
+```
+
+`name` is optional, ≤ 32 chars, and is shown to the person being asked so the
+prompt names a computer rather than only an address. It is attacker-controlled
+display data like every other name here.
+
+**The phone answers, once, after the person decides.** On Allow:
+
+```json
+{"v":1,"ok":1,"host":"192.168.1.14","port":51820,
+ "wg":{"serverPublicKey":"…","clientPrivateKey":"…",
+       "allowedIps":"0.0.0.0/0","endpointPort":51820,"dns":"1.1.1.1"}}
+```
+
+The `wg` object is **exactly** the one in
+[`qr-payload.schema.json`](qr-payload.schema.json), so both paths hand the
+client the same structure and neither platform needs a second parser. On Deny,
+or on the 60-second timeout:
+
+```json
+{"v":1,"error":"ERR_PAIRING_DENIED"}
+```
+
+Then the phone closes the connection, in both cases.
+
+Rules:
+
+- The phone MUST NOT mint or send keys before the person has allowed it. A
+  request that is denied or times out leaves no key material in existence.
+- The phone MUST answer a `v` it does not know with
+  `{"v":1,"error":"ERR_PAIRING_VERSION"}` rather than silence, so a newer PC
+  learns it is talking to an older phone instead of waiting out a timeout.
+- A connection that sends nothing within **10 s** is closed. This port is
+  reachable by anything on the network, so an idle socket is not held open for
+  it.
+- The PC MUST treat everything it receives as untrusted until the tunnel
+  handshakes. A configuration that cannot be parsed, or whose `wg` block is
+  incomplete, is `ERR_QR_INVALID` — the same code the QR path uses, because it
+  is the same failure: the phone described a tunnel this client cannot build.
+- Keys are per pairing. Stopping sharing discards them, so a configuration
+  fetched in a previous session is dead — which surfaces as
+  `ERR_WG_NO_HANDSHAKE`, not as a successful connection.
+
+**What this is worth, and what it is not.** Anything on the LAN can open this
+port, exactly as anything on the LAN could open Fast Mode's SOCKS port. The code
+is a selector, not a secret, and the exchange is not encrypted. What stands
+between a stranger and your connection is the person holding the phone —
+unchanged from the design this replaces, and the reason the prompt shows the
+address and the code that was used.
+
 ## Approval
 
-The first connection from a client address the phone has not seen in this
-sharing session is held, and the phone asks the person: *"Allow this computer to
-share your connection?"* with the address and, when the beacon was answered, the
-code that was used.
+A pairing request is held, and the phone asks the person: *"Allow this computer
+to share your connection?"* with the requesting address, the name it gave if it
+gave one, and the code that was used.
 
-- Allowed → the address is remembered for the rest of the session; later
-  connections from it are not held.
-- Denied → the connection is closed, and further connections from that address
-  are closed without asking again for this session.
+- Allowed → the phone mints this pairing's keys and sends the configuration.
+- Denied → `ERR_PAIRING_DENIED`, and further requests from that address are
+  refused without asking again for this session.
 - No answer within **60 s** → treated as denied, so a phone in a pocket fails
   closed.
 
@@ -192,13 +260,13 @@ Approval state is per sharing session and never persisted: stopping and starting
 sharing asks again. This is deliberate — a remembered decision on a network you
 have since left is a decision made on the wrong network.
 
-**Fast Mode only.** This whole mechanism exists because Fast Mode's transport is
-an unauthenticated SOCKS5 port: anything that can reach it can use it, so the
-only thing standing between a stranger and your data is the person holding the
-phone. Full Mode's client authenticates with a 32-byte private key that existed
-nowhere but inside one QR code, so a peer that completes a WireGuard handshake
-*is* the device that was shown that code. There is nothing left for a prompt to
-establish, and one would only teach people to tap Allow without reading it.
+**This gates the code path, not the tunnel.** A client that already holds a
+configuration — from a QR, or from an earlier allowed exchange in this session —
+authenticates with a 32-byte private key that existed nowhere but in that one
+delivery, so a peer completing a WireGuard handshake *is* the device that was
+given it. There is nothing left for a prompt to establish there, and one would
+only teach people to tap Allow without reading it. The prompt belongs where a
+key is about to be **handed out**, which is exactly and only this exchange.
 
 ## Compatibility
 

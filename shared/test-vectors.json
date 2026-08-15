@@ -165,5 +165,51 @@
       "not json at all",
       ""
     ]
+  },
+  "pairingExchange": {
+    "$comment": "The TCP exchange that lets two digits pair a Full Mode phone, from pairing-beacon.md → The pairing exchange (ADR-0009). Keys cannot ride a broadcast, so the beacon carries a pairingPort and the configuration is fetched over a connection the person holding the phone has to allow. Windows asserts it emits `request` and parses `allowed`; Android asserts it serves every `served` shape, refuses every `refused` one, and answers `denied` without ever minting a key. The refusal half matters as much as the acceptance half: this port is reachable by anything on the network.",
+    "request": "{\"v\":1,\"pair\":1,\"name\":\"MAHDI-LAPTOP\"}",
+    "served": [
+      "{\"v\":1,\"pair\":1,\"name\":\"MAHDI-LAPTOP\"}",
+      "{\"v\":1,\"pair\":1}",
+      "{\"v\":1,\"pair\":true}"
+    ],
+    "refused": [
+      "{\"v\":1,\"pair\":0}",
+      "{\"v\":1,\"pair\":false}",
+      "{\"v\":1}",
+      "{\"pair\":1}",
+      "not json at all",
+      ""
+    ],
+    "versionMismatch": {
+      "$comment": "A newer PC must be told, not left to time out.",
+      "request": "{\"v\":2,\"pair\":1}",
+      "response": "{\"v\":1,\"error\":\"ERR_PAIRING_VERSION\"}"
+    },
+    "denied": "{\"v\":1,\"error\":\"ERR_PAIRING_DENIED\"}",
+    "allowed": {
+      "$comment": "The wg object is byte-for-byte the one in qr-payload.schema.json, so both pairing paths hand the client the same structure.",
+      "response": "{\"v\":1,\"ok\":1,\"host\":\"192.168.1.14\",\"port\":51820,\"wg\":{\"serverPublicKey\":\"j8f7dEXAMPLEserverPublicKeyBase64Padding0123=\",\"clientPrivateKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"allowedIps\":\"0.0.0.0/0\",\"endpointPort\":51820,\"dns\":\"1.1.1.1\"}}",
+      "host": "192.168.1.14",
+      "port": 51820,
+      "wg": {
+        "serverPublicKey": "j8f7dEXAMPLEserverPublicKeyBase64Padding0123=",
+        "clientPrivateKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "allowedIps": "0.0.0.0/0",
+        "endpointPort": 51820,
+        "dns": "1.1.1.1"
+      }
+    },
+    "malformedResponses": {
+      "$comment": "Everything here must surface ERR_QR_INVALID on the PC — the same code the QR path uses, because it is the same failure: the phone described a tunnel this client cannot build.",
+      "responses": [
+        "{\"v\":1,\"ok\":1,\"host\":\"192.168.1.14\",\"port\":51820}",
+        "{\"v\":1,\"ok\":1,\"host\":\"192.168.1.14\",\"port\":51820,\"wg\":{\"serverPublicKey\":\"x\"}}",
+        "{\"v\":1,\"ok\":1,\"wg\":{\"serverPublicKey\":\"j8f7dEXAMPLEserverPublicKeyBase64Padding0123=\",\"clientPrivateKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"allowedIps\":\"0.0.0.0/0\",\"endpointPort\":51820,\"dns\":\"1.1.1.1\"}}",
+        "not json at all",
+        ""
+      ]
+    }
   }
 }
