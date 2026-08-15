@@ -140,6 +140,34 @@ jobs:
         # Mode. The download above can succeed and leave nothing usable behind.
         run: ./gradlew assembleDebug testDebugUnitTest -PrelayRequireWg=true
 
+      - name: The suites that matter must have run
+        # Gradle prints test names only on failure, so a green run says nothing
+        # about which classes executed -- a class that stopped being picked up
+        # looks exactly like a class that passed. Same discipline as
+        # device-tests.sh and the Full Mode client job; keep the list current
+        # when adding a suite that matters.
+        run: |
+          reports=android/app/build/test-results/testDebugUnitTest
+          if [ ! -d "$reports" ]; then
+            echo "::error::no test results at $reports — the suite did not run"
+            exit 1
+          fi
+          total=$(grep -ho 'tests="[0-9]*"' "$reports"/*.xml | grep -o '[0-9]*' | paste -sd+ | bc)
+          echo "test classes: $(ls -1 "$reports"/*.xml | wc -l), tests: $total"
+          for class in \
+            PairingServerTest \
+            BeaconProbeTest \
+            QrPayloadCodecTest \
+            ConnectionRulesTest \
+            ReconnectPolicyTest
+          do
+            if [ ! -f "$reports/TEST-io.relay.app.$class.xml" ]; then
+              echo "::error::$class did not run — this job proves nothing without it"
+              exit 1
+            fi
+          done
+          echo "All required unit-test classes ran."
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
