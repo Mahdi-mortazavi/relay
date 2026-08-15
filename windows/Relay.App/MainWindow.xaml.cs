@@ -19,11 +19,11 @@ namespace Relay.App;
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    private const int PopupWidth = 380;
+    private const int PopupWidth = 460;
     // The window follows its content between these bounds instead of standing
     // at a fixed height with a hole in the middle of it.
-    private const int MinPopupHeight = 340;
-    private const int MaxPopupHeight = 640;
+    private const int MinPopupHeight = 360;
+    private const int MaxPopupHeight = 680;
 
     private readonly AppController _controller = AppController.Instance;
 
@@ -163,11 +163,11 @@ public sealed partial class MainWindow : Window
         {
             presenter.IsResizable = false;
             presenter.IsMaximizable = false;
-            presenter.IsMinimizable = false;
-            presenter.SetBorderAndTitleBar(true, false);
-            presenter.IsAlwaysOnTop = true;
+            presenter.IsMinimizable = true;
+            presenter.SetBorderAndTitleBar(true, true);
+            presenter.IsAlwaysOnTop = false;
         }
-        AppWindow.IsShownInSwitchers = false;
+        AppWindow.IsShownInSwitchers = true;
 
         // Closing the popover hides it to the tray; it's never destroyed — unless
         // the user picked Exit, in which case cancelling here would swallow the
@@ -178,20 +178,6 @@ public sealed partial class MainWindow : Window
             if (ExitRequested) return;
             args.Cancel = true;
             HideToTray();
-        };
-
-        // macOS-popover behaviour: hide when focus is lost — but never mid-scan,
-        // so a system camera prompt can't dismiss the scanner.
-        Activated += (_, e) =>
-        {
-            // Ignore the brief deactivation that can follow a show (if the
-            // foreground grab momentarily loses), else the popover flash-hides.
-            if (e.WindowActivationState == WindowActivationState.Deactivated
-                && _mode != InputMode.Scanning
-                && Environment.TickCount64 - _shownAtTick > 400)
-            {
-                AppWindow.Hide();
-            }
         };
 
         if (System.Globalization.CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft)
@@ -249,24 +235,19 @@ public sealed partial class MainWindow : Window
         if (scale <= 0) scale = 1.0;
         var w = (int)(PopupWidth * scale);
         var h = (int)(heightDip * scale);
-        var margin = (int)(12 * scale);
+        var margin = (int)(16 * scale);
 
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
 
-        // Clamp to the work area: at 175% scaling a tall window used to be
-        // pushed off the top of the screen, and it is not resizable, so the
-        // header simply became unreachable.
+        // Clamp to the work area
         h = Math.Min(h, Math.Max(area.Height - margin * 2, 200));
 
-        // A right-to-left Windows puts the notification area bottom-left. The
-        // content was already mirrored; the window itself was not, so it opened
-        // in the opposite corner from the icon that summoned it.
-        var x = Root.FlowDirection == FlowDirection.RightToLeft
-            ? area.X + margin
-            : area.X + area.Width - w - margin;
+        // Center the window on the active display
+        var x = area.X + (area.Width - w) / 2;
+        var y = area.Y + (area.Height - h) / 2;
 
         AppWindow.Resize(new SizeInt32(w, h));
-        AppWindow.Move(new PointInt32(x, area.Y + area.Height - h - margin));
+        AppWindow.Move(new PointInt32(x, y));
     }
 
     private void HideToTray()
@@ -591,6 +572,8 @@ public sealed partial class MainWindow : Window
             "ERR_CODE_NOT_FOUND" => ("ErrTitleCode", "ErrCodeNotFound", "EnterCode"),
             "ERR_CODE_AMBIGUOUS" => ("ErrTitleCode", "ErrCodeAmbiguous", "EnterCode"),
             "ERR_FULL_MODE_NEEDS_QR" => ("ErrTitleCode", "ErrFullModeNeedsQr", "ScanQr"),
+            "ERR_PAIRING_DENIED" => ("ErrTitlePairing", "ErrPairingDenied", "EnterCode"),
+            "ERR_PAIRING_VERSION" => ("ErrTitlePairing", "ErrPairingVersion", (string?)null),
             "ERR_HOST_UNREACHABLE" => ("ErrTitleNoPhone", "ErrHostUnreachable", "TryAgain"),
             "ERR_WRONG_NETWORK" => ("ErrTitleNetwork", "ErrWrongNetwork", "TryAgain"),
             "ERR_CONNECTION_LOST" => ("ErrTitleLost", "ErrConnectionLost", "TryAgain"),
@@ -1020,22 +1003,41 @@ public sealed partial class MainWindow : Window
     {
         if (_connecting) return;
 
-        // A phone in Full Mode announces itself like any other, but its beacon
-        // cannot carry what Full Mode needs — the keys live in the QR and
-        // nowhere else. Connecting anyway produced "That's not a Relay code."
-        // in front of a perfectly correct code, which reads as the two apps
-        // being incompatible. Say what to do instead.
-        if (device.Mode == QrPayload.ModeWireguard)
-        {
-            ShowLocalError("ERR_FULL_MODE_NEEDS_QR");
-            return;
-        }
-
         _connecting = true;
         _localError = null;
-        _mode = InputMode.None;
+
         try
         {
+            // Full Mode WireGuard: if phone announces a pairingPort, fetch config over TCP.
+            if (device.Mode == QrPayload.ModeWireguard)
+            {
+                if (device.PairingPort is null)
+                {
+                    ShowLocalError("ERR_FULL_MODE_NEEDS_QR");
+                    return;
+                }
+
+                CodeHintText.Text = Strings.Get("CodePairingWaiting");
+                CodeHintText.Foreground = ThemeBrush("AccentBrush");
+                CodeConnectButton.IsEnabled = false;
+
+                var result = await Relay.Core.Net.PairingClient.RequestConfigurationAsync(
+                    device.Host,
+                    device.PairingPort.Value,
+                    Environment.MachineName);
+
+                if (!result.Ok)
+                {
+                    ShowLocalError(result.ErrorCode ?? "ERR_QR_INVALID");
+                    return;
+                }
+
+                _mode = InputMode.None;
+                await _controller.ConnectAsync(result.Payload!);
+                return;
+            }
+
+            _mode = InputMode.None;
             await _controller.ConnectAsync(new QrPayload
             {
                 V = QrPayloadCodec.SupportedVersion,

@@ -23,7 +23,7 @@ public sealed class LanDiscovery : IDisposable
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
 
     /// <summary>A phone currently announcing itself.</summary>
-    public sealed record Device(string Code, string Mode, string Host, int PortNumber, string? Name, DateTimeOffset Seen)
+    public sealed record Device(string Code, string Mode, string Host, int PortNumber, string? Name, int? PairingPort, DateTimeOffset Seen)
     {
         public string Key => $"{Host}:{PortNumber}";
     }
@@ -129,13 +129,13 @@ public sealed class LanDiscovery : IDisposable
 
     /// <summary>
     /// The broadcast address of each usable IPv4 interface, plus the limited
-    /// broadcast address.
+    /// broadcast address and default gateway addresses.
     ///
     /// Both, deliberately. A directed broadcast is the one that reaches a phone
     /// acting as a hotspot, because that interface is not the PC's default
     /// route; 255.255.255.255 is the one that survives adapters whose netmask
-    /// the stack reports oddly. Sending two small datagrams is cheaper than
-    /// choosing wrong.
+    /// the stack reports oddly. Direct gateway probing covers networks where
+    /// Windows Firewall or AP isolation blocks broadcast.
     /// </summary>
     private static IEnumerable<IPAddress> BroadcastAddresses()
     {
@@ -159,6 +159,16 @@ public sealed class LanDiscovery : IDisposable
             {
                 var broadcast = BroadcastFor(unicast.Address, unicast.IPv4Mask);
                 if (broadcast is not null && seen.Add(broadcast.ToString())) yield return broadcast;
+            }
+
+            foreach (var gw in properties.GatewayAddresses)
+            {
+                if (gw.Address.AddressFamily == AddressFamily.InterNetwork &&
+                    !Equals(gw.Address, IPAddress.Any) &&
+                    seen.Add(gw.Address.ToString()))
+                {
+                    yield return gw.Address;
+                }
             }
         }
     }
@@ -251,10 +261,17 @@ public sealed class LanDiscovery : IDisposable
             var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
             if (name is { Length: > 32 }) name = name[..32];
 
+            int? pairingPort = null;
+            if (root.TryGetProperty("pairingPort", out var pp) && pp.ValueKind == JsonValueKind.Number)
+            {
+                var val = pp.GetInt32();
+                if (val is >= 1 and <= 65535) pairingPort = val;
+            }
+
             var state = root.TryGetProperty("state", out var s) ? s.GetString() : "sharing";
             stopped = state == "stopped";
 
-            device = new Device(code, mode, host!, portNumber, name, seen);
+            device = new Device(code, mode, host!, portNumber, name, pairingPort, seen);
             return true;
         }
         catch (JsonException)
@@ -286,7 +303,7 @@ public sealed class LanDiscovery : IDisposable
     /// <summary>Everything except when it was last heard from.</summary>
     private static bool SameToTheUser(Device a, Device b) =>
         a.Code == b.Code && a.Mode == b.Mode && a.Host == b.Host &&
-        a.PortNumber == b.PortNumber && a.Name == b.Name;
+        a.PortNumber == b.PortNumber && a.Name == b.Name && a.PairingPort == b.PairingPort;
 
     private void Remove(string key)
     {

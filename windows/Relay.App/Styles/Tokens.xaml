@@ -65,9 +65,9 @@
          large sizes and Text for small, which is the same optical-size idea as
          SF Pro Display / Text. Tracking tightens as size grows. -->
 
-    <FontFamily x:Key="FontDisplay">Segoe UI Variable Display</FontFamily>
-    <FontFamily x:Key="FontText">Segoe UI Variable Text</FontFamily>
-    <FontFamily x:Key="FontMono">Cascadia Mono, Consolas</FontFamily>
+    <FontFamily x:Key="FontDisplay">Segoe UI Variable Display, Segoe UI, Tahoma, Vazirmatn, Arial, sans-serif</FontFamily>
+    <FontFamily x:Key="FontText">Segoe UI Variable Text, Segoe UI, Tahoma, Vazirmatn, Arial, sans-serif</FontFamily>
+    <FontFamily x:Key="FontMono">Cascadia Mono, Consolas, Courier New, monospace</FontFamily>
 
     <x:Double x:Key="SizeTitle">21</x:Double>
     <x:Double x:Key="SizeHeadline">17</x:Double>

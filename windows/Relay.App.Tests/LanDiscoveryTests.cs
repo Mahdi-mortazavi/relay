@@ -25,6 +25,21 @@ public class LanDiscoveryTests
         Assert.Equal(1080, device.PortNumber);
         Assert.Equal("Pixel 4a", device.Name);
         Assert.Equal("socks5", device.Mode);
+        Assert.Null(device.PairingPort);
+    }
+
+    [Fact]
+    public void Parses_a_beacon_with_pairingPort()
+    {
+        using var discovery = new LanDiscovery();
+        var json = """{"v":1,"code":"42","mode":"wireguard","host":"192.168.43.1","port":51820,"name":"Pixel 8","pairingPort":47655,"state":"sharing"}""";
+        Assert.True(LanDiscovery.TryParseBeacon(Beacon(json), Now, out var device, out var stopped));
+        Assert.False(stopped);
+        Assert.Equal("42", device!.Code);
+        Assert.Equal("192.168.43.1", device.Host);
+        Assert.Equal(51820, device.PortNumber);
+        Assert.Equal(47655, device.PairingPort);
+        Assert.Equal("wireguard", device.Mode);
     }
 
     [Fact]
