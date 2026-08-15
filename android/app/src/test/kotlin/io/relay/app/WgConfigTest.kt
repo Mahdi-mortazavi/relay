@@ -2,13 +2,13 @@ package io.relay.app
 
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.QrPayload
+import io.relay.app.core.TypedCode
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.DecodeResult
 import io.relay.app.core.WgConfig
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -78,11 +78,28 @@ class WgConfigTest {
         assertEquals(payload, (roundTrip as DecodeResult.Ok).payload)
     }
 
+    /**
+     * The eight-character code is offered now, where it used to be withheld.
+     *
+     * It was Fast Mode only, because Full Mode's keys do not fit in something a
+     * person can type and an address alone could not build a tunnel. Since
+     * ADR-0009 an address is enough: the PC dials the pairing port there and the
+     * keys come over that exchange.
+     *
+     * Withholding it is no longer a safe default, which is the real reason this
+     * test flipped rather than being deleted. The two-digit code is already
+     * withheld when the phone cannot announce itself, so a phone that refused
+     * this one too would show *no code at all* on a network without broadcast --
+     * shareable by QR alone, with nothing on screen explaining why.
+     */
     @Test
-    fun `typed code is not offered for full mode`() {
+    fun `the typed code is offered, because an address is now enough`() {
         val payload = DirectPairingStrategy().issuePayload(
             QrPayload.MODE_WIREGUARD, "192.168.43.1", 51820, "Pixel", WgConfig.toWgParams(keys),
         )
-        assertNull(DirectPairingStrategy().issueTypedCode(payload))
+        assertEquals(
+            TypedCode.encode("192.168.43.1", 51820),
+            DirectPairingStrategy().issueTypedCode(payload),
+        )
     }
 }
