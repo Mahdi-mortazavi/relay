@@ -14,7 +14,6 @@ import io.relay.app.net.PairingServer
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.SharingService
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -158,27 +157,28 @@ class CrossPlatformSessionTest {
         DeviceEvidence.note("Host harness finished; phone state is ${state.stateName}")
         DeviceEvidence.screenshot("host-harness-after")
 
-        // And the port is still serving — a session that survives one client is
-        // the difference between a demo and a product.
+        // And the phone is still willing to pair — a session that survives one
+        // client is the difference between a demo and a product.
+        //
+        // Asked with a version this phone does not speak, deliberately: that
+        // path answers without waking the approval gate, so it proves the
+        // listener is alive without consuming the one approval this session has
+        // or blocking for the gate's full minute.
         Socket().use { probe ->
-            probe.connect(InetSocketAddress(payload.host, payload.port), 5_000)
-            // Without a read timeout this blocks on the approval gate for its
-            // full minute and then fails as a bare "Connection reset", which
-            // says nothing about why. Ten seconds is far longer than a greeting
-            // needs and far shorter than the gate's patience, so a stall here
-            // reports itself as a stall.
+            probe.connect(InetSocketAddress(payload.host, PairingServer.DEFAULT_PORT), 5_000)
             probe.soTimeout = 10_000
-            probe.getOutputStream().write(byteArrayOf(0x05, 0x01, 0x00))
+            probe.getOutputStream().write(("""{"v":2,"pair":1}""" + Char(10)).toByteArray())
             probe.getOutputStream().flush()
-            val reply = ByteArray(2)
-            var offset = 0
-            while (offset < 2) {
-                val read = probe.getInputStream().read(reply, offset, 2 - offset)
-                if (read < 0) throw IOException("proxy closed during re-probe")
-                offset += read
-            }
-            assertEquals("proxy must still greet after the host leg", 5, reply[0].toInt())
-            assertEquals(0, reply[1].toInt())
+            val reply = probe.getInputStream().bufferedReader().readLine()
+                ?: throw IOException("the pairing port closed during the re-probe")
+            assertTrue(
+                "the phone must still answer on its pairing port, got: $reply",
+                reply.contains(PairingServer.ERR_VERSION),
+            )
+            assertTrue(
+                "a refusal must never carry key material",
+                !reply.contains("clientPrivateKey"),
+            )
         }
     }
 
