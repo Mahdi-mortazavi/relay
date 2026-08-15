@@ -604,6 +604,8 @@ public sealed partial class MainWindow : Window
             "ERR_WG_ELEVATION_DECLINED" => ("ErrTitleElevation", "ErrWgElevationDeclined", "TryAgain"),
             "ERR_WG_START_FAILED" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
             "ERR_WG_NO_HANDSHAKE" => ("ErrTitleTunnel", "ErrWgNoHandshake", "ScanQr"),
+            "ERR_PAIRING_DENIED" => ("ErrTitlePairing", "ErrPairingDenied", "EnterCode"),
+            "ERR_PAIRING_VERSION" => ("ErrTitlePairing", "ErrPairingVersion", "ScanQr"),
             "ERR_WG_ALREADY_RUNNING" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
             "ERR_WG_STOP_FAILED" => ("ErrTitleTunnel", "ErrWgStopFailed", "TryAgain"),
             _ => ("ErrTitleProxy", "ErrProxyApply", "TryAgain"),

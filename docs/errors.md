@@ -43,6 +43,8 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_WG_ELEVATION_DECLINED` | Error | Full Mode's elevation prompt was dismissed | Choose Yes on the prompt, or switch the phone to Fast Mode |
 | `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again — or switch the phone to Fast Mode |
 | `ERR_WG_NO_HANDSHAKE` | Error | The adapter came up but the peer never handshaked — almost always a QR whose keys the phone has since replaced | Scan the QR the phone is showing now |
+| `ERR_PAIRING_DENIED` | Error | The person holding the phone declined this computer, or did not answer within 60 s | Tap Allow on the phone, then try the code again |
+| `ERR_PAIRING_VERSION` | Error | The phone speaks an older pairing version than this PC | Update Relay on the phone |
 | `ERR_WG_ALREADY_RUNNING` | Error | A tunnel is already up; a second would fight it for the adapter | Disconnect first |
 | `ERR_WG_STOP_FAILED` | Error | The tunnel process would not exit | Restart Relay; the adapter and its routes go when it exits |
 | `ERR_CAMERA_DENIED` | Error | Camera unavailable or access denied | Allow camera access for desktop apps in Windows Settings → Privacy, or enter the code manually |

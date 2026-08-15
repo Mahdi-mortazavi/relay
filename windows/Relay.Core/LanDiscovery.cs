@@ -23,9 +23,21 @@ public sealed class LanDiscovery : IDisposable
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
 
     /// <summary>A phone currently announcing itself.</summary>
-    public sealed record Device(string Code, string Mode, string Host, int PortNumber, string? Name, DateTimeOffset Seen)
+    /// <param name="PairingPort">
+    /// Where this phone will hand out a tunnel configuration, or null when it
+    /// did not say. Null means QR-only: the phone could not bind that port, so
+    /// a code cannot get us a configuration and the honest answer is to say
+    /// "scan the QR" rather than to report a correct code as invalid.
+    /// See /shared/pairing-beacon.md → The pairing exchange.
+    /// </param>
+    public sealed record Device(
+        string Code, string Mode, string Host, int PortNumber, string? Name, DateTimeOffset Seen,
+        int? PairingPort = null)
     {
         public string Key => $"{Host}:{PortNumber}";
+
+        /// <summary>Whether two digits alone are enough to connect to this phone.</summary>
+        public bool CanPairByCode => PairingPort is > 0 and <= 65535;
     }
 
     private readonly Dictionary<string, Device> _devices = new();
@@ -254,7 +266,16 @@ public sealed class LanDiscovery : IDisposable
             var state = root.TryGetProperty("state", out var s) ? s.GetString() : "sharing";
             stopped = state == "stopped";
 
-            device = new Device(code, mode, host!, portNumber, name, seen);
+            // Optional, and a beacon without it is still perfectly valid — it
+            // just means this phone can only be paired by QR.
+            int? pairingPort = null;
+            if (root.TryGetProperty("pairingPort", out var pp) && pp.ValueKind == JsonValueKind.Number)
+            {
+                var candidate = pp.GetInt32();
+                if (candidate is >= 1 and <= 65535) pairingPort = candidate;
+            }
+
+            device = new Device(code, mode, host!, portNumber, name, seen, pairingPort);
             return true;
         }
         catch (JsonException)
@@ -283,10 +304,14 @@ public sealed class LanDiscovery : IDisposable
         if (changed) Notify();
     }
 
-    /// <summary>Everything except when it was last heard from.</summary>
+    /// <summary>
+    /// Everything except when it was last heard from. PairingPort counts:
+    /// gaining or losing it changes whether the row can be connected to at all,
+    /// which is about as visible as a change gets.
+    /// </summary>
     private static bool SameToTheUser(Device a, Device b) =>
         a.Code == b.Code && a.Mode == b.Mode && a.Host == b.Host &&
-        a.PortNumber == b.PortNumber && a.Name == b.Name;
+        a.PortNumber == b.PortNumber && a.Name == b.Name && a.PairingPort == b.PairingPort;
 
     private void Remove(string key)
     {

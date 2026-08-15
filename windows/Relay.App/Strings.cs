@@ -101,6 +101,9 @@ public static class Strings
         ["ErrWgElevationDeclined"] = "Full Mode has to create a network adapter, which Windows only allows with your permission. Choose Yes on the prompt, or switch the phone to Fast Mode.",
         ["ErrWgStartFailed"] = "Relay couldn't bring the tunnel up. Close any other VPN that is running, then try again — or switch the phone to Fast Mode.",
         ["ErrWgNoHandshake"] = "The tunnel came up but the phone never answered. Its QR code changes every time sharing restarts, so scan the one the phone is showing now.",
+        ["ErrTitlePairing"] = "The phone didn't accept",
+        ["ErrPairingDenied"] = "The phone declined this computer, or nobody answered the prompt. Tap Allow on the phone, then enter the code again.",
+        ["ErrPairingVersion"] = "This phone is running an older version of Relay that can't pair by code. Update Relay on the phone, or scan its QR instead.",
         ["ErrWgStopFailed"] = "The tunnel process wouldn't stop. Restart Relay; the adapter and its routes are removed when it exits.",
         ["ErrCameraDenied"] = "Relay can't use the camera — it may be missing, in use by another app, or blocked. Allow camera access in Windows Settings > Privacy, or enter the code manually.",
     };
@@ -177,6 +180,9 @@ public static class Strings
         ["ErrWgElevationDeclined"] = "حالت کامل باید یک آداپتور شبکه بسازد و ویندوز این کار را فقط با اجازهٔ شما انجام می‌دهد. در پنجرهٔ ویندوز «بله» را بزنید، یا گوشی را روی حالت سریع بگذارید.",
         ["ErrWgStartFailed"] = "رله نتوانست تونل را بالا بیاورد. اگر VPN دیگری روشن است ببندید و دوباره تلاش کنید — یا گوشی را روی حالت سریع بگذارید.",
         ["ErrWgNoHandshake"] = "تونل بالا آمد ولی گوشی پاسخی نداد. کد QR گوشی با هر بار شروع دوبارهٔ اشتراک عوض می‌شود؛ همان کدی را که الان روی گوشی است اسکن کنید.",
+        ["ErrTitlePairing"] = "گوشی نپذیرفت",
+        ["ErrPairingDenied"] = "گوشی این کامپیوتر را رد کرد، یا کسی به پیام روی گوشی پاسخ نداد. روی گوشی «اجازه» را بزنید و دوباره کد را وارد کنید.",
+        ["ErrPairingVersion"] = "این گوشی نسخهٔ قدیمی‌تری از رله دارد که اتصال با کد را پشتیبانی نمی‌کند. رله را روی گوشی به‌روزرسانی کنید، یا به‌جایش کد QR آن را اسکن کنید.",
         ["ErrWgStopFailed"] = "پروسهٔ تونل بسته نشد. رله را دوباره اجرا کنید؛ آداپتور و مسیرهایش با بسته شدن آن پاک می‌شوند.",
         ["ErrCameraDenied"] = "رله به دوربین دسترسی ندارد — ممکن است نبودن دوربین، اشغال توسط برنامه‌ای دیگر، یا مسدودبودن باشد. در تنظیمات ویندوز > حریم خصوصی دسترسی دوربین را فعال کنید، یا کد را دستی وارد کنید.",
     };
