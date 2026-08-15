@@ -2,7 +2,9 @@ package io.relay.app.core
 
 /**
  * 8-character typed-code fallback. Contract: /shared/typed-code.md — any change
- * there first. Covers socks5 payloads with hosts in 192.168.0.0/16 only.
+ * there first. Encodes an address in 192.168.0.0/16 and nothing else; since
+ * ADR-0009 that address is enough, because the keys come from the pairing
+ * exchange rather than from the code.
  */
 object TypedCode {
     const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

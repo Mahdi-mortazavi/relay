@@ -4,17 +4,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.QrPayload
-import io.relay.app.core.TransportMode
 import io.relay.app.core.WgConfig
 import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.service.ConnectionRepository
-import io.relay.app.service.Settings
 import io.relay.app.service.SharingService
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.DatagramSocket
@@ -40,20 +37,12 @@ import java.net.InetSocketAddress
 class FullModeTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val settings by lazy { Settings(context) }
-    private var previousMode: String = TransportMode.FAST.name
-
-    @Before
-    fun selectFullMode() {
-        previousMode = settings.transportMode
-        settings.transportMode = TransportMode.FULL.name
-    }
+    // No mode to select since ADR-0009: this is the only transport there is.
 
     @After
     fun tearDown() {
         runCatching { SharingService.stop(context) }
         runCatching { awaitState<ConnectionState.Idle>(15_000) }
-        settings.transportMode = previousMode
     }
 
     @Test

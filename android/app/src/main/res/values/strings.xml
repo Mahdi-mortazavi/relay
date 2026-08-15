@@ -21,11 +21,8 @@
     <string name="status_reconnecting">Reconnecting…</string>
 
     <!-- Transport modes -->
-    <string name="mode_fast">Fast</string>
-    <string name="mode_full">Full</string>
-    <string name="mode_fast_desc">Best for browsing and streaming.</string>
-    <string name="mode_full_desc">Best for games and video calls.</string>
-    <string name="mode_full_unavailable">Full Mode arrives in a later release. Fast Mode covers browsing and streaming.</string>
+    <string name="mode_full_desc">Shares everything your phone can reach — browsing, video calls and games.</string>
+    <string name="mode_full_unavailable">This build is missing the tunnel component, so it can't share. Reinstall Relay from the releases page.</string>
 
     <!-- Warnings (non-blocking banners) -->
     <string name="warning_no_vpn_title">No VPN is active</string>
@@ -35,11 +32,6 @@
     <string name="advanced">Advanced</string>
     <string name="advanced_version">Version</string>
     <string name="advanced_ip">Hotspot address</string>
-    <string name="advanced_port">Preferred port</string>
-    <string name="advanced_port_hint">0 = automatic</string>
-    <string name="advanced_port_saved">Saved. Applies the next time you start sharing.</string>
-    <string name="advanced_port_invalid">Enter a port between 1 and 65535.</string>
-    <string name="advanced_port_save">Save</string>
     <string name="advanced_theme">Appearance</string>
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>

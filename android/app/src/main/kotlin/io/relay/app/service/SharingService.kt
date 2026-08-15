@@ -20,14 +20,12 @@ import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
-import io.relay.app.core.TransportMode
 import io.relay.app.core.WarningCode
 import io.relay.app.core.WgConfig
 import io.relay.app.net.LocalAddress
 import io.relay.app.core.PairingCode
 import io.relay.app.net.Beacon
 import io.relay.app.net.PairingServer
-import io.relay.app.net.Socks5Server
 import io.relay.app.net.VpnStatus
 import io.relay.app.net.wg.WgForwarder
 import io.relay.app.net.wg.WgForwarderException
@@ -45,7 +43,7 @@ import kotlinx.coroutines.launch
 import java.io.IOException
 
 /**
- * Foreground service owning the SOCKS5 server (ADR-0003). Runs with a
+ * Foreground service owning the WireGuard endpoint (ADR-0003, ADR-0009). Runs with a
  * persistent notification from the first frame; holds a partial WakeLock only
  * while at least one client is transferring.
  */
@@ -54,7 +52,6 @@ class SharingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val pairing = DirectPairingStrategy()
     private val settings by lazy { Settings(this) }
-    private var server: Socks5Server? = null
     private var beacon: Beacon? = null
 
     /** Null when the port could not be bound, which makes this phone QR-only. */
@@ -80,8 +77,7 @@ class SharingService : Service() {
     private var hotspotWatcher: Job? = null
     private var peerWatcher: Job? = null
 
-    // Full Mode session (ADR-0008): the userspace forwarder + this pairing's keys.
-    private var mode = TransportMode.FAST
+    // The session's forwarder and this pairing's keys (ADR-0008).
     private var wgForwarder: WgForwarder? = WgForwarderProvider.create()
     private var wgKeys: WgConfig.KeySet? = null
 
@@ -159,12 +155,8 @@ class SharingService : Service() {
             return
         }
 
-        mode = TransportMode.fromSetting(settings.transportMode)
-        LocalLog.add("Mode: ${mode.name}")
-        val payload = when (mode) {
-            TransportMode.FAST -> prepareFast(host)
-            TransportMode.FULL -> prepareFull(host)
-        } ?: return // preparation dispatched the appropriate error
+        // One transport since ADR-0009. Preparation dispatches its own error.
+        val payload = prepareFull(host) ?: return
 
         currentHost = host
 
@@ -207,21 +199,6 @@ class SharingService : Service() {
             ConnectionState.Advertising(payload, pairing.issueTypedCode(payload), shortCode)
         }
         startHotspotWatcher()
-    }
-
-    /** Fast Mode: bind the SOCKS server and return its socks5 payload, or null on failure. */
-    private fun prepareFast(host: String): QrPayload? {
-        val boundPort = bindServer()
-        if (boundPort < 0) {
-            LocalLog.add("All candidate ports busy")
-            fail(ErrorCode.PORT_IN_USE)
-            return null
-        }
-        LocalLog.add("Advertising SOCKS on $host:$boundPort")
-        return pairing.issuePayload(
-            mode = QrPayload.MODE_SOCKS5, host = host, port = boundPort,
-            deviceName = Build.MODEL.take(64),
-        )
     }
 
     /** Full Mode: mint per-pairing keys, start the userspace WG endpoint, return its wireguard payload. */
@@ -286,29 +263,6 @@ class SharingService : Service() {
         }
     }
 
-    /** Binds the SOCKS server; preferred port (Advanced) first, then the fallback list. Returns the bound port or -1. */
-    private fun bindServer(): Int {
-        val candidates = buildList {
-            settings.preferredPort.takeIf { it in 1..65535 }?.let { add(it) }
-            addAll(CANDIDATE_PORTS)
-        }.distinct()
-        for (candidate in candidates) {
-            val attempt = Socks5Server(candidate, serverListener, clientGate)
-            try {
-                attempt.start()
-                server = attempt
-                return attempt.boundPort
-            } catch (_: IOException) {
-                // Port taken — try the next one; the client learns the port from
-                // the QR. bind() allocates the descriptor before it throws, so
-                // the half-open server has to be closed or each PORT_IN_USE
-                // failure leaks one fd.
-                attempt.stop()
-            }
-        }
-        return -1
-    }
-
     /**
      * Turns the tunnel's handshake into the same "a PC is here" signal the
      * SOCKS server raises, so Full Mode drives the screen, the wake lock and
@@ -335,12 +289,12 @@ class SharingService : Service() {
                 val nowPresent = handshake > 0 && age in 0..PEER_ALIVE_SECONDS
                 if (nowPresent != present) {
                     present = nowPresent
-                    serverListener.onClientsChanged(if (nowPresent) 1 else 0)
+                    onClientsChanged(if (nowPresent) 1 else 0)
                 }
                 if (nowPresent) {
                     // Named from the phone's side: what the laptop sent up is
                     // what this endpoint received.
-                    serverListener.onTraffic(
+                    onTraffic(
                         bytesUp = forwarder.bytesReceived(),
                         bytesDown = forwarder.bytesSent(),
                     )
@@ -386,36 +340,21 @@ class SharingService : Service() {
         return false
     }
 
-    /** Hotspot returned on a different IP: re-advertise (and, for Fast, rebind the socket). */
+    /**
+     * Hotspot returned on a different IP: re-advertise.
+     *
+     * Nothing has to be rebound. The endpoint listens on a UDP port regardless
+     * of which interface carries it, and so does the pairing port, so both stay
+     * up and the keys are unchanged — only the address being advertised moves.
+     */
     private fun rebind(host: String) {
         currentHost = host
-        val payload = when (mode) {
-            TransportMode.FAST -> {
-                server?.stop()
-                server = null
-                val boundPort = bindServer()
-                if (boundPort < 0) {
-                    LocalLog.add("No free port after rebind")
-                    fail(ErrorCode.PORT_IN_USE)
-                    return
-                }
-                LocalLog.add("Re-advertising SOCKS on $host:$boundPort")
-                pairing.issuePayload(
-                    mode = QrPayload.MODE_SOCKS5, host = host, port = boundPort,
-                    deviceName = Build.MODEL.take(64),
-                )
-            }
-            // Full Mode: the endpoint listens on a UDP port regardless of interface,
-            // so it stays up; only the advertised host changes, keys unchanged.
-            TransportMode.FULL -> {
-                val keys = wgKeys ?: return
-                LocalLog.add("Re-advertising WireGuard on $host:${keys.endpointPort}")
-                pairing.issuePayload(
-                    mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
-                    deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
-                )
-            }
-        }
+        val keys = wgKeys ?: return
+        LocalLog.add("Re-advertising WireGuard on $host:${keys.endpointPort}")
+        val payload = pairing.issuePayload(
+            mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
+            deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
+        )
         // The beacon was built with the address the phone had a moment ago, and
         // it carries that address in every datagram. Left alone it goes on
         // announcing an address nothing answers at, so a PC that finds the code
@@ -509,42 +448,47 @@ class SharingService : Service() {
         ConnectionRepository.clearWarnings()
     }
 
-    // --- server callbacks ----------------------------------------------------
+    // --- what the tunnel reports ---------------------------------------------
 
-    private val serverListener = object : Socks5Server.Listener {
-        override fun onClientsChanged(devices: Int) {
-            LocalLog.add("Clients: $devices")
-            if (devices > 0) {
-                acquireWakeLock()
-                ConnectionRepository.dispatch("clientConnected") { current ->
-                    val advertising = current as ConnectionState.Advertising
-                    ConnectionState.Connected(
-                        advertising.payload,
-                        advertising.typedCode,
-                        advertising.shortCode,
-                        devices,
-                    )
-                }
-                ConnectionRepository.dispatch("clientCountChanged") { current ->
-                    (current as ConnectionState.Connected).copy(clientCount = devices)
-                }
-            } else {
-                releaseWakeLock()
-                ConnectionRepository.dispatch("lastClientDisconnected") { current ->
-                    val connected = current as ConnectionState.Connected
-                    ConnectionState.Advertising(connected.payload, connected.typedCode, connected.shortCode)
-                }
+    /**
+     * The peer arriving or leaving, as [startPeerWatcher] observes it.
+     *
+     * Plain methods rather than a listener interface: there was one
+     * implementation of it and one caller, and the interface only existed
+     * because the SOCKS server used to raise these from another class.
+     */
+    private fun onClientsChanged(devices: Int) {
+        LocalLog.add("Clients: $devices")
+        if (devices > 0) {
+            acquireWakeLock()
+            ConnectionRepository.dispatch("clientConnected") { current ->
+                val advertising = current as ConnectionState.Advertising
+                ConnectionState.Connected(
+                    advertising.payload,
+                    advertising.typedCode,
+                    advertising.shortCode,
+                    devices,
+                )
+            }
+            ConnectionRepository.dispatch("clientCountChanged") { current ->
+                (current as ConnectionState.Connected).copy(clientCount = devices)
+            }
+        } else {
+            releaseWakeLock()
+            ConnectionRepository.dispatch("lastClientDisconnected") { current ->
+                val connected = current as ConnectionState.Connected
+                ConnectionState.Advertising(connected.payload, connected.typedCode, connected.shortCode)
             }
         }
+    }
 
-        override fun onTraffic(bytesUp: Long, bytesDown: Long) {
-            // Throttle: at most one state push per second.
-            val now = System.currentTimeMillis()
-            if (now - lastTrafficPush < 1000) return
-            lastTrafficPush = now
-            ConnectionRepository.dispatch("clientCountChanged") { current ->
-                (current as ConnectionState.Connected).copy(bytesUp = bytesUp, bytesDown = bytesDown)
-            }
+    private fun onTraffic(bytesUp: Long, bytesDown: Long) {
+        // Throttle: at most one state push per second.
+        val now = System.currentTimeMillis()
+        if (now - lastTrafficPush < 1000) return
+        lastTrafficPush = now
+        ConnectionRepository.dispatch("clientCountChanged") { current ->
+            (current as ConnectionState.Connected).copy(bytesUp = bytesUp, bytesDown = bytesDown)
         }
     }
 
@@ -628,9 +572,6 @@ class SharingService : Service() {
          * rekeying happens at two minutes, so this leaves a minute of margin.
          */
         const val PEER_ALIVE_SECONDS = 180L
-
-        /** Client discovers the port via the QR, so any of these is fine. */
-        val CANDIDATE_PORTS = listOf(1080, 1081, 10800)
 
         fun start(context: Context) {
             context.startForegroundService(

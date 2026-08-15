@@ -40,7 +40,6 @@ class MainActivity : ComponentActivity() {
                     val batteryExempt by viewModel.batteryExempt.collectAsState()
                     val warnings by viewModel.warnings.collectAsState()
                     val logs by viewModel.logs.collectAsState()
-                    val preferredPort by viewModel.preferredPort.collectAsState()
 
                     val notificationPermission = rememberLauncherForActivityResult(
                         ActivityResultContracts.RequestPermission(),
@@ -54,7 +53,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val transportMode by viewModel.transportMode.collectAsState()
                     val pendingClient by ConnectionRepository.clientGate.pending.collectAsState()
 
                     HomeScreen(
@@ -62,9 +60,7 @@ class MainActivity : ComponentActivity() {
                         batteryExempt = batteryExempt,
                         warnings = warnings,
                         themeMode = themeMode,
-                        transportMode = transportMode,
                         fullModeAvailable = viewModel.fullModeAvailable,
-                        preferredPort = preferredPort,
                         logs = logs,
                         onStart = {
                             if (Build.VERSION.SDK_INT >= 33) {
@@ -79,8 +75,6 @@ class MainActivity : ComponentActivity() {
                         onAllowBattery = ::requestBatteryExemption,
                         onDismissWarning = viewModel::dismissWarning,
                         onSetTheme = viewModel::setThemeMode,
-                        onSetMode = viewModel::setTransportMode,
-                        onSetPort = viewModel::setPreferredPort,
                         onClearLogs = viewModel::clearLogs,
                         onShareLogs = {
                             // Built here rather than in the view model because the
