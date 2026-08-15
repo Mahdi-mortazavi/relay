@@ -264,11 +264,10 @@ class SharingService : Service() {
     }
 
     /**
-     * Turns the tunnel's handshake into the same "a PC is here" signal the
-     * SOCKS server raises, so Full Mode drives the screen, the wake lock and
-     * the notification through exactly one path rather than two that drift.
+     * Turns the tunnel's handshake into the "a PC is here" signal that drives
+     * the screen, the wake lock and the notification.
      *
-     * Full Mode has nothing to count. Its endpoint is a UDP port, which answers
+     * There is nothing else to count. Its endpoint is a UDP port, which answers
      * identically whether or not a laptop is behind it, so without this the
      * phone would say "waiting for a PC" through an entire download. WireGuard
      * itself provides the answer: a peer that is really there rekeys, and the
@@ -418,8 +417,6 @@ class SharingService : Service() {
     private fun teardown() {
         hotspotWatcher?.cancel()
         hotspotWatcher = null
-        server?.stop()
-        server = null
         // Announce the stop so a PC drops this phone at once rather than waiting
         // out the staleness window, then forget who was approved: those answers
         // were about this network, and the next session may be a different one.
@@ -455,7 +452,7 @@ class SharingService : Service() {
      *
      * Plain methods rather than a listener interface: there was one
      * implementation of it and one caller, and the interface only existed
-     * because the SOCKS server used to raise these from another class.
+     * because a separate class used to raise these.
      */
     private fun onClientsChanged(devices: Int) {
         LocalLog.add("Clients: $devices")

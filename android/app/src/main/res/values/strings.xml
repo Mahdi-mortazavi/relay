@@ -22,7 +22,7 @@
 
     <!-- Transport modes -->
     <string name="mode_full_desc">Shares everything your phone can reach — browsing, video calls and games.</string>
-    <string name="mode_full_unavailable">This build is missing the tunnel component, so it can't share. Reinstall Relay from the releases page.</string>
+    <string name="mode_full_unavailable">This build is missing the tunnel component, so it cannot share. Reinstall Relay from the releases page.</string>
 
     <!-- Warnings (non-blocking banners) -->
     <string name="warning_no_vpn_title">No VPN is active</string>
