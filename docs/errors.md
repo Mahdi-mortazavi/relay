@@ -42,6 +42,7 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_ROLLBACK_INCOMPLETE` | Error | Disconnect couldn't restore the snapshot (backup kept) | Press Disconnect again to retry the restore |
 | `ERR_WG_ELEVATION_DECLINED` | Error | The elevation prompt was dismissed | Choose Yes on the prompt to connect |
 | `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again |
+| `ERR_WG_ELEVATION_UNAVAILABLE` | Error | Windows refused to elevate from Relay's install folder, so no prompt was ever shown — seen when `%LOCALAPPDATA%\Programs` is a junction to another drive | Reinstall Relay somewhere that is not redirected |
 | `ERR_WG_NO_HANDSHAKE` | Error | The adapter came up but the peer never handshaked — almost always a QR whose keys the phone has since replaced | Scan the QR the phone is showing now |
 | `ERR_PAIRING_DENIED` | Error | The person holding the phone declined this computer, or did not answer within 60 s | Tap Allow on the phone, then try the code again |
 | `ERR_PAIRING_VERSION` | Error | The phone speaks an older pairing version than this PC | Update Relay on the phone |
