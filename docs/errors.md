@@ -18,7 +18,7 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 | `HOTSPOT_LOST` | Transient → Error | Hotspot interface dropped and did not return within the reconnect bound | Check the hotspot is still on, then start sharing again |
 | `PORT_IN_USE` | Error | Every candidate SOCKS port is bound by another app | Close the other app using those ports, then try again |
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly | Start sharing again |
-| `WG_START_FAILED` | Error | Full Mode WireGuard endpoint could not start on the phone | Try Fast Mode, or start sharing again |
+| `WG_START_FAILED` | Error | The WireGuard endpoint could not start on the phone | Start sharing again |
 | `NO_VPN_ACTIVE` | Warning | No VPN is active on the phone when sharing starts | Informational: you're sharing your regular connection. Turn on your VPN first if you meant to share it |
 | `BATTERY_UNRESTRICTED_DENIED` | Warning | Battery-optimization exemption not granted | Allow it so sharing survives screen-off (button opens the exemption dialog) |
 
@@ -40,8 +40,8 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_FIREWALL_BLOCKED` | Error | Local connect refused/blocked in a way consistent with a firewall rule | Allow Relay through Windows Firewall (or your security software), then try again |
 | `ERR_PROXY_APPLY_FAILED` | Error | Applied proxy didn't verify on read-back (rolled back) | Close other proxy/VPN managers and try again |
 | `ERR_ROLLBACK_INCOMPLETE` | Error | Disconnect couldn't restore the snapshot (backup kept) | Press Disconnect again to retry the restore |
-| `ERR_WG_ELEVATION_DECLINED` | Error | Full Mode's elevation prompt was dismissed | Choose Yes on the prompt, or switch the phone to Fast Mode |
-| `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again — or switch the phone to Fast Mode |
+| `ERR_WG_ELEVATION_DECLINED` | Error | The elevation prompt was dismissed | Choose Yes on the prompt to connect |
+| `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again |
 | `ERR_WG_NO_HANDSHAKE` | Error | The adapter came up but the peer never handshaked — almost always a QR whose keys the phone has since replaced | Scan the QR the phone is showing now |
 | `ERR_PAIRING_DENIED` | Error | The person holding the phone declined this computer, or did not answer within 60 s | Tap Allow on the phone, then try the code again |
 | `ERR_PAIRING_VERSION` | Error | The phone speaks an older pairing version than this PC | Update Relay on the phone |
