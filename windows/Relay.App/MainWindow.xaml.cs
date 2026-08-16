@@ -180,14 +180,25 @@ public sealed partial class MainWindow : Window
             HideToTray();
         };
 
-        // macOS-popover behaviour: hide when focus is lost — but never mid-scan,
-        // so a system camera prompt can't dismiss the scanner.
+        // macOS-popover behaviour: hide when focus is lost — but never while the
+        // person is part-way through something.
+        //
+        // Only scanning used to be protected, on the reasoning that a system
+        // camera prompt must not dismiss the scanner. Every other step needed
+        // the same protection and did not have it: typing a code lost the digits
+        // to any window that took focus, and waiting on the phone's approval
+        // hid the window at the worst possible moment — Full Mode's own UAC
+        // prompt takes focus, so connecting made the window disappear and left
+        // someone watching a tray icon wondering what had happened.
+        //
+        // Losing a popover you did not dismiss is bad; losing what you typed
+        // into it is worse.
         Activated += (_, e) =>
         {
             // Ignore the brief deactivation that can follow a show (if the
             // foreground grab momentarily loses), else the popover flash-hides.
             if (e.WindowActivationState == WindowActivationState.Deactivated
-                && _mode != InputMode.Scanning
+                && _mode == InputMode.None
                 && Environment.TickCount64 - _shownAtTick > 400)
             {
                 AppWindow.Hide();
