@@ -63,9 +63,22 @@
                 <TextBlock x:Name="IdleBody" Style="{StaticResource FootnoteText}"
                            Margin="6,0,6,6" />
 
-                <!-- One accented action. Scanning is what almost everyone does,
-                     so typing a code is a quiet text action underneath rather
-                     than a second button of equal weight competing with it. -->
+                <!-- Phones that are already announcing themselves, offered
+                     before anything has to be typed or aimed at a camera. The
+                     app has known about them since it started; hiding them
+                     behind "enter a code" asked people to read two digits off a
+                     screen the app was already looking at. One click is the
+                     whole pairing when this list is not empty. -->
+                <StackPanel x:Name="IdleFoundPanel" Spacing="6" Visibility="Collapsed">
+                    <TextBlock x:Name="IdleFoundHeader" Style="{StaticResource CaptionText}"
+                               Foreground="{StaticResource LabelTertiary}"
+                               HorizontalAlignment="Center" />
+                    <StackPanel x:Name="IdleFoundList" Spacing="6" />
+                </StackPanel>
+
+                <!-- One accented action for when the list is empty or the phone
+                     is not announcing: scanning is what almost everyone does,
+                     so typing a code stays a quiet text action underneath. -->
                 <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}"
                         Click="OnScanClick" />
                 <Button x:Name="EnterCodeButton" Style="{StaticResource QuietButton}"
