@@ -1,4 +1,4 @@
-using Relay.App.Services;
+using Relay.Core;
 using Xunit;
 
 namespace Relay.App.Tests;

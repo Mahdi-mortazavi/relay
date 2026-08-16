@@ -1,6 +1,6 @@
 using System.Net.NetworkInformation;
 
-namespace Relay.App.Services;
+namespace Relay.Core;
 
 /// <summary>
 /// What the tunnel is actually carrying, read from the adapter Windows created.
@@ -14,6 +14,9 @@ namespace Relay.App.Services;
 /// that is easy to get quietly wrong -- a counter that resets, two samples from
 /// the same instant, a paused UI producing a minute-wide gap -- and all of that
 /// is testable without a network adapter in the room.
+///
+/// Lives in Relay.Core rather than beside the window for the reason
+/// WgTunnelSession does: free of any UI type, so the suite can reach it.
 /// </summary>
 public sealed class TunnelStats(string adapterName = TunnelStats.DefaultAdapter)
 {
