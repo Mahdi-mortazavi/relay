@@ -15,8 +15,9 @@ namespace Relay.App.Services;
 /// the same instant, a paused UI producing a minute-wide gap -- and all of that
 /// is testable without a network adapter in the room.
 /// </summary>
-public sealed class TunnelStats(string adapterName = DefaultAdapter)
+public sealed class TunnelStats(string adapterName = TunnelStats.DefaultAdapter)
 {
+    /// <summary>The adapter the tunnel process creates (see /wg/cmd/relaywg-client).</summary>
     public const string DefaultAdapter = "Relay";
 
     /// <summary>One reading of the counters, with the moment it was taken.</summary>
