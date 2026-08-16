@@ -255,6 +255,23 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             try { await TunnelDisconnectLocked(); } catch { }
             return;
         }
+        // And then say so. The state machine's Connected is what the whole UI is
+        // a projection of, and Full Mode stopped one transition short of it --
+        // "ready" only reaches Advertising. So the tunnel came up, carried real
+        // traffic, and the window sat on "Connecting…" with a Cancel button for
+        // as long as you cared to look at it.
+        //
+        // It survived because the log line below says "Connected" and that is
+        // what everyone read, while the screen -- which has no UI automation on
+        // any runner, and needs a real elevation prompt to reach at all -- said
+        // something else entirely.
+        //
+        // One client, always: the tunnel has exactly one peer (ADR-0009).
+        if (!Dispatch("clientConnected"))
+        {
+            try { await TunnelDisconnectLocked(); } catch { }
+            return;
+        }
         LocalLog.Add("Connected (Full Mode)");
         StartTunnelWatch();
     }

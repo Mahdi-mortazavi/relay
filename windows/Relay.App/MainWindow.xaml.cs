@@ -1206,8 +1206,12 @@ public sealed partial class MainWindow : Window
         var result = await Task.Run(() =>
             new PairingClient().Fetch(host, pairingPort, Environment.MachineName));
 
+        // Both lines, not just the headline: leaving the pairing detail behind
+        // put "Tap Allow on your phone" under "Setting up the connection", which
+        // is an instruction for a prompt that has already been answered.
         _mode = InputMode.None;
         BusyText.Text = Strings.Get("BusyConnecting");
+        BusyDetailText.Text = Strings.Get("BusyDetail");
 
         if (!result.Ok)
         {
