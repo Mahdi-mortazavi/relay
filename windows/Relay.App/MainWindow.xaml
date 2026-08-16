@@ -196,6 +196,48 @@
                 <TextBlock x:Name="ConnectedDetailText" Style="{StaticResource MonoText}"
                            HorizontalAlignment="Center" />
 
+                <!-- What the tunnel is carrying, from the adapter's own
+                     counters. Rates on top because they answer "is it working
+                     right now"; totals and latency underneath because they
+                     answer "has it been working". -->
+                <Border CornerRadius="{StaticResource SunkenCorner}"
+                        Background="{StaticResource FillSunken}"
+                        Padding="14,10" Margin="0,10,0,0">
+                    <Grid ColumnSpacing="10" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock x:Name="StatDownRate" Grid.Row="0" Grid.Column="0"
+                                   Style="{StaticResource MonoText}" />
+                        <TextBlock x:Name="StatUpRate" Grid.Row="0" Grid.Column="1"
+                                   Style="{StaticResource MonoText}"
+                                   HorizontalAlignment="Right" />
+
+                        <TextBlock x:Name="StatDownTotal" Grid.Row="1" Grid.Column="0"
+                                   Style="{StaticResource CaptionText}"
+                                   Foreground="{StaticResource LabelTertiary}" />
+                        <TextBlock x:Name="StatUpTotal" Grid.Row="1" Grid.Column="1"
+                                   Style="{StaticResource CaptionText}"
+                                   Foreground="{StaticResource LabelTertiary}"
+                                   HorizontalAlignment="Right" />
+
+                        <TextBlock x:Name="StatLatency" Grid.Row="2" Grid.Column="0"
+                                   Style="{StaticResource CaptionText}"
+                                   Foreground="{StaticResource LabelTertiary}" />
+                        <TextBlock x:Name="StatDuration" Grid.Row="2" Grid.Column="1"
+                                   Style="{StaticResource CaptionText}"
+                                   Foreground="{StaticResource LabelTertiary}"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                </Border>
+
                 <Border x:Name="ReconnectingBanner" Visibility="Collapsed"
                         CornerRadius="{StaticResource SunkenCorner}"
                         Background="{StaticResource WarningSoftBrush}"

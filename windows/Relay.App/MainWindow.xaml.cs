@@ -55,6 +55,12 @@ public sealed partial class MainWindow : Window
     /// <summary>Kept so the window can stop floating once it stops being transient.</summary>
     private OverlappedPresenter? _presenter;
 
+    /// <summary>Live counters for the connected screen, read from the adapter.</summary>
+    private readonly TunnelStats _stats = new();
+    private DispatcherTimer? _statsTimer;
+    private TimeSpan? _latency;
+    private int _latencyTick;
+
     /// <summary>
     /// True while the code box is asking for the eight-character fallback
     /// instead of the two digits the phone normally shows.
@@ -549,6 +555,8 @@ public sealed partial class MainWindow : Window
         // Refresh the phones on the idle screen whenever it is the screen being
         // shown, so it is never a stale list from the last time it was open.
         if (ReferenceEquals(_visiblePanel, IdlePanel)) PopulateIdleList();
+
+        if (state == "Connected") StartStats(); else StopStats();
 
         SetStatusChip(
             reconnecting ? "WarningBrush"
@@ -1235,6 +1243,65 @@ public sealed partial class MainWindow : Window
             Name = name,
             Wg = result.Wg,
         };
+    }
+
+    /// <summary>
+    /// Samples the tunnel once a second while it is up.
+    ///
+    /// One second is the slowest interval at which a rate still feels live, and
+    /// the fastest at which it does not jitter: shorter windows turn ordinary
+    /// TCP burstiness into a number that flickers too much to read. Latency is
+    /// measured every fifth tick instead, because a ping every second on a
+    /// metered phone connection is traffic Relay charged the user for in order
+    /// to display a number.
+    /// </summary>
+    private void StartStats()
+    {
+        if (_statsTimer is not null) return;
+        _stats.Begin(DateTimeOffset.UtcNow);
+        _latency = null;
+        _latencyTick = 0;
+        _statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _statsTimer.Tick += (_, _) => SampleStats();
+        _statsTimer.Start();
+        SampleStats();
+    }
+
+    private void StopStats()
+    {
+        _statsTimer?.Stop();
+        _statsTimer = null;
+        _stats.Reset();
+        _latency = null;
+    }
+
+    private void SampleStats()
+    {
+        if (_latencyTick++ % 5 == 0)
+        {
+            var peer = WgClientConfig.ServerTunnelAddress;
+            // Off the UI thread: a ping that times out would otherwise freeze the
+            // window for its full timeout, which is exactly the moment someone is
+            // watching it to see whether the connection is alive.
+            _ = Task.Run(() =>
+            {
+                var measured = TunnelStats.PingPeer(peer);
+                DispatcherQueue.TryEnqueue(() => _latency = measured);
+            });
+        }
+
+        var reading = _stats.Update(DateTimeOffset.UtcNow, _latency);
+        if (reading is null) return;
+        var r = reading.Value;
+
+        StatDownRate.Text = $"↓ {TunnelStats.Rate(r.DownPerSecond)}";
+        StatUpRate.Text = $"↑ {TunnelStats.Rate(r.UpPerSecond)}";
+        StatDownTotal.Text = $"{Strings.Get("StatDown")} {TunnelStats.Bytes(r.Received)}";
+        StatUpTotal.Text = $"{Strings.Get("StatUp")} {TunnelStats.Bytes(r.Sent)}";
+        StatLatency.Text = r.Latency is { } l
+            ? $"{Strings.Get("StatLatency")} {(int)l.TotalMilliseconds} ms"
+            : Strings.Get("StatLatencyUnknown");
+        StatDuration.Text = $"{Strings.Get("StatConnectedFor")} {TunnelStats.Duration(r.Duration)}";
     }
 
     /// <summary>The recovery the error itself suggests, so there is always a way forward.</summary>
