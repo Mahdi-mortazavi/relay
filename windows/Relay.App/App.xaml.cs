@@ -193,17 +193,43 @@ public partial class App : Application
         // traffic wants.
         _tray.ForceCreate(enablesEfficiencyMode: false);
 
+        var previousState = AppController.Instance.StateName;
         AppController.Instance.StateChanged += () =>
         {
-            var suffix = AppController.Instance.StateName switch
+            var state = AppController.Instance.StateName;
+            var suffix = state switch
             {
                 "Connected" => $" — {Strings.Get("StatusConnected")}",
                 "Preparing" or "Advertising" => $" — {Strings.Get("StatusConnecting")}",
                 _ => string.Empty,
             };
+            // Only the moment it becomes true, never on every state push:
+            // Connected re-fires as traffic counters change, and a notification
+            // per byte would be its own kind of broken.
+            var justConnected = state == "Connected" && previousState != "Connected";
+            previousState = state;
+
             _window?.DispatcherQueue.TryEnqueue(() =>
             {
-                if (_tray is not null) _tray.ToolTipText = Strings.Get("AppName") + suffix;
+                if (_tray is null) return;
+                _tray.ToolTipText = Strings.Get("AppName") + suffix;
+                if (!justConnected) return;
+                // The window hides itself, and the tray icon usually lives in
+                // the overflow, so without this the successful moment is the one
+                // moment Relay says nothing at all.
+                try
+                {
+                    _tray.ShowNotification(
+                        title: Strings.Get("NotifyConnectedTitle"),
+                        message: Strings.Get("NotifyConnectedBody"),
+                        icon: H.NotifyIcon.Core.NotificationIcon.Info);
+                }
+                catch (Exception)
+                {
+                    // Toasts are a courtesy. A machine with notifications
+                    // disabled, or a shell that refuses them, must not turn a
+                    // working tunnel into an error.
+                }
             });
         };
     }
