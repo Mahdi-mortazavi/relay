@@ -107,6 +107,8 @@ fun HomeScreen(
     pendingClient: String? = null,
     onApproveClient: (Boolean) -> Unit = {},
 ) {
+    var showScanner by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -138,7 +140,7 @@ fun HomeScreen(
             ) { current ->
                 when (current) {
                     is ConnectionState.Idle ->
-                        IdlePanel(fullModeAvailable, onStart)
+                        IdlePanel(fullModeAvailable, onStart, onScanClick = { showScanner = true })
                     is ConnectionState.Preparing -> PreparingPanel()
                     is ConnectionState.Advertising ->
                         PairingPanel(
@@ -182,6 +184,15 @@ fun HomeScreen(
         // whole screen rather than scrolling away with the content.
         if (pendingClient != null) {
             ApprovalDialog(address = pendingClient, onAnswer = onApproveClient)
+        }
+
+        if (showScanner) {
+            QrCameraScannerDialog(
+                onQrScanned = { _ ->
+                    showScanner = false
+                },
+                onDismiss = { showScanner = false }
+            )
         }
     }
 }
@@ -294,6 +305,7 @@ private fun rememberQrText(payload: QrPayload): String =
 private fun IdlePanel(
     fullModeAvailable: Boolean,
     onStart: () -> Unit,
+    onScanClick: () -> Unit = {},
 ) {
     val glass = LocalGlass.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -321,6 +333,11 @@ private fun IdlePanel(
             text = stringResource(R.string.action_start),
             onClick = onStart,
             enabled = fullModeAvailable,
+        )
+        Spacer(Modifier.height(12.dp))
+        SubtleButton(
+            text = stringResource(R.string.scan_pc_qr_button),
+            onClick = onScanClick,
         )
         Spacer(Modifier.height(16.dp))
         Text(

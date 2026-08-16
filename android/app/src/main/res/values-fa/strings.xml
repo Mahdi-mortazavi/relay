@@ -83,4 +83,6 @@
     <string name="update_available">نسخهٔ %1$s موجود است</string>
     <string name="update_get">دریافت</string>
     <string name="update_manual_note">اندروید همیشه قبل از نصب می‌پرسد.</string>
+    <string name="scan_pc_qr_title">اسکن بارکد در کامپیوتر</string>
+    <string name="scan_pc_qr_button">اسکن مانیتور کامپیوتر</string>
 </resources>

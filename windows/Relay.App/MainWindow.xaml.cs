@@ -26,11 +26,11 @@ namespace Relay.App;
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    private const int PopupWidth = 380;
+    private const int PopupWidth = 420;
     // The window follows its content between these bounds instead of standing
     // at a fixed height with a hole in the middle of it.
-    private const int MinPopupHeight = 340;
-    private const int MaxPopupHeight = 640;
+    private const int MinPopupHeight = 360;
+    private const int MaxPopupHeight = 660;
 
     private readonly AppController _controller = AppController.Instance;
 

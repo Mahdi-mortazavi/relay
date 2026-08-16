@@ -161,6 +161,14 @@ dependencies {
     // Official WireGuard key generation + crypto (Full Mode, ADR-0008).
     implementation(libs.wireguard.tunnel)
 
+    // CameraX + Google ML Kit Barcode Scanning
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.play.services.code.scanner)
+    implementation(libs.mlkit.barcode.scanning)
+
     // The userspace forwarder itself: /wg, built by gomobile. Picked up from a
     // directory rather than declared as a coordinate because it is built by a
     // Go toolchain and an NDK, which no Android developer should need installed

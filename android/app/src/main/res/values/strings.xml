@@ -83,4 +83,6 @@
     <string name="update_available">Version %1$s is available</string>
     <string name="update_get">Get it</string>
     <string name="update_manual_note">Android always asks before installing.</string>
+    <string name="scan_pc_qr_title">Scan QR on PC</string>
+    <string name="scan_pc_qr_button">Scan PC Screen</string>
 </resources>

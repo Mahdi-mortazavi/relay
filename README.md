@@ -7,6 +7,13 @@
 # Relay ⚡
 
 ### **Share your phone's internet with your PC.**
+### **What's New in 1.8.1:**
+- **Unified WireGuard Architecture:** Fast and lightweight L3 tunnel powering the entire application with TCP and UDP support.
+- **Lightning Fast QR Scanner:** Integrated Google ML Kit with CameraX on Android for instant QR code reading.
+- **TCP Code Pairing:** Instant zero-camera pairing over local network with two-digit discovery codes and phone approval.
+- **Live Traffic Statistics:** Real-time upload/download speeds, data transfer totals, and tunnel latency in the Windows client.
+- **Windows UI Refinements:** Centered popover window, enhanced Persian & Modern typography (`Segoe UI, Tahoma, Vazirmatn`), and taskbar presence.
+- **VPN Conflict Detection:** Automatically detects when a phone's own VPN routes the tunnel away and provides instant troubleshooting steps.
 ### **Scan a QR code. That's the entire setup.**
 
 <br>
