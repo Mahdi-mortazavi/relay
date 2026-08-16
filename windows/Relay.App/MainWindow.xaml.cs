@@ -617,6 +617,8 @@ public sealed partial class MainWindow : Window
             // network for something they chose two seconds earlier.
             "ERR_WG_ELEVATION_DECLINED" => ("ErrTitleElevation", "ErrWgElevationDeclined", "TryAgain"),
             "ERR_WG_START_FAILED" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
+            "ERR_WG_ELEVATION_UNAVAILABLE" =>
+                ("ErrTitleElevationBlocked", "ErrWgElevationUnavailable", (string?)null),
             "ERR_WG_NO_HANDSHAKE" => ("ErrTitleTunnel", "ErrWgNoHandshake", "ScanQr"),
             "ERR_PAIRING_DENIED" => ("ErrTitlePairing", "ErrPairingDenied", "EnterCode"),
             "ERR_PAIRING_VERSION" => ("ErrTitlePairing", "ErrPairingVersion", "ScanQr"),

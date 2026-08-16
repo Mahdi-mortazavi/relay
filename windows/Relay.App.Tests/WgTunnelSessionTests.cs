@@ -138,6 +138,26 @@ public class WgTunnelSessionTests
     }
 
     [Fact]
+    public void AnInstallLocationWindowsWontElevateFromSaysSo()
+    {
+        // Found on a real machine: %LOCALAPPDATA%\Programs was a junction to
+        // another drive, and the elevation broker -- which runs as SYSTEM and
+        // resolves the path itself -- returned ERROR_PATH_NOT_FOUND for every
+        // executable behind it. No prompt was ever shown, and the app blamed
+        // the tunnel: "close any other VPN, then try again". Nothing about that
+        // is true or actionable, and someone could close every VPN they own
+        // without ever getting closer.
+        var host = new StubHost(new StubProcess())
+        {
+            ThrowOnStart = new WgTunnelSession.ElevationUnavailable(),
+        };
+        var result = new WgTunnelSession(host).Connect(Params(), "192.168.43.1");
+
+        Assert.False(result.Ok);
+        Assert.Equal("ERR_WG_ELEVATION_UNAVAILABLE", result.ErrorCode);
+    }
+
+    [Fact]
     public void AChildThatNeverBecomesReadyIsNotLeftRunning()
     {
         // The dangerous shape: a tunnel process alive with an adapter up, while

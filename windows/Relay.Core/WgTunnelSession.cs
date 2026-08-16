@@ -70,6 +70,23 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     public sealed class ElevationDeclined(Exception? inner = null)
         : Exception("The elevation prompt was declined", inner);
 
+    /// <summary>
+    /// Thrown when Windows refuses to elevate anything from where Relay is
+    /// installed, so no prompt is ever shown.
+    ///
+    /// Seen on a real machine: %LOCALAPPDATA%\Programs was a junction to another
+    /// drive, and the elevation broker -- which runs as SYSTEM and resolves the
+    /// path itself -- returned ERROR_PATH_NOT_FOUND for every executable behind
+    /// it, Relay.App.exe included. The same binary copied outside the junction
+    /// elevated normally.
+    ///
+    /// Its own error because nothing the user could do about a tunnel failure
+    /// helps here: the install location is the problem, and no amount of closing
+    /// other VPNs will change it.
+    /// </summary>
+    public sealed class ElevationUnavailable(Exception? inner = null)
+        : Exception("Windows would not elevate from this location", inner);
+
     /// <summary>What the client prints once traffic can flow — i.e. once the peer has handshaked.</summary>
     public const string ReadyLine = "READY";
 
@@ -126,6 +143,10 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         catch (ElevationDeclined)
         {
             return Result.Fail("ERR_WG_ELEVATION_DECLINED");
+        }
+        catch (ElevationUnavailable)
+        {
+            return Result.Fail("ERR_WG_ELEVATION_UNAVAILABLE");
         }
         catch (Exception)
         {
@@ -262,6 +283,14 @@ public sealed class ElevatedTunnelHost(string executablePath) : WgTunnelSession.
     /// <summary>Windows' code for "the user cancelled the elevation prompt".</summary>
     private const int ErrorCancelled = 1223;
 
+    /// <summary>
+    /// What ShellExecute returns when the elevation broker cannot resolve the
+    /// executable's path -- notably when it sits behind a junction. The file is
+    /// perfectly readable from this process; the broker is what cannot reach it.
+    /// </summary>
+    private const int ErrorFileNotFound = 2;
+    private const int ErrorPathNotFound = 3;
+
     /// <summary>How long to wait for the elevated child to pick up the pipe.</summary>
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(60);
 
@@ -295,6 +324,12 @@ public sealed class ElevatedTunnelHost(string executablePath) : WgTunnelSession.
         {
             pipe.Dispose();
             throw new WgTunnelSession.ElevationDeclined(ex);
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+            when (ex.NativeErrorCode is ErrorFileNotFound or ErrorPathNotFound)
+        {
+            pipe.Dispose();
+            throw new WgTunnelSession.ElevationUnavailable(ex);
         }
         catch
         {
