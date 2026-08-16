@@ -1037,7 +1037,7 @@ public sealed partial class MainWindow : Window
         // error explains itself -- but offering it as a one-click row here would
         // promise something that cannot happen.
         var devices = _discovery.Devices.Where(d => d.CanPairByCode).ToList();
-        Fill(IdleFoundList, devices);
+        Fill(IdleFoundList, devices, accentSingle: true);
         IdleFoundHeader.Text = Strings.Get("IdleNearby");
         IdleFoundPanel.Visibility = Show(devices.Count > 0);
 
@@ -1045,9 +1045,21 @@ public sealed partial class MainWindow : Window
         // phones that are already sharing reads as a contradiction, and makes
         // someone wonder whether the app has noticed what it is showing them.
         IdleBody.Visibility = Show(devices.Count == 0);
+
+        // Two accented buttons on one screen is no emphasis at all. When a
+        // phone is offered, scanning becomes the alternative it actually is.
+        if (Application.Current.Resources.TryGetValue(
+                devices.Count > 0 ? "SecondaryButton" : "PrimaryButton", out var scanStyle) &&
+            scanStyle is Style scan) ScanButton.Style = scan;
     }
 
-    private void Fill(Panel list, IReadOnlyList<LanDiscovery.Device> devices)
+    /// <param name="accentSingle">
+    /// Give a lone phone the accent. On the idle screen one phone is genuinely
+    /// "the one thing to do on this screen", and leaving it text-weight put the
+    /// emphasis on Scan QR instead -- the slower path drawn as the obvious one.
+    /// With several phones there is a choice to make, so none of them shouts.
+    /// </param>
+    private void Fill(Panel list, IReadOnlyList<LanDiscovery.Device> devices, bool accentSingle = false)
     {
         list.Children.Clear();
         foreach (var device in devices)
@@ -1063,8 +1075,11 @@ public sealed partial class MainWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
             };
-            if (Application.Current.Resources.TryGetValue("QuietButton", out var style) &&
-                style is Style quiet) button.Style = quiet;
+            // Never QuietButton: that style has no fill by design, so a row
+            // drawn with it reads as a caption rather than something to click.
+            var wanted = accentSingle && devices.Count == 1 ? "PrimaryButton" : "SecondaryButton";
+            if (Application.Current.Resources.TryGetValue(wanted, out var style) &&
+                style is Style resolved) button.Style = resolved;
             button.Click += OnFoundPhoneClick;
             list.Children.Add(button);
         }
