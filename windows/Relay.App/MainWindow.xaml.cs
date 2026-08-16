@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -538,6 +539,10 @@ public sealed partial class MainWindow : Window
             : state == "Error" ? ErrorPanel
             : IdlePanel);
 
+        // Refresh the phones on the idle screen whenever it is the screen being
+        // shown, so it is never a stale list from the last time it was open.
+        if (ReferenceEquals(_visiblePanel, IdlePanel)) PopulateIdleList();
+
         SetStatusChip(
             reconnecting ? "WarningBrush"
             : state switch
@@ -1011,15 +1016,46 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void PopulateFoundList()
     {
-        var devices = _discovery.Devices;
-        FoundList.Children.Clear();
+        Fill(FoundList, _discovery.Devices);
+        FoundHeader.Text = Strings.Get("CodeNearby");
+        FoundPanel.Visibility = Show(!_longCode && FoundList.Children.Count > 0);
+    }
 
+    /// <summary>
+    /// The same phones, on the screen people actually land on.
+    ///
+    /// Discovery has been running since the window opened, so by the time anyone
+    /// reads the idle text the app usually already knows which phone is sharing
+    /// and what code it shows. Asking them to read those two digits off the
+    /// phone and type them back is asking them to relay information the app has
+    /// in hand. When the list is not empty, one click is the entire pairing.
+    /// </summary>
+    private void PopulateIdleList()
+    {
+        // Only phones a code can actually pair with. One that could not bind its
+        // pairing port is real and worth showing in the code box -- where the
+        // error explains itself -- but offering it as a one-click row here would
+        // promise something that cannot happen.
+        var devices = _discovery.Devices.Where(d => d.CanPairByCode).ToList();
+        Fill(IdleFoundList, devices);
+        IdleFoundHeader.Text = Strings.Get("IdleNearby");
+        IdleFoundPanel.Visibility = Show(devices.Count > 0);
+
+        // "Open Relay on your phone and tap Start Sharing" above a list of
+        // phones that are already sharing reads as a contradiction, and makes
+        // someone wonder whether the app has noticed what it is showing them.
+        IdleBody.Visibility = Show(devices.Count == 0);
+    }
+
+    private void Fill(Panel list, IReadOnlyList<LanDiscovery.Device> devices)
+    {
+        list.Children.Clear();
         foreach (var device in devices)
         {
             var button = new Button
             {
-                // The code first and monospaced, because that is the thing the
-                // eye is comparing against the phone.
+                // The code first, because that is the thing the eye is comparing
+                // against the phone.
                 Content = device.Name is { Length: > 0 } name
                     ? $"{device.Code}   {name}"
                     : $"{device.Code}   {device.Host}",
@@ -1030,11 +1066,8 @@ public sealed partial class MainWindow : Window
             if (Application.Current.Resources.TryGetValue("QuietButton", out var style) &&
                 style is Style quiet) button.Style = quiet;
             button.Click += OnFoundPhoneClick;
-            FoundList.Children.Add(button);
+            list.Children.Add(button);
         }
-
-        FoundHeader.Text = Strings.Get("CodeNearby");
-        FoundPanel.Visibility = Show(!_longCode && FoundList.Children.Count > 0);
     }
 
     private void OnFoundPhoneClick(object sender, RoutedEventArgs e)
@@ -1050,6 +1083,12 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnDevicesChanged()
     {
+        if (ReferenceEquals(_visiblePanel, IdlePanel))
+        {
+            PopulateIdleList();
+            ResizeToContent();
+            return;
+        }
         if (!ReferenceEquals(_visiblePanel, CodePanel)) return;
         PopulateFoundList();
         EvaluateCode(mayConnect: true);
