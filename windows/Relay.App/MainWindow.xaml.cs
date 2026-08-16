@@ -16,6 +16,12 @@ namespace Relay.App;
 /// popover: the tray icon shows it (brought to the real foreground), and it
 /// hides itself when it loses focus. The UI is a projection of AppController
 /// state plus a local input mode (scanning / code entry).
+///
+/// Two departures from that model, both because Windows is not macOS. It appears
+/// in Alt-Tab, because Windows 11 hides new tray icons in the overflow and a
+/// person who cannot find the icon has no way back at all. And it does not
+/// auto-hide while connected, because that is exactly when someone comes looking
+/// for it -- to see the state, or to disconnect.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
@@ -44,6 +50,9 @@ public sealed partial class MainWindow : Window
     private string? _errorAction;
     private bool _shown;
     private bool _pulsing;
+
+    /// <summary>Kept so the window can stop floating once it stops being transient.</summary>
+    private OverlappedPresenter? _presenter;
 
     /// <summary>
     /// True while the code box is asking for the eight-character fallback
@@ -166,8 +175,18 @@ public sealed partial class MainWindow : Window
             presenter.IsMinimizable = false;
             presenter.SetBorderAndTitleBar(true, false);
             presenter.IsAlwaysOnTop = true;
+            _presenter = presenter;
         }
-        AppWindow.IsShownInSwitchers = false;
+        // Alt-Tab finds it. A tray-only app is a lost app on Windows 11, which
+        // hides new notification icons in the overflow by default -- so the one
+        // documented way back to Relay is behind a chevron most people never
+        // open. Finding the icon took deliberate UI-automation work during
+        // hardware testing; a person who just wants to disconnect has less
+        // patience than that.
+        //
+        // This costs nothing while hidden: a window that is not shown is not in
+        // the switcher either, so the tray still owns the "put it away" story.
+        AppWindow.IsShownInSwitchers = true;
 
         // Closing the popover hides it to the tray; it's never destroyed — unless
         // the user picked Exit, in which case cancelling here would swallow the
@@ -199,6 +218,7 @@ public sealed partial class MainWindow : Window
             // foreground grab momentarily loses), else the popover flash-hides.
             if (e.WindowActivationState == WindowActivationState.Deactivated
                 && _mode == InputMode.None
+                && _controller.StateName != "Connected"
                 && Environment.TickCount64 - _shownAtTick > 400)
             {
                 AppWindow.Hide();
@@ -495,6 +515,16 @@ public sealed partial class MainWindow : Window
 
         var state = _controller.StateName;
         var reconnecting = _controller.Reconnecting && state == "Connected";
+
+        // Float only while it is behaving like a popover. Once connected it
+        // stays put instead of auto-hiding, and a small always-on-top panel
+        // parked over everything you do is the kind of thing people close and
+        // then cannot find again.
+        if (_presenter is not null)
+        {
+            var transient = state != "Connected";
+            if (_presenter.IsAlwaysOnTop != transient) _presenter.IsAlwaysOnTop = transient;
+        }
 
         ShowOnly(
             state == "Idle" && _mode == InputMode.Scanning ? ScanPanel
