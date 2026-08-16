@@ -26,6 +26,7 @@ import io.relay.app.net.LocalAddress
 import io.relay.app.core.PairingCode
 import io.relay.app.net.Beacon
 import io.relay.app.net.PairingServer
+import io.relay.app.net.VpnCapture
 import io.relay.app.net.VpnStatus
 import io.relay.app.net.wg.WgForwarder
 import io.relay.app.net.wg.WgForwarderException
@@ -242,9 +243,25 @@ class SharingService : Service() {
             // Read at approval time, not captured: a rebind onto a new hotspot
             // address mid-session would otherwise send the laptop to where this
             // phone used to be.
-            configuration = {
+            configuration = { client ->
                 val keys = wgKeys
                 val host = currentHost
+                // Now that a PC has actually asked, its address is known, so the
+                // reply path can be checked rather than guessed at. This is the
+                // only moment the phone can tell that its own VPN will swallow
+                // the tunnel's handshake -- and saying so here beats the laptop
+                // reporting an unanswered tunnel and sending someone to look at
+                // their QR code.
+                if (host != null) {
+                    val swallowed = VpnCapture.wouldSwallow(client = client, advertisedHost = host)
+                    ConnectionRepository.setWarning(WarningCode.VPN_CAPTURES_RELAY, swallowed)
+                    if (swallowed) {
+                        LocalLog.add(
+                            "This phone's VPN is routing replies to $client into itself; " +
+                                "the tunnel will not answer"
+                        )
+                    }
+                }
                 if (keys == null || host == null) null
                 else PairingServer.Configuration(
                     host = host,

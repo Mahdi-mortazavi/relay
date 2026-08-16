@@ -25,6 +25,8 @@
     <string name="mode_full_unavailable">This build is missing the tunnel component, so it cannot share. Reinstall Relay from the releases page.</string>
 
     <!-- Warnings (non-blocking banners) -->
+    <string name="warning_vpn_captures_title">Your VPN is blocking Relay</string>
+    <string name="warning_vpn_captures_body">Your VPN app is routing Relay\'s own traffic into itself, so your PC can reach this phone but never hears back. Exclude Relay in the VPN app\'s per-app settings.</string>
     <string name="warning_no_vpn_title">No VPN is active</string>
     <string name="warning_no_vpn_body">You\'re sharing your regular connection. Turn on your VPN first if you meant to share it.</string>
 

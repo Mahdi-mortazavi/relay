@@ -253,6 +253,8 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
                 R.string.warning_no_vpn_title to R.string.warning_no_vpn_body
             WarningCode.BATTERY_UNRESTRICTED_DENIED ->
                 R.string.battery_banner_title to R.string.battery_banner_body
+            WarningCode.VPN_CAPTURES_RELAY ->
+                R.string.warning_vpn_captures_title to R.string.warning_vpn_captures_body
         }
         Row(
             modifier = Modifier

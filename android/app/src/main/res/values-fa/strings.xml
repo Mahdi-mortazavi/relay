@@ -25,6 +25,8 @@
     <string name="mode_full_unavailable">این نسخه بخش تونل را ندارد و نمی‌تواند چیزی به اشتراک بگذارد. رله را دوباره از صفحهٔ انتشارها نصب کنید.</string>
 
     <!-- Warnings (non-blocking banners) -->
+    <string name="warning_vpn_captures_title">وی‌پی‌ان شما جلوی رله را گرفته</string>
+    <string name="warning_vpn_captures_body">برنامهٔ وی‌پی‌ان شما ترافیک خودِ رله را به داخل خودش می‌فرستد، برای همین کامپیوترتان به این گوشی می‌رسد ولی جوابی نمی‌شنود. در تنظیمات هر-برنامهٔ وی‌پی‌ان، رله را مستثنا کنید.</string>
     <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>
     <string name="warning_no_vpn_body">در حال اشتراک اتصال معمولی خود هستید. اگر می‌خواستید VPN را به‌اشتراک بگذارید، ابتدا آن را روشن کنید.</string>
 

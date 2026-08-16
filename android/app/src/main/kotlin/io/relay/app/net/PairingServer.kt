@@ -43,8 +43,11 @@ class PairingServer(
      * The configuration to hand out, read at approval time rather than captured
      * at construction: sharing can rebind onto a new address mid-session, and a
      * captured host would send the laptop to where the phone used to be.
+     *
+     * Built for the client that asked, so the caller can also judge whether this
+     * particular PC can be reached back at all.
      */
-    private val configuration: () -> Configuration?,
+    private val configuration: (client: String) -> Configuration?,
     /** Overridable so a test can prove the idle close without waiting it out. */
     private val idleTimeoutMs: Int = IDLE_TIMEOUT_MS,
 ) {
@@ -126,7 +129,7 @@ class PairingServer(
                 Request.PAIR -> {
                     LocalLog.add("A PC at $address asked to pair")
                     val allowed = gate.authorize(address)
-                    val config = configuration()
+                    val config = configuration(address)
                     if (!allowed || config == null) {
                         writer.appendLine(error(ERR_DENIED)); writer.flush()
                         LocalLog.add("Refused $address")

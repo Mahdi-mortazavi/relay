@@ -62,6 +62,12 @@ enum class ErrorCode {
 enum class WarningCode {
     NO_VPN_ACTIVE,
     BATTERY_UNRESTRICTED_DENIED,
+
+    /**
+     * The phone's own VPN is routing Relay's replies into itself, so a PC can
+     * reach this phone but never hear back. See [io.relay.app.net.VpnCapture].
+     */
+    VPN_CAPTURES_RELAY,
 }
 
 /**
