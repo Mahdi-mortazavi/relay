@@ -217,9 +217,16 @@ public sealed partial class MainWindow : Window
         {
             // Ignore the brief deactivation that can follow a show (if the
             // foreground grab momentarily loses), else the popover flash-hides.
+            // Idle is the only state where nothing is under way. The previous
+            // guard named the states to protect and missed the ones in the
+            // middle: Preparing and Advertising are the seconds while the tunnel
+            // is being built, and the window vanished right there -- during the
+            // most anxious part of connecting, and while Windows' own elevation
+            // prompt was taking focus. Error counts too: an error nobody can
+            // read is an error nobody can act on.
             if (e.WindowActivationState == WindowActivationState.Deactivated
                 && _mode == InputMode.None
-                && _controller.StateName != "Connected"
+                && _controller.StateName == "Idle"
                 && Environment.TickCount64 - _shownAtTick > 400)
             {
                 AppWindow.Hide();
