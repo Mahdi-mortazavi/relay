@@ -56,7 +56,7 @@ class PairingServerTest {
         val server = PairingServer(
             preferredPort = 0,
             gate = gate,
-            configuration = { config },
+            configuration = { _ -> config },
             idleTimeoutMs = idleTimeoutMs,
         )
         server.start()
