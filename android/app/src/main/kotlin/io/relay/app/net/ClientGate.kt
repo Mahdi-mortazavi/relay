@@ -91,6 +91,15 @@ class ClientGate(
      * than running it here.
      */
     fun resolve(address: String, allowed: Boolean) {
+        // TEMPORARY DIAGNOSTIC (issue: the gate self-answers Allow on hardware).
+        // Records who called, because the only caller in the source is a button's
+        // onClick and something is reaching it without a touch. Kept off
+        // android.util.Log deliberately -- that is an android.jar stub on the
+        // JVM and throws in the unit tests that cover this class.
+        val caller = Throwable().stackTrace.drop(1).take(8).joinToString(" <- ") {
+            "${it.className.substringAfterLast('.')}.${it.methodName}"
+        }
+        io.relay.app.service.LocalLog.add("GATE resolve allowed=$allowed via $caller")
         val decision = if (allowed) Decision.ALLOWED else Decision.DENIED
         decisions[address] = decision
         waiters.remove(address)?.complete(decision)
