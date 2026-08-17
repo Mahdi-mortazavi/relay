@@ -180,6 +180,15 @@ func run(name, address, dns, routes, pipe string) error {
 		return errors.New("the peer never completed a handshake")
 	}
 
+	// The tunnel now carries traffic -- but only for connections opened from
+	// here on. Everything already established keeps leaving by the adapter it
+	// was born on, because Windows binds a TCP connection to its source address
+	// for life. Close those so their owners reconnect through the route that now
+	// exists; reset_windows.go carries the measurement behind this.
+	if closed := resetForeignConnections(prefix.Addr()); closed > 0 {
+		fmt.Fprintf(os.Stderr, "closed %d connection(s) that predated the tunnel\n", closed)
+	}
+
 	if _, err := io.WriteString(channel, "READY\n"); err != nil {
 		return fmt.Errorf("reporting readiness: %w", err)
 	}
