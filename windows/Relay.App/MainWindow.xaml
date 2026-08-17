@@ -14,7 +14,7 @@
         the idle screen is a small card rather than a tall panel with a hole in
         the middle of it.
     -->
-    <Grid x:Name="Root" Padding="{StaticResource WindowPadding}" RowSpacing="0">
+    <Grid x:Name="Root" Padding="{StaticResource WindowPadding}">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                 <GradientStop Color="{StaticResource ScrimTopColor}" Offset="0" />
@@ -22,11 +22,31 @@
             </LinearGradientBrush>
         </Grid.Background>
 
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        <!--
+            Everything scrolls.
+
+            The window sizes itself to its content but is capped -- by
+            MaxPopupHeight, and then again by the monitor's work area, which on a
+            short screen or at 175% scaling is the smaller of the two. Without a
+            scroller, content past that cap was simply cut off with no way to
+            reach it: expanding Advanced pushed the log, the version and the
+            buttons under the bottom edge, and the window is deliberately not
+            resizable, so there was no way to get them back.
+
+            This is the outer one. The log keeps its own fixed-height scroller
+            inside, so a long log scrolls within its box instead of stretching
+            the window to the height of the session's history.
+        -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      VerticalScrollMode="Auto"
+                      HorizontalScrollMode="Disabled"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid x:Name="Content" RowSpacing="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
         <!-- ===== Header: identity on the left, live state on the right ===== -->
         <Grid Grid.Row="0" Margin="2,0,2,18" ColumnSpacing="8">
@@ -319,5 +339,7 @@
                 </Border>
             </StackPanel>
         </Expander>
+            </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>
