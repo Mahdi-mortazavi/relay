@@ -25,11 +25,11 @@
         <!--
             Everything scrolls.
 
-            The window sizes itself to its content but is capped -- by
-            MaxPopupHeight, and then again by the monitor's work area, which on a
+            The window sizes itself to its content but is capped twice: by
+            MaxPopupHeight, and again by the monitor's work area, which on a
             short screen or at 175% scaling is the smaller of the two. Without a
             scroller, content past that cap was simply cut off with no way to
-            reach it: expanding Advanced pushed the log, the version and the
+            reach it. Expanding Advanced pushed the log, the version and the
             buttons under the bottom edge, and the window is deliberately not
             resizable, so there was no way to get them back.
 
