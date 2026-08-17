@@ -9,6 +9,103 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-08-18
+
+One transport instead of two, a two-digit code that works for it, and the
+tunnel finally telling the truth about itself.
+
+### Changed — Fast Mode is gone (ADR-0009)
+
+Relay had two transports. Fast Mode was a **system-wide SOCKS5 proxy**, and it
+is removed. Not because it was broken: it was measured working on hardware, and
+`curl --socks5-hostname` returned the phone's VPN exit while the laptop's own
+exit differed.
+
+It is gone because of what it cost. A machine-wide proxy mutation, a rollback
+protocol, a crash-recovery hook, and this project's most dangerous failure — a
+stranded SOCKS proxy breaks every application on the machine, and most of the
+safety machinery in the Windows client existed for that one risk. What it bought
+was TCP-only sharing, so games, calls, installers and anything using UDP were
+never actually shared. Telegram Desktop was the common report: the browser
+worked, everything else did not, because only some programs honour a system
+proxy.
+
+There is now one transport, a real WireGuard tunnel, and **every** application
+goes through it.
+
+### Added — pair with the two digits, not just the QR
+
+Full Mode's keys live only inside the QR payload, so a laptop with no camera had
+no way in at all. Keys still cannot ride the beacon — it is broadcast and
+unauthenticated — so the beacon carries a `pairingPort` and the configuration
+comes over a short TCP exchange that is held until the person holding the phone
+allows it. The phone mints keys only after Allow, sends them once, and discards
+them when sharing stops.
+
+Phones already sharing now appear on the PC's first screen, so one click is the
+whole pairing when the list is not empty.
+
+### Added — the connected screen says what is happening
+
+A notification when the tunnel comes up, and live download and upload rates,
+totals, tunnel latency and connection duration — every figure read from the
+adapter Windows created, so it cannot drift from reality. Latency is measured to
+the tunnel's own peer and labelled as such, rather than blaming Relay for the
+round trip to a website.
+
+### Fixed
+
+- **"Connected" over a tunnel that had never handshaked.** The client reported
+  ready as soon as the WinTun adapter existed, which is equally true of a tunnel
+  whose peer is gone or whose keys have rotated. One field report showed four
+  `Connected` lines against zero peers seen by the phone. It now waits for a real
+  handshake, exits when the peer stops answering, and the app watches for that.
+- **Full Mode never reached the Connected state.** It dispatched one state
+  transition where Fast Mode dispatched two, so a live tunnel carrying traffic
+  displayed "Connecting…" with a Cancel button for as long as you cared to look.
+- **Connections opened before the tunnel stayed outside it.** Windows binds a TCP
+  connection to a source address for life, so long-lived ones — Telegram's, in
+  particular — kept leaving by the adapter they were born on. They are now closed
+  when the tunnel comes up so their owners reconnect through it; loopback and the
+  local network are left alone.
+- **The phone now says when its own VPN is swallowing the tunnel.** Android
+  routes by UID, and a full-tunnel VPN claims Relay's, so the handshake reply
+  went into the VPN instead of to the laptop. It cannot be fixed from inside the
+  app, so it is detected and named, with the one action that helps.
+- **Windows refusing to elevate from the install folder** is reported as itself.
+  Behind a junction — `%LOCALAPPDATA%\Programs` redirected to another drive —
+  ShellExecute fails before any prompt appears, and Relay used to blame other
+  VPNs.
+- **The popover stopped discarding what you were doing.** It hid on any focus
+  loss, so typed codes were lost and the window vanished mid-connect, including
+  when the elevation prompt took focus.
+- **Relay has a way back to itself.** It appears in Alt-Tab, stays put while
+  connected, and stops floating once it is no longer transient — Windows 11 hides
+  new tray icons, so the documented route back was behind a chevron.
+- **Advanced is reachable at any window size.** The window is capped by its own
+  maximum and again by the monitor's work area, and nothing scrolled, so
+  expanding Advanced pushed content under the bottom edge of a window that cannot
+  be resized.
+- **Errors stopped recommending a mode that no longer exists.**
+
+### Removed
+
+Fast Mode, the in-repo SOCKS5 server, the system-proxy session with its
+snapshot, rollback and crash-recovery hook, and the `--restore-proxy` entry
+point. Nothing Relay does now outlives its process.
+
+### Known limitations
+
+- **Sharing a phone VPN that captures Relay's UID does not work yet.** Inside the
+  VPN the tunnel's own transport is swallowed; excluded from it, the forwarded
+  traffic is the phone's plain connection. Relay detects the first case and says
+  so. Routing forwarded traffic through the VPN app's local proxy is the
+  intended fix.
+- One client per sharing session: the endpoint is configured with a single peer,
+  so the QR and the code deliver the same configuration rather than two.
+- No split tunnelling or per-application routing; the tunnel is all or nothing.
+
+
 ### Fixed — the August field reports
 
 Five separate defects, reported together and for a while assumed to be one. The
