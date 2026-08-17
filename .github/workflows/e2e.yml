@@ -177,8 +177,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Error "the Full Mode client tests failed" }
 
           $required = @(
-            'TestTheAdapterComesUpAndCarriesRoutedTraffic',  # the adapter comes up and carries routed traffic
-            'TestReadyIsWithheldWhenThePeerNeverAnswers'     # READY means a handshake, not merely an adapter
+            'TestTheAdapterComesUpAndCarriesRoutedTraffic',       # the adapter comes up and carries routed traffic
+            'TestReadyIsWithheldWhenThePeerNeverAnswers',         # READY means a handshake, not merely an adapter
+            'TestPeerPublicKeyIsThePeersNotTheDevices',           # an endpoint update names the peer, not the device
+            'TestRoamRejectsWhatIsNotAnAddressAndPort'            # a beacon is untrusted input
           )
           foreach ($name in $required) {
             if (-not ($output | Select-String -SimpleMatch "--- PASS: $name" -Quiet)) {

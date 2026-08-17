@@ -73,6 +73,47 @@ public class WgTunnelSessionTests
     }
 
     [Fact]
+    public void RoamTellsTheChildThePhonesNewAddress()
+    {
+        var process = ReadyProcess();
+        var session = new WgTunnelSession(new StubHost(process));
+        Assert.True(session.Connect(Params(), "192.168.1.13").Ok);
+
+        Assert.True(session.Roam("192.168.1.14", 51820));
+
+        // One line, after the configuration, in the form the client parses. A
+        // phone's address is a DHCP lease, and the PC is the WireGuard
+        // initiator — the direction WireGuard's own roaming does not cover.
+        Assert.Equal(
+            WgTunnelSession.EndpointPrefix + "192.168.1.14:51820", process.Written[^1]);
+    }
+
+    [Fact]
+    public void RoamDoesNothingWhenNoTunnelIsRunning()
+    {
+        var session = new WgTunnelSession(new StubHost(ReadyProcess()));
+
+        // Nothing to move, and nothing to write to. Reported rather than thrown:
+        // this runs off a beacon, on a timer, and a phone that disconnected a
+        // moment ago is ordinary rather than exceptional.
+        Assert.False(session.Roam("192.168.1.14", 51820));
+    }
+
+    [Fact]
+    public void RoamStopsAfterTheTunnelIsDisconnected()
+    {
+        var process = ReadyProcess();
+        var session = new WgTunnelSession(new StubHost(process));
+        session.Connect(Params(), "192.168.1.13");
+        var beforeDisconnect = process.Written.Count;
+
+        Assert.True(session.Disconnect().Ok);
+
+        Assert.False(session.Roam("192.168.1.14", 51820));
+        Assert.Equal(beforeDisconnect, process.Written.Count);
+    }
+
+    [Fact]
     public void ConnectHandsTheChildTheIpcConfigurationAndTheTerminator()
     {
         var process = ReadyProcess();

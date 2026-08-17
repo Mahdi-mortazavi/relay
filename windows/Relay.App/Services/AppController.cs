@@ -315,6 +315,54 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     /// <summary>How often the tunnel is checked for having gone.</summary>
     private static readonly TimeSpan TunnelWatchInterval = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Points a live tunnel at the phone's new address
+    /// (/shared/pairing-beacon.md → "Following a phone that changes address").
+    ///
+    /// Only ever called with a beacon carrying the code this session paired
+    /// with, which — because a code is drawn once per sharing session and keys
+    /// are discarded when sharing stops — means the same session at a new
+    /// lease. A different session would have killed this tunnel on its way out,
+    /// so still being Connected is what rules that case out.
+    ///
+    /// The payload's address moves with it: it is what the connected screen
+    /// shows, and a screen naming an address the tunnel no longer uses is worse
+    /// than one naming none.
+    /// </summary>
+    public async Task RoamAsync(string host, int port)
+    {
+        if (StateName != "Connected" || Payload is null) return;
+        if (Payload.Host == host && Payload.Port == port) return;
+
+        var from = $"{Payload.Host}:{Payload.Port}";
+        bool moved;
+        try
+        {
+            moved = await Task.Run(() => { lock (_sessionLock) return _tunnel.Roam(host, port); });
+        }
+        catch (Exception ex)
+        {
+            LocalLog.Add($"Could not follow the phone to {host}:{port}: {ex.Message}");
+            return;
+        }
+        if (!moved)
+        {
+            LocalLog.Add($"Could not follow the phone to {host}:{port}");
+            return;
+        }
+
+        lock (_gate)
+        {
+            // Re-checked under the lock: a Disconnect may have landed while the
+            // write was in flight, and rewriting the payload afterwards would
+            // leave the next screen describing a tunnel that is gone.
+            if (StateName != "Connected" || Payload is null) return;
+            Payload = Payload with { Host = host, Port = port };
+        }
+        LocalLog.Add($"The phone moved from {from} to {host}:{port}; the tunnel followed");
+        StateChanged?.Invoke();
+    }
+
     public void DismissError() => Dispatch("dismiss");
 
     // All ProxySession IO goes through these so a user Disconnect and the

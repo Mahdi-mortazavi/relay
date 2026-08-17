@@ -182,6 +182,52 @@ decided and is tracked in `docs/testing.md`.
      the user pick. Ninety codes and two phones collide about one time in
      forty-five, so this is uncommon but not rare enough to leave unhandled.
 
+## Following a phone that changes address
+
+A phone's address is a DHCP lease. It changes on renewal, on rejoining the
+network, on the router rebooting — and when it does, a client that dialled the
+old one goes on dialling it. Full Mode's tunnel is the case that hurts: the PC
+is the WireGuard initiator and the phone is the responder, and WireGuard's own
+roaming only works the other way round. A responder learns an initiator's new
+address from the packets it receives; an initiator is never told anything. So
+the handshakes go to an address nobody is listening on, and the tunnel dies
+some minutes later having reported nothing but success.
+
+The beacon already carries the answer, because of what the code is:
+
+> Drawn with a cryptographically-seeded RNG at the start of each sharing
+> session, and kept for the life of that session.
+
+and because keys are per pairing and discarded when sharing stops. Together
+those give a client one inference:
+
+**A beacon with the same `code` and `state: "sharing"` from a different `host`
+is the same sharing session at a new address.** The keys it was given still
+apply, so it MAY re-point an existing tunnel at the new `host`/`port` rather
+than tearing it down and asking the person to pair again.
+
+A client that does this MUST:
+
+- Only follow while it holds a live configuration from *that* session. A code
+  is two digits and gets redrawn every session, so the same digits from a phone
+  that stopped and started sharing is a **different** session with different
+  keys, and following it would point a tunnel at an endpoint that will refuse
+  it. Holding a live tunnel is what distinguishes the two: sharing stopping
+  kills the tunnel, so a client still connected cannot be looking at a new
+  session.
+- Keep discovery running for the life of the tunnel, not only while a pairing
+  screen is open. On Windows this means continuing to probe: the firewall drops
+  unsolicited inbound UDP to an unelevated app, so beacons announcing the new
+  address do not arrive unless the PC has sent something first.
+- Treat the new address as untrusted, exactly like every other beacon field.
+  Re-pointing a tunnel is safe because it changes *where* packets are sent and
+  nothing about *who* may answer — a peer that cannot complete a handshake with
+  the existing keys gets nothing, so the worst a forged beacon achieves is the
+  tunnel this client already had, broken.
+
+A client that does not implement this is still correct; it just makes the
+person pair again after every lease change.
+
 ## The pairing exchange
 
 Two digits select a phone. This is how the PC then gets a configuration it can
