@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           # golang.org/x/mobile requires 1.25; pinning it here rather than
           # letting the toolchain directive download one mid-job.
@@ -130,7 +130,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Take the Full Mode library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: relaywg-aar
           path: android/app/libs
