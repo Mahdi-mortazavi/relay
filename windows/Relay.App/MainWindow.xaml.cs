@@ -32,6 +32,13 @@ public sealed partial class MainWindow : Window
     private const int MinPopupHeight = 340;
     private const int MaxPopupHeight = 640;
 
+    /// <summary>
+    /// The lane kept clear on the right for the outer scrollbar, which WinUI
+    /// draws over the content rather than beside it. Must match the
+    /// ScrollViewer's right padding in the XAML.
+    /// </summary>
+    private const int ScrollGutter = 12;
+
     private readonly AppController _controller = AppController.Instance;
 
     /// <summary>
@@ -717,7 +724,7 @@ public sealed partial class MainWindow : Window
                 // never grow to fit.
                 var padding = Root.Padding.Top + Root.Padding.Bottom;
                 Content.Measure(new Windows.Foundation.Size(
-                    PopupWidth - Root.Padding.Left - Root.Padding.Right,
+                    PopupWidth - Root.Padding.Left - Root.Padding.Right - ScrollGutter,
                     double.PositiveInfinity));
                 var desired = Math.Clamp(
                     Content.DesiredSize.Height + padding, MinPopupHeight, MaxPopupHeight);

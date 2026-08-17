@@ -36,11 +36,18 @@
             This is the outer one. The log keeps its own fixed-height scroller
             inside, so a long log scrolls within its box instead of stretching
             the window to the height of the session's history.
+
+            The right padding is the scrollbar's gutter. WinUI draws this
+            scrollbar over the content rather than beside it, so without a
+            reserved lane it landed on top of the connected pill and cut it in
+            half. ResizeToContent measures at the same reduced width, so the
+            height it computes is the height the content actually needs.
         -->
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       VerticalScrollMode="Auto"
                       HorizontalScrollMode="Disabled"
-                      HorizontalScrollBarVisibility="Disabled">
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,0,12,0">
             <Grid x:Name="Content" RowSpacing="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
