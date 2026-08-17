@@ -710,8 +710,17 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                Root.Measure(new Windows.Foundation.Size(PopupWidth, double.PositiveInfinity));
-                var desired = Math.Clamp(Root.DesiredSize.Height, MinPopupHeight, MaxPopupHeight);
+                // Measure the content, not the scroller wrapped around it. A
+                // ScrollViewer asked for its desired size reports what it has
+                // been given rather than what it holds, so measuring the outer
+                // element would size the window to whatever it already was and
+                // never grow to fit.
+                var padding = Root.Padding.Top + Root.Padding.Bottom;
+                Content.Measure(new Windows.Foundation.Size(
+                    PopupWidth - Root.Padding.Left - Root.Padding.Right,
+                    double.PositiveInfinity));
+                var desired = Math.Clamp(
+                    Content.DesiredSize.Height + padding, MinPopupHeight, MaxPopupHeight);
                 PositionWindow((int)Math.Ceiling(desired));
             }
             catch
