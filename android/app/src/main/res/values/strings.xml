@@ -102,4 +102,26 @@
     <!-- Home screen widget -->
     <string name="widget_description">Sharing state and the code to type on your PC.</string>
     <string name="widget_tap_to_start">Tap to start sharing</string>
+
+    <!-- First run -->
+    <string name="onboarding_title">Keep Relay within reach</string>
+    <string name="onboarding_body">Relay matters most when a laptop has no internet. These put it one tap away when that happens.</string>
+    <string name="onboarding_done">Done</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_notif_title">Let Relay show its status</string>
+    <string name="onboarding_notif_body">Sharing runs in a notification so Android keeps it alive and you can stop it from anywhere.</string>
+    <string name="onboarding_notif_action">Allow notifications</string>
+    <string name="onboarding_battery_title">Keep sharing alive</string>
+    <string name="onboarding_battery_body">Without this, Android can stop sharing when the screen goes off.</string>
+    <string name="onboarding_battery_action">Allow</string>
+    <string name="onboarding_tile_title">Add the Quick Settings tile</string>
+    <string name="onboarding_tile_body">Start and stop sharing from the shade, without opening anything.</string>
+    <string name="onboarding_tile_action">Add the tile</string>
+    <string name="onboarding_tile_manual">Pull down the shade, tap the pencil or + to edit, then drag Relay in.</string>
+    <string name="onboarding_widget_title">Add the home screen widget</string>
+    <string name="onboarding_widget_body">Shows the code to type on your PC, big enough to read across a desk.</string>
+    <string name="onboarding_widget_action">Add to home screen</string>
+    <string name="onboarding_widget_manual">Long-press the home screen, choose Widgets, then find Relay.</string>
+    <string name="onboarding_shortcut_title">Long-press the Relay icon</string>
+    <string name="onboarding_shortcut_body">Start Sharing is already there — nothing to set up.</string>
 </resources>

@@ -15,12 +15,22 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
+import android.widget.Toast
+import io.relay.app.ui.OnboardingScreen
+import io.relay.app.ui.OnboardingStep
+import io.relay.app.ui.StepAction
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.core.ConnectionState
+import io.relay.app.service.HomeScreenExtras
+import io.relay.app.service.Settings as RelaySettings
 import io.relay.app.service.DiagnosticReport
 import io.relay.app.ui.HomeScreen
 import io.relay.app.ui.MainViewModel
@@ -84,6 +94,21 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // First launch only. Everything it offers is reachable
+                    // from Advanced afterwards, so it never has to be shown twice.
+                    val settings = remember { RelaySettings(this@MainActivity) }
+                    var onboarding by remember { mutableStateOf(!settings.onboarded) }
+                    if (onboarding) {
+                        OnboardingScreen(
+                            steps = onboardingSteps(batteryExempt),
+                            onDone = {
+                                settings.onboarded = true
+                                onboarding = false
+                            },
+                        )
+                        return@RelayBackground
+                    }
+
                     HomeScreen(
                         state = state,
                         batteryExempt = batteryExempt,
@@ -144,6 +169,96 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Declared in the manifest and in res/xml/shortcuts.xml; keep the three in step. */
         const val ACTION_START_SHARING = "io.relay.app.action.START_SHARING"
+    }
+
+
+    /**
+     * The first-run checklist.
+     *
+     * Each step is a button when Android will let an app ask for the thing, and
+     * a line of instructions when it will not — which is version-dependent, so
+     * [HomeScreenExtras] decides and this only renders the answer. The
+     * alternative is a button that does nothing on the phones where the
+     * platform declines, which is worse than no button.
+     */
+    @androidx.compose.runtime.Composable
+    private fun onboardingSteps(batteryExempt: Boolean): List<OnboardingStep> {
+        val ctx = this
+        val notifGranted = Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        val canTile = HomeScreenExtras.canOfferTile()
+        val canWidget = HomeScreenExtras.canOfferWidget(ctx)
+        val widgetOn = HomeScreenExtras.widgetPlaced(ctx)
+        val tileManual = stringResource(R.string.onboarding_tile_manual)
+        val widgetManual = stringResource(R.string.onboarding_widget_manual)
+
+        return listOf(
+            OnboardingStep(
+                title = stringResource(R.string.onboarding_notif_title),
+                body = stringResource(R.string.onboarding_notif_body),
+                action = if (notifGranted) StepAction.Done else StepAction.Offer,
+                actionLabel = stringResource(R.string.onboarding_notif_action),
+                onAction = {
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+                    }
+                },
+            ),
+            OnboardingStep(
+                title = stringResource(R.string.onboarding_battery_title),
+                body = stringResource(R.string.onboarding_battery_body),
+                action = if (batteryExempt) StepAction.Done else StepAction.Offer,
+                actionLabel = stringResource(R.string.onboarding_battery_action),
+                onAction = ::requestBatteryExemption,
+            ),
+            OnboardingStep(
+                title = stringResource(R.string.onboarding_tile_title),
+                body = stringResource(R.string.onboarding_tile_body),
+                action = if (canTile) StepAction.Offer else StepAction.Instruct,
+                actionLabel = if (canTile) {
+                    stringResource(R.string.onboarding_tile_action)
+                } else {
+                    tileManual
+                },
+                onAction = {
+                    if (canTile) {
+                        HomeScreenExtras.offerTile(ctx)
+                    } else {
+                        Toast.makeText(ctx, tileManual, Toast.LENGTH_LONG).show()
+                    }
+                },
+            ),
+            OnboardingStep(
+                title = stringResource(R.string.onboarding_widget_title),
+                body = stringResource(R.string.onboarding_widget_body),
+                action = when {
+                    widgetOn -> StepAction.Done
+                    canWidget -> StepAction.Offer
+                    else -> StepAction.Instruct
+                },
+                actionLabel = if (canWidget) {
+                    stringResource(R.string.onboarding_widget_action)
+                } else {
+                    widgetManual
+                },
+                onAction = {
+                    if (canWidget) {
+                        HomeScreenExtras.offerWidget(ctx)
+                    } else {
+                        Toast.makeText(ctx, widgetManual, Toast.LENGTH_LONG).show()
+                    }
+                },
+            ),
+            OnboardingStep(
+                title = stringResource(R.string.onboarding_shortcut_title),
+                body = stringResource(R.string.onboarding_shortcut_body),
+                action = StepAction.Done,
+                actionLabel = "",
+                onAction = {},
+            ),
+        )
     }
 
     /** Deep link to the exemption dialog for this app (ADR-0003). */

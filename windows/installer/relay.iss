@@ -32,6 +32,11 @@ OutputDir=output
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+; The installer's own icon, and the one Apps & Features shows. Without these
+; both fall back to Inno's default, which is the first and last impression a
+; person gets of whether this is finished software.
+SetupIconFile={#SourceDir}\Assets\Relay.ico
+UninstallDisplayIcon={app}\Relay.App.exe
 #if AppPlatform == "x64"
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -42,13 +47,28 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; A tray app is worth having at login: it is the thing you want already running
+; when a laptop turns out to have no internet. Off by default -- deciding that
+; for someone is exactly the behaviour that makes people distrust installers --
+; and the same switch lives in Advanced, reading the same registry value.
+Name: "startup"; Description: "Start Relay when I sign in"; GroupDescription: "Additional options"; Flags: unchecked
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Relay"; Filename: "{app}\Relay.App.exe"
-Name: "{autodesktop}\Relay"; Filename: "{app}\Relay.App.exe"; Tasks: desktopicon
+; IconFilename is explicit rather than inherited from the exe: Windows caches
+; shortcut icons aggressively, and an upgrade that changes the exe's icon does
+; not always repaint a shortcut that only points at the exe.
+Name: "{autoprograms}\Relay"; Filename: "{app}\Relay.App.exe"; IconFilename: "{app}\Assets\Relay.ico"; Comment: "Share your phone's internet with this PC"
+Name: "{autodesktop}\Relay"; Filename: "{app}\Relay.App.exe"; IconFilename: "{app}\Assets\Relay.ico"; Tasks: desktopicon
+
+[Registry]
+; The same value StartupRegistration.cs reads and writes, including the --tray
+; argument, so the installer checkbox and the switch in Advanced are one setting
+; rather than two that can disagree. uninsdeletevalue so uninstalling does not
+; leave Windows trying to start something that is gone.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Relay"; ValueData: """{app}\Relay.App.exe"" --tray"; Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
 Filename: "{app}\Relay.App.exe"; Description: "{cm:LaunchProgram,Relay}"; Flags: nowait postinstall skipifsilent

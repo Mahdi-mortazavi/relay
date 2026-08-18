@@ -102,4 +102,26 @@
     <!-- ویجت صفحه اصلی -->
     <string name="widget_description">وضعیت اشتراک‌گذاری و کدی که باید در رایانه وارد کنید.</string>
     <string name="widget_tap_to_start">برای شروع بزنید</string>
+
+    <!-- اجرای اول -->
+    <string name="onboarding_title">رله را در دسترس نگه دار</string>
+    <string name="onboarding_body">رله وقتی بیشترین ارزش را دارد که لپ‌تاپ اینترنت ندارد. این‌ها آن لحظه را به یک ضربه می‌رسانند.</string>
+    <string name="onboarding_done">تمام</string>
+    <string name="onboarding_skip">رد کن</string>
+    <string name="onboarding_notif_title">اجازه بده رله وضعیتش را نشان دهد</string>
+    <string name="onboarding_notif_body">اشتراک‌گذاری در یک اعلان اجرا می‌شود تا اندروید آن را زنده نگه دارد و بتوانی از هرجا متوقفش کنی.</string>
+    <string name="onboarding_notif_action">اجازه دادن به اعلان‌ها</string>
+    <string name="onboarding_battery_title">اشتراک‌گذاری را زنده نگه دار</string>
+    <string name="onboarding_battery_body">بدون این، اندروید ممکن است با خاموش‌شدن صفحه اشتراک‌گذاری را قطع کند.</string>
+    <string name="onboarding_battery_action">اجازه دادن</string>
+    <string name="onboarding_tile_title">کاشی تنظیمات سریع را اضافه کن</string>
+    <string name="onboarding_tile_body">شروع و توقف اشتراک‌گذاری از بالای صفحه، بدون باز کردن چیزی.</string>
+    <string name="onboarding_tile_action">افزودن کاشی</string>
+    <string name="onboarding_tile_manual">نوار بالا را پایین بکش، مداد یا + را بزن، بعد رله را به داخل بکش.</string>
+    <string name="onboarding_widget_title">ویجت صفحه اصلی را اضافه کن</string>
+    <string name="onboarding_widget_body">کدی که باید در رایانه وارد کنی را نشان می‌دهد، به‌اندازه‌ای بزرگ که از آن‌طرف میز خوانده شود.</string>
+    <string name="onboarding_widget_action">افزودن به صفحه اصلی</string>
+    <string name="onboarding_widget_manual">روی صفحه اصلی نگه دار، ویجت‌ها را انتخاب کن و رله را پیدا کن.</string>
+    <string name="onboarding_shortcut_title">آیکون رله را نگه دار</string>
+    <string name="onboarding_shortcut_body">«شروع اشتراک‌گذاری» همان‌جا هست — چیزی برای تنظیم نیست.</string>
 </resources>

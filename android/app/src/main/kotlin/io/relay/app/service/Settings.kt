@@ -19,7 +19,18 @@ class Settings(context: Context) {
         get() = prefs.getString(KEY_THEME, "system") ?: "system"
         set(value) = prefs.edit().putString(KEY_THEME, value).apply()
 
+    /**
+     * Whether the first-run walkthrough has been shown.
+     *
+     * Once, not once-per-version: someone who has already set the phone up does
+     * not want to be walked through it again because the app updated.
+     */
+    var onboarded: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDED, false)
+        set(value) = prefs.edit().putBoolean(KEY_ONBOARDED, value).apply()
+
     companion object {
         private const val KEY_THEME = "theme_mode"
+        private const val KEY_ONBOARDED = "onboarded"
     }
 }
