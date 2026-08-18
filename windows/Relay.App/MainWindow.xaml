@@ -326,6 +326,16 @@
                                Style="{StaticResource MonoText}"
                                Foreground="{StaticResource LabelSecondary}" />
                 </Grid>
+                <!-- Start with Windows. A tray app that shares a connection is
+                     only useful if it is already there when you need it, and the
+                     per-user Run key needs no elevation to set. -->
+                <Grid>
+                    <TextBlock x:Name="AdvancedStartupLabel" Style="{StaticResource CaptionText}"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch x:Name="AdvancedStartupToggle" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnStartupToggled" />
+                </Grid>
                 <Grid>
                     <TextBlock x:Name="AdvancedLogsLabel" Style="{StaticResource CaptionText}"
                                VerticalAlignment="Center" />

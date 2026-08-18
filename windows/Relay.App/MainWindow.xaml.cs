@@ -471,6 +471,10 @@ public sealed partial class MainWindow : Window
         AdvancedVersionValue.Text = AppVersion.Current;
         AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
         AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
+        AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
+        AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
+        AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
+        SyncStartupToggle();
         AdvancedLogsClear.Content = Strings.Get("AdvancedLogsClear");
         AdvancedLogsShare.Content = Strings.Get("AdvancedLogsShare");
     }
@@ -511,6 +515,39 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnClearLogsClick(object sender, RoutedEventArgs e) => LocalLog.Clear();
+
+    /// <summary>
+    /// Reads the registry rather than a field, so the switch shows what is
+    /// actually true. Someone can turn Relay off in Task Manager's Startup tab
+    /// while it is running, and a remembered value would then be a lie.
+    /// </summary>
+    private void SyncStartupToggle()
+    {
+        _syncingStartup = true;
+        try { AdvancedStartupToggle.IsOn = StartupRegistration.IsEnabled(); }
+        finally { _syncingStartup = false; }
+    }
+
+    /// <summary>Guards the programmatic IsOn write above from re-entering the handler.</summary>
+    private bool _syncingStartup;
+
+    private void OnStartupToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingStartup) return;
+
+        var wanted = AdvancedStartupToggle.IsOn;
+        if (StartupRegistration.Set(wanted))
+        {
+            LocalLog.Add(wanted ? "Will start with Windows" : "Will no longer start with Windows");
+            return;
+        }
+
+        // A locked-down machine can refuse the write. Say so and put the switch
+        // back where the registry actually is, rather than leaving it showing a
+        // setting that did not take.
+        LocalLog.Add(Strings.Get("AdvancedStartupFailed"));
+        SyncStartupToggle();
+    }
 
     /// <summary>
     /// Puts the report on the clipboard and opens a GitHub issue with it

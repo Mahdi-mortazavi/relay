@@ -1,11 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="1200" height="440" role="img"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 600" width="720" height="600" role="img"
      aria-label="Relay — Share your phone's internet with your PC. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
 
   <title>Relay — share your phone's internet with your PC</title>
-  <desc>Relay moves your phone's internet to your computer over an encrypted WireGuard tunnel. No root, no account, no server.</desc>
+  <desc>The narrow-screen cover. Same material and motion as cover.svg, stacked so the
+        type stays legible when GitHub scales the image down to a phone's width.</desc>
 
   <defs>
-    <linearGradient id="ground" x1="0" y1="0" x2="0.35" y2="1">
+    <linearGradient id="ground" x1="0" y1="0" x2="0.4" y2="1">
       <stop offset="0"    stop-color="#0A0E13"/>
       <stop offset="0.55" stop-color="#070A0E"/>
       <stop offset="1"    stop-color="#05070A"/>
@@ -16,7 +17,7 @@
       <stop offset="1" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="auroraBlue" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#2E7DFF" stop-opacity="0.62"/>
+      <stop offset="0" stop-color="#2E7DFF" stop-opacity="0.6"/>
       <stop offset="1" stop-color="#2E7DFF" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="auroraViolet" cx="0.5" cy="0.5" r="0.5">
@@ -25,12 +26,11 @@
     </radialGradient>
 
     <filter id="soften" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">
-      <feGaussianBlur stdDeviation="56"/>
+      <feGaussianBlur stdDeviation="52"/>
     </filter>
-
     <filter id="lens" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
-      <feGaussianBlur stdDeviation="22" result="b">
-        <animate attributeName="stdDeviation" from="46" to="22" dur="0.9s"
+      <feGaussianBlur stdDeviation="20" result="b">
+        <animate attributeName="stdDeviation" from="42" to="20" dur="0.9s"
                  begin="0s" fill="freeze" calcMode="spline" keySplines="0.22 1 0.36 1"/>
       </feGaussianBlur>
       <feColorMatrix in="b" type="saturate" values="1.9"/>
@@ -48,37 +48,34 @@
     </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.10"/>
-      <stop offset="0.5"  stop-color="#FFFFFF" stop-opacity="0.16"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="0.5"  stop-color="#FFFFFF" stop-opacity="0.15"/>
       <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
     <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0"    stop-color="#4ADFBF" stop-opacity="0"/>
-      <stop offset="0.12" stop-color="#4ADFBF" stop-opacity="0.55"/>
-      <stop offset="0.5"  stop-color="#8FF0DA" stop-opacity="0.75"/>
-      <stop offset="0.88" stop-color="#4ADFBF" stop-opacity="0.55"/>
+      <stop offset="0.15" stop-color="#4ADFBF" stop-opacity="0.6"/>
+      <stop offset="0.5"  stop-color="#8FF0DA" stop-opacity="0.8"/>
+      <stop offset="0.85" stop-color="#4ADFBF" stop-opacity="0.6"/>
       <stop offset="1"    stop-color="#4ADFBF" stop-opacity="0"/>
     </linearGradient>
 
     <filter id="packetGlow" x="-300%" y="-300%" width="700%" height="700%">
-      <feGaussianBlur stdDeviation="3.4"/>
+      <feGaussianBlur stdDeviation="3.6"/>
     </filter>
     <filter id="dotGlow" x="-300%" y="-300%" width="700%" height="700%">
-      <feGaussianBlur stdDeviation="2.4"/>
+      <feGaussianBlur stdDeviation="2.6"/>
     </filter>
 
     <clipPath id="cardClip">
-      <rect x="210" y="88" width="780" height="280" rx="44"/>
+      <rect x="36" y="150" width="648" height="336" rx="46"/>
     </clipPath>
   </defs>
 
   <style>
     :root {
       --label-1: rgba(255,255,255,0.97);
-      --label-2: rgba(228,240,252,0.74);
-      --label-3: rgba(214,230,248,0.58);
-      --accent:  #4ADFBF;
+      --label-2: rgba(228,240,252,0.76);
+      --label-3: rgba(214,230,248,0.60);
       --edge-dark: rgba(0,0,0,0.42);
       --spring: cubic-bezier(0.22, 1.02, 0.36, 1);
       --spring-soft: cubic-bezier(0.34, 1.28, 0.52, 1);
@@ -90,11 +87,13 @@
                    "Helvetica Neue", Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    .wordmark { font-size: 88px; font-weight: 700; letter-spacing: -3.2px; fill: var(--label-1); }
-    .tag-en   { font-size: 29px; font-weight: 500; letter-spacing: -0.4px;  fill: var(--label-2); }
-    .tag-fa   { font-size: 27px; font-weight: 500; letter-spacing: 0;       fill: var(--label-3); }
-    .pill-t   { font-size: 16px; font-weight: 600; letter-spacing: 0.15px;  fill: rgba(255,255,255,0.84); }
-    .foot     { font-size: 15px; font-weight: 500; letter-spacing: 0.3px;   fill: rgba(210,228,246,0.42); }
+    /* Deliberately larger than the wide cover: this file is only ever shown
+       scaled down to a phone's width, so the type has to survive that. */
+    .wordmark { font-size: 92px; font-weight: 700; letter-spacing: -3.4px; fill: var(--label-1); }
+    .tag-en   { font-size: 30px; font-weight: 500; letter-spacing: -0.4px; fill: var(--label-2); }
+    .tag-fa   { font-size: 29px; font-weight: 500; letter-spacing: 0;      fill: var(--label-3); }
+    .pill-t   { font-size: 19px; font-weight: 600; letter-spacing: 0.15px; fill: rgba(255,255,255,0.86); }
+    .foot     { font-size: 18px; font-weight: 500; letter-spacing: 0.2px;  fill: rgba(210,228,246,0.46); }
 
     @keyframes materialize { from { opacity: 0; transform: scale(0.965); } to { opacity: 1; transform: scale(1); } }
     @keyframes rise    { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
@@ -106,37 +105,35 @@
     #tagFa    { animation: rise 0.62s var(--spring-soft) 0.48s both; }
     #pills g  { animation: rise-sm 0.5s var(--spring-soft) both; }
     #pills g:nth-child(1) { animation-delay: 0.58s; }
-    #pills g:nth-child(2) { animation-delay: 0.64s; }
-    #pills g:nth-child(3) { animation-delay: 0.70s; }
-    #pills g:nth-child(4) { animation-delay: 0.76s; }
+    #pills g:nth-child(2) { animation-delay: 0.63s; }
+    #pills g:nth-child(3) { animation-delay: 0.68s; }
+    #pills g:nth-child(4) { animation-delay: 0.73s; }
     #devices  { animation: rise-sm 0.7s var(--spring) 0.16s both; }
-    #footline { animation: rise-sm 0.6s var(--spring) 0.86s both; }
+    #footline { animation: rise-sm 0.6s var(--spring) 0.84s both; }
 
-    @keyframes drift-a { 0%,100% { transform: translate(0,0) scale(1); }    50% { transform: translate(70px,-34px) scale(1.14); } }
-    @keyframes drift-b { 0%,100% { transform: translate(0,0) scale(1.06); } 50% { transform: translate(-84px,26px) scale(0.92); } }
-    @keyframes drift-c { 0%,100% { transform: translate(0,0) scale(0.96); } 50% { transform: translate(46px,38px) scale(1.12); } }
+    @keyframes drift-a { 0%,100% { transform: translate(0,0) scale(1); }    50% { transform: translate(44px,-26px) scale(1.14); } }
+    @keyframes drift-b { 0%,100% { transform: translate(0,0) scale(1.06); } 50% { transform: translate(-52px,22px) scale(0.92); } }
+    @keyframes drift-c { 0%,100% { transform: translate(0,0) scale(0.96); } 50% { transform: translate(30px,32px) scale(1.12); } }
     #blobA { animation: drift-a 21s var(--drift) infinite; }
     #blobB { animation: drift-b 27s var(--drift) infinite; }
     #blobC { animation: drift-c 24s var(--drift) infinite; }
 
-    @keyframes sweep { 0% { transform: translateX(-820px); } 100% { transform: translateX(1200px); } }
+    @keyframes sweep { 0% { transform: translateX(-700px); } 100% { transform: translateX(760px); } }
     #sheen { animation: sweep 7.5s var(--drift) 1.3s infinite; }
 
     @keyframes flow {
-      0%   { transform: translateX(0);    opacity: 0; }
-      6%   { opacity: 1; }
-      42%  { opacity: 1; }
-      54%  { opacity: 0; }
-      86%  { opacity: 1; }
-      100% { transform: translateX(880px); opacity: 0; }
+      0%   { transform: translateX(0);   opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translateX(250px); opacity: 0; }
     }
-    .packet { animation: flow 3.6s linear infinite; }
-    .packet:nth-of-type(2) { animation-delay: 1.2s; }
-    .packet:nth-of-type(3) { animation-delay: 2.4s; }
+    .packet { animation: flow 2.6s linear infinite; }
+    .packet:nth-of-type(2) { animation-delay: 0.87s; }
+    .packet:nth-of-type(3) { animation-delay: 1.74s; }
 
     @keyframes breathe { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
     .live { animation: breathe 2.6s var(--drift) infinite; }
-    @keyframes beam-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+    @keyframes beam-pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
     #beamline { animation: beam-pulse 4.2s var(--drift) infinite; }
 
     @media (prefers-reduced-motion: reduce) {
@@ -154,88 +151,86 @@
     }
   </style>
 
-  <rect width="1200" height="440" fill="url(#ground)"/>
+  <rect width="720" height="600" fill="url(#ground)"/>
 
   <g id="aurora" filter="url(#soften)">
-    <ellipse id="blobA" cx="290" cy="130" rx="250" ry="175" fill="url(#auroraMint)"/>
-    <ellipse id="blobB" cx="940" cy="330" rx="285" ry="190" fill="url(#auroraBlue)"/>
-    <ellipse id="blobC" cx="640" cy="390" rx="230" ry="145" fill="url(#auroraViolet)"/>
+    <ellipse id="blobA" cx="190" cy="140" rx="200" ry="150" fill="url(#auroraMint)"/>
+    <ellipse id="blobB" cx="560" cy="470" rx="215" ry="160" fill="url(#auroraBlue)"/>
+    <ellipse id="blobC" cx="380" cy="560" rx="180" ry="120" fill="url(#auroraViolet)"/>
   </g>
 
+  <!-- phone → laptop sits above the card here, so nothing hides behind the glass -->
   <g id="devices">
-    <rect id="beamline" x="158" y="219" width="880" height="2" fill="url(#beam)"/>
-
-    <g transform="translate(158,220)">
-      <circle class="packet" r="3.6" fill="#4ADFBF" filter="url(#packetGlow)"/>
-      <circle class="packet" r="3.6" fill="#4ADFBF" filter="url(#packetGlow)"/>
-      <circle class="packet" r="3.6" fill="#4ADFBF" filter="url(#packetGlow)"/>
+    <rect id="beamline" x="218" y="93" width="250" height="2.4" fill="url(#beam)"/>
+    <g transform="translate(218,94)">
+      <circle class="packet" r="4" fill="#4ADFBF" filter="url(#packetGlow)"/>
+      <circle class="packet" r="4" fill="#4ADFBF" filter="url(#packetGlow)"/>
+      <circle class="packet" r="4" fill="#4ADFBF" filter="url(#packetGlow)"/>
     </g>
 
-    <!-- phone: the source -->
-    <g transform="translate(70,156)">
-      <rect x="0" y="0" width="74" height="128" rx="17"
-            fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.34)" stroke-width="1.6"/>
-      <rect x="8" y="10" width="58" height="102" rx="9" fill="rgba(74,223,191,0.14)"/>
-      <rect x="27" y="5" width="20" height="3.4" rx="1.7" fill="rgba(255,255,255,0.38)"/>
-      <circle class="live" cx="37" cy="61" r="10" fill="#4ADFBF" filter="url(#dotGlow)"/>
-      <circle cx="37" cy="61" r="4" fill="#0A0E13"/>
+    <g transform="translate(148,42)">
+      <rect x="0" y="0" width="62" height="106" rx="15"
+            fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.36)" stroke-width="1.6"/>
+      <rect x="7" y="9" width="48" height="84" rx="8" fill="rgba(74,223,191,0.15)"/>
+      <rect x="23" y="4.5" width="16" height="3" rx="1.5" fill="rgba(255,255,255,0.4)"/>
+      <circle class="live" cx="31" cy="51" r="9" fill="#4ADFBF" filter="url(#dotGlow)"/>
+      <circle cx="31" cy="51" r="3.6" fill="#0A0E13"/>
     </g>
 
-    <!-- laptop: the destination -->
-    <g transform="translate(1010,164)">
-      <rect x="9" y="0" width="142" height="91" rx="11"
-            fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.34)" stroke-width="1.6"/>
-      <rect x="17" y="8" width="126" height="75" rx="7" fill="rgba(46,125,255,0.14)"/>
-      <path d="M0 100 H160 A7 7 0 0 1 153 107 H7 A7 7 0 0 1 0 100 Z" fill="rgba(255,255,255,0.26)"/>
-      <circle class="live" cx="80" cy="45" r="9" fill="#4ADFBF" filter="url(#dotGlow)"/>
+    <g transform="translate(472,50)">
+      <rect x="8" y="0" width="118" height="76" rx="10"
+            fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.36)" stroke-width="1.6"/>
+      <rect x="15" y="7" width="104" height="62" rx="6" fill="rgba(46,125,255,0.15)"/>
+      <path d="M0 84 H134 A6 6 0 0 1 128 90 H6 A6 6 0 0 1 0 84 Z" fill="rgba(255,255,255,0.28)"/>
+      <circle class="live" cx="67" cy="38" r="8" fill="#4ADFBF" filter="url(#dotGlow)"/>
     </g>
   </g>
 
   <g id="card-group">
-    <rect x="210" y="88" width="780" height="280" rx="44" fill="#000" opacity="0.34"
+    <rect x="36" y="150" width="648" height="336" rx="46" fill="#000" opacity="0.34"
           filter="url(#soften)" transform="translate(0,14)"/>
 
     <g clip-path="url(#cardClip)">
       <use href="#aurora" filter="url(#lens)"/>
-      <use href="#devices" filter="url(#lens)" opacity="0.9"/>
-      <rect x="210" y="88" width="780" height="280" fill="url(#glassFill)"/>
-      <rect id="sheen" x="210" y="88" width="320" height="280" fill="url(#sheen)"/>
+      <rect x="36" y="150" width="648" height="336" fill="url(#glassFill)"/>
+      <rect id="sheen" x="36" y="150" width="240" height="336" fill="url(#sheen)"/>
     </g>
 
-    <rect x="210" y="88" width="780" height="280" rx="44"
+    <rect x="36" y="150" width="648" height="336" rx="46"
           fill="none" stroke="var(--edge-dark)" stroke-width="1.6"/>
-    <rect x="210.75" y="88.75" width="778.5" height="278.5" rx="43.25"
+    <rect x="36.75" y="150.75" width="646.5" height="334.5" rx="45.25"
           fill="none" stroke="url(#specular)" stroke-width="1.5"/>
   </g>
 
   <g class="t" text-anchor="middle">
-    <g id="wordmark"><text class="wordmark" x="600" y="184">Relay</text></g>
-    <text id="tagEn" class="tag-en" x="600" y="236">Share your phone’s internet with your PC.</text>
-    <text id="tagFa" class="tag-fa" x="600" y="282" direction="rtl">اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار</text>
+    <g id="wordmark"><text class="wordmark" x="360" y="248">Relay</text></g>
+    <text id="tagEn" class="tag-en" x="360" y="300">Share your phone’s internet with your PC.</text>
+    <text id="tagFa" class="tag-fa" x="360" y="344" direction="rtl">اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار</text>
 
     <g id="pills">
       <g>
-        <rect x="335" y="310" width="130" height="38" rx="19"
+        <rect x="222" y="372" width="152" height="42" rx="21"
               fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text class="pill-t" x="400" y="335">WireGuard</text>
+        <text class="pill-t" x="298" y="399">WireGuard</text>
       </g>
       <g>
-        <rect x="481" y="310" width="100" height="38" rx="19"
+        <rect x="386" y="372" width="112" height="42" rx="21"
               fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text class="pill-t" x="531" y="335">No root</text>
+        <text class="pill-t" x="442" y="399">No root</text>
       </g>
       <g>
-        <rect x="597" y="310" width="128" height="38" rx="19"
+        <rect x="214" y="424" width="150" height="42" rx="21"
               fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text class="pill-t" x="661" y="335">No account</text>
+        <text class="pill-t" x="289" y="451">No account</text>
       </g>
       <g>
-        <rect x="741" y="310" width="124" height="38" rx="19"
+        <rect x="376" y="424" width="146" height="42" rx="21"
               fill="rgba(74,223,191,0.14)" stroke="rgba(74,223,191,0.34)" stroke-width="1"/>
-        <text class="pill-t" x="803" y="335" fill="#8FF0DA">Local-only</text>
+        <text class="pill-t" x="449" y="451" fill="#8FF0DA">Local-only</text>
       </g>
     </g>
 
-    <text id="footline" class="foot" x="600" y="410">Android → Windows · اندروید به ویندوز · open source, GPL-3.0</text>
+    <text id="footline" class="foot" x="360" y="536">Android → Windows · اندروید به ویندوز</text>
+    <text class="foot" x="360" y="566">open source · GPL-3.0</text>
   </g>
 </svg>

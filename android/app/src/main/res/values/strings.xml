@@ -83,4 +83,8 @@
     <string name="update_available">Version %1$s is available</string>
     <string name="update_get">Get it</string>
     <string name="update_manual_note">Android always asks before installing.</string>
+
+    <!-- Long-press the launcher icon -->
+    <string name="shortcut_start_short">Start Sharing</string>
+    <string name="shortcut_start_long">Start sharing this phone's connection</string>
 </resources>

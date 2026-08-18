@@ -83,4 +83,8 @@
     <string name="update_available">نسخهٔ %1$s موجود است</string>
     <string name="update_get">دریافت</string>
     <string name="update_manual_note">اندروید همیشه قبل از نصب می‌پرسد.</string>
+
+    <!-- نگه‌داشتن آیکون برنامه -->
+    <string name="shortcut_start_short">شروع اشتراک‌گذاری</string>
+    <string name="shortcut_start_long">اشتراک‌گذاری اتصال این گوشی را شروع کن</string>
 </resources>
