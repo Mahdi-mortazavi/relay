@@ -4,18 +4,26 @@ using System.Text.Json.Serialization;
 namespace Relay.Core;
 
 /// <summary>
-/// Asks GitHub whether a newer release exists.
+/// Asks GitHub whether a newer release exists, and where to get it.
 ///
-/// Only asks. Downloading and running an installer is a separate, deliberate
-/// step the person takes, because an app that silently replaces itself is an
-/// app that can silently replace itself with something else — and this one
-/// routes a phone's traffic.
+/// Installing is <see cref="UpdateInstaller"/>'s job, and it will not run an
+/// installer whose SHA-256 does not match the one published in the release's
+/// own SHA256SUMS.txt. That check is what makes updating automatically
+/// defensible at all: this app routes a phone's traffic, so "replaces itself
+/// without being asked" has to mean "replaces itself with the exact bytes the
+/// release published", not merely "with whatever the network returned".
 /// </summary>
 public sealed class UpdateCheck
 {
     private const string LatestUrl = "https://api.github.com/repos/Mahdi-mortazavi/relay/releases/latest";
 
-    public sealed record Available(string Version, string Url, string? Notes);
+    /// <param name="Url">The installer for this machine's architecture.</param>
+    /// <param name="ChecksumsUrl">
+    /// SHA256SUMS.txt from the same release. Null when the release did not
+    /// publish one, which <see cref="UpdateInstaller"/> treats as "do not
+    /// install automatically" rather than "install anyway".
+    /// </param>
+    public sealed record Available(string Version, string Url, string? Notes, string? ChecksumsUrl = null);
 
     private readonly HttpClient _http;
     private readonly string _currentVersion;
@@ -56,10 +64,14 @@ public sealed class UpdateCheck
                 a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
                 a.Name.Contains(Environment.Is64BitOperatingSystem ? "x64" : "x86", StringComparison.OrdinalIgnoreCase));
 
+            var sums = release.Assets?.FirstOrDefault(a =>
+                string.Equals(a.Name, "SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase));
+
             return new Available(
                 release.TagName.TrimStart('v'),
                 asset?.BrowserDownloadUrl ?? release.HtmlUrl ?? LatestUrl,
-                release.Body);
+                release.Body,
+                sums?.BrowserDownloadUrl);
         }
         catch (Exception)
         {
