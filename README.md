@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="docs/assets/cover.svg" alt="Relay — share your phone's internet with your PC. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار." width="100%">
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/cover-mobile.svg">
+  <img src="docs/assets/cover.svg" alt="Relay — share your phone's internet with your PC. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار." width="100%">
+</picture>
 
 # Relay ⚡
 

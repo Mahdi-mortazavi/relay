@@ -70,7 +70,14 @@ public partial class App : Application
             }
 
             _window = new MainWindow();
-            _window.ShowNearTray();
+
+            // Started by Windows at login, not by a person: come up in the tray
+            // rather than over whatever they are doing. A window that appears
+            // unbidden at every login is the reason people turn "start with
+            // Windows" back off.
+            var fromStartup = Environment.GetCommandLineArgs().Any(a =>
+                string.Equals(a, StartupRegistration.TrayArgument, StringComparison.OrdinalIgnoreCase));
+            if (!fromStartup) _window.ShowNearTray();
 
             // Let a second launch (see the !isFirst path) pop this window back up.
             _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignalName);

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img"
+     aria-label="Relay app icon">
+  <title>Relay</title>
+  <desc>The Relay mark: a signal leaving one point and arriving at another, drawn as a
+        single relayed arc. Built on Apple's icon grid — the glyph occupies the inner
+        ~62% so it stays legible when the launcher masks the corners.</desc>
+
+  <defs>
+    <!-- Ground. Deep, slightly cool, with the light coming from the top-leading
+         corner exactly as the material system specifies. -->
+    <linearGradient id="bg" x1="0.12" y1="0" x2="0.88" y2="1">
+      <stop offset="0"    stop-color="#123A38"/>
+      <stop offset="0.42" stop-color="#0C2430"/>
+      <stop offset="1"    stop-color="#070E16"/>
+    </linearGradient>
+
+    <!-- The accent, brightest where the light lands -->
+    <linearGradient id="markGrad" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0"   stop-color="#8FF0DA"/>
+      <stop offset="0.5" stop-color="#4ADFBF"/>
+      <stop offset="1"   stop-color="#17B39A"/>
+    </linearGradient>
+
+    <!-- Specular sheen across the top-leading third -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4ADFBF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#4ADFBF" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="markGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+
+  <!-- Full-bleed ground: launchers and Windows apply their own mask, so the
+       artwork must reach every edge and never draw its own rounded corner. -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- Ambient light behind the mark, so the glyph sits in the surface -->
+  <circle cx="256" cy="256" r="190" fill="url(#glow)" opacity="0.45"/>
+
+  <!-- Optical centring: the mark's ink spans y 210–344, so it is nudged up to
+       put its visual centre on the icon's centre rather than its bounding box. -->
+  <g transform="translate(0,-21)">
+
+  <!-- The mark: the signal is handed from the near point, across, to the far one.
+       One stroke weight throughout, continuous curvature, nothing decorative. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- the relayed arc, glowing -->
+    <path d="M150 314 C 150 196, 362 196, 362 314"
+          stroke="url(#markGrad)" stroke-width="30" filter="url(#markGlow)" opacity="0.75"/>
+    <path d="M150 314 C 150 196, 362 196, 362 314"
+          stroke="url(#markGrad)" stroke-width="30"/>
+
+    <!-- the two ends it travels between -->
+    <circle cx="150" cy="314" r="30" fill="url(#markGrad)" stroke="none"/>
+    <circle cx="362" cy="314" r="30" fill="url(#markGrad)" stroke="none"/>
+  </g>
+
+  <!-- the packet in flight, at the apex of the arc -->
+  <circle cx="256" cy="225.5" r="21" fill="#0A1A20"/>
+  <circle cx="256" cy="225.5" r="12" fill="#BFFBEC"/>
+  </g>
+
+  <!-- specular pass, last so it sits on everything -->
+  <rect width="512" height="512" fill="url(#sheen)"/>
+</svg>
