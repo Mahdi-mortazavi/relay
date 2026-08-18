@@ -86,5 +86,5 @@
 
     <!-- Long-press the launcher icon -->
     <string name="shortcut_start_short">Start Sharing</string>
-    <string name="shortcut_start_long">Start sharing this phone's connection</string>
+    <string name="shortcut_start_long">Start sharing the connection on this phone</string>
 </resources>

@@ -20,7 +20,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.relay.app.service.ConnectionRepository
-import io.relay.app.service.ConnectionState
+import io.relay.app.core.ConnectionState
 import io.relay.app.service.DiagnosticReport
 import io.relay.app.ui.HomeScreen
 import io.relay.app.ui.MainViewModel
