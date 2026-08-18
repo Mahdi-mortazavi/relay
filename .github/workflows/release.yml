@@ -389,7 +389,13 @@ jobs:
           {
             echo "## Relay $VERSION"
             echo
-            echo "Share your phone's connection with your PC. Scan a QR code. That's the setup."
+            echo "**Share your phone's internet with your PC.** Tap *Start Sharing* on"
+            echo "the phone, click your phone in the list on the PC, tap *Allow*."
+            echo "That is the whole setup."
+            echo
+            echo "Everything runs between your two devices: no account, no server, no"
+            echo "telemetry. The connection is an encrypted WireGuard tunnel, and"
+            echo "**every application** on the PC goes through it -- not only the browser."
             echo
             echo "### Download"
             echo
@@ -404,8 +410,13 @@ jobs:
             echo "### Install"
             echo
             echo "1. Install both apps."
-            echo "2. On the phone, turn on the hotspot (or put both devices on the same Wi-Fi) and tap **Start Sharing**."
-            echo "3. On the PC, click **Scan QR** and hold the phone up to the webcam - or **Enter Code Manually**."
+            echo "2. On the phone, turn on the hotspot -- or put both devices on the"
+            echo "   same Wi-Fi -- and tap **Start Sharing**."
+            echo "3. On the PC, open Relay. **Your phone is already in the list.** Click it."
+            echo "4. Tap **Allow** on the phone."
+            echo
+            echo "No camera on the laptop? The two-digit code works on its own. Prefer"
+            echo "the QR? It is still there."
             echo
             echo "Windows SmartScreen warns on first run because the installer is not"
             echo "code-signed yet: **More info -> Run anyway**. See \`docs/release.md\`."
@@ -425,15 +436,34 @@ jobs:
             echo 'sha256sum -c SHA256SUMS.txt'
             echo '```'
             echo
-            echo "### Security"
+            echo "### Privacy and security"
             echo
-            echo "Relay's transport is an unauthenticated SOCKS5 proxy: safe on your own"
-            echo "hotspot, an open proxy on a shared network. [SECURITY.md](https://github.com/Mahdi-mortazavi/relay/blob/main/SECURITY.md)"
+            echo "- **Nothing leaves your two devices.** No accounts, no servers, no"
+            echo "  telemetry, no analytics."
+            echo "- **The tunnel is WireGuard.** Its keys are minted for each pairing and"
+            echo "  destroyed when sharing stops."
+            echo "- **Keys are never broadcast.** The phone announces only enough to be"
+            echo "  found; the keys travel over a short exchange that you approve on the"
+            echo "  phone, with the requesting computer's address shown."
+            echo "- **Nothing outlives the app.** No system-wide setting is changed, so a"
+            echo "  crash cannot leave your machine in a broken state."
+            echo
+            echo "Anyone on your network can see the phone is sharing and can ask to"
+            echo "pair -- that request is what the **Allow** prompt is for, so do not"
+            echo "approve one you did not start."
+            echo "[SECURITY.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/SECURITY.md)"
             echo "has the full threat model."
             echo
-            echo "### Changes"
+            echo "### What changed"
             echo
-            git log $RANGE --no-merges --pretty='- %s' | head -60
+            echo "The readable version, written for people rather than for git, is in"
+            echo "[the changelog](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)."
+            echo
+            echo "<details><summary>Every commit in this release</summary>"
+            echo
+            git log $RANGE --no-merges --pretty='- %s' | head -80
+            echo
+            echo "</details>"
           } > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
 
