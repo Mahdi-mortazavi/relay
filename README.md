@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/android-idle.png" alt="Relay running on an Android phone, sharing its connection" width="180">
-&nbsp;&nbsp;&nbsp;
-<img src="docs/assets/windows-idle.png" alt="Relay on Windows, showing the phone that is sharing" width="240">
+<img src="docs/assets/cover.svg" alt="Relay — share your phone's internet with your PC. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار." width="100%">
 
 # Relay ⚡
 
