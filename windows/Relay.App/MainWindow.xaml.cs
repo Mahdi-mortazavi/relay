@@ -120,7 +120,7 @@ public sealed partial class MainWindow : Window
         ConfigureAppWindow();
         ApplyStrings();
 
-        _controller.StateChanged += () => DispatcherQueue.TryEnqueue(Render);
+        _controller.StateChanged += () => DispatcherQueue.TryEnqueue(OnStateChanged);
         LocalLog.Changed += () => DispatcherQueue.TryEnqueue(RefreshLogs);
         // Discovery runs on its own socket thread; everything it touches here
         // is UI, so it is marshalled rather than handled where it arrives.
@@ -281,7 +281,7 @@ public sealed partial class MainWindow : Window
         // Ask the network who is there only while someone is looking. A tray
         // app that broadcasts once a second all day would be a bad neighbour,
         // and discovery is worth nothing when the window is hidden.
-        try { _discovery.SetProbing(true); } catch (Exception ex) { LocalLog.Add($"Probe failed: {ex.Message}"); }
+        UpdateProbing();
         PositionWindow(MinPopupHeight);
         _shownAtTick = Environment.TickCount64;
         AppWindow.Show();
@@ -324,9 +324,30 @@ public sealed partial class MainWindow : Window
     private void HideToTray()
     {
         StopScanning();
-        _discovery.SetProbing(false);
         _shown = false;
+        UpdateProbing();
         AppWindow.Hide();
+    }
+
+    /// <summary>
+    /// Probe while someone is looking, and while a tunnel is up.
+    ///
+    /// The second half is not for the pairing screen. It is how the tunnel
+    /// learns the phone has changed address: Windows Firewall drops
+    /// unsolicited inbound UDP to an unelevated app, and Relay's installer is
+    /// per-user so it cannot add a rule, which means the beacons announcing the
+    /// new lease do not arrive unless this end has sent something first. Stop
+    /// probing on hide and the roaming fix works only with the window open,
+    /// which is the case it is least needed in.
+    ///
+    /// ponytail: one small datagram per interface per second, and only while a
+    /// tunnel it would otherwise lose is running. Give discovery a slower
+    /// interval for this if a battery ever complains.
+    /// </summary>
+    private void UpdateProbing()
+    {
+        try { _discovery.SetProbing(_shown || _controller.StateName == "Connected"); }
+        catch (Exception ex) { LocalLog.Add($"Probe failed: {ex.Message}"); }
     }
 
     /// <summary>
@@ -1127,8 +1148,22 @@ public sealed partial class MainWindow : Window
     /// can easily beat the first beacon, and without this they are left looking
     /// at "still looking" while the phone sits in the list right below it.
     /// </summary>
+    /// <summary>
+    /// The code this session paired with, or null when we arrived by a route
+    /// that has none — the eight-character code, or a QR.
+    ///
+    /// A code is drawn once per sharing session and kept for its life
+    /// (/shared/pairing-beacon.md), so it is the only stable name the phone
+    /// has across a change of address.
+    /// </summary>
+    private string? _pairedCode;
+
     private void OnDevicesChanged()
     {
+        // Before the panel checks below: while connected the visible panel is
+        // neither of them, and following the phone matters most exactly then.
+        FollowIfMoved();
+
         if (ReferenceEquals(_visiblePanel, IdlePanel))
         {
             PopulateIdleList();
@@ -1141,6 +1176,46 @@ public sealed partial class MainWindow : Window
         // A row appearing or leaving changes how tall the panel is, and the
         // window does not resize itself.
         ResizeToContent();
+    }
+
+    /// <summary>
+    /// Re-points a live tunnel when the phone we paired with starts announcing
+    /// itself from somewhere else.
+    ///
+    /// Matching on the code alone is safe here only because the tunnel is still
+    /// up: sharing stopping kills it, so a phone that restarted sharing — and
+    /// therefore drew a fresh code and fresh keys — cannot be what this is
+    /// looking at. See /shared/pairing-beacon.md → "Following a phone that
+    /// changes address".
+    /// </summary>
+    /// <summary>
+    /// Renders, and keeps the two things that outlive the window in step with
+    /// the state: whether we are still probing, and which phone we are allowed
+    /// to follow.
+    /// </summary>
+    private void OnStateChanged()
+    {
+        if (_controller.StateName != "Connected")
+        {
+            // The session that drew this code is over. Keeping it would let the
+            // next phone to draw the same two digits look like ours.
+            _pairedCode = null;
+        }
+        UpdateProbing();
+        Render();
+    }
+
+    private void FollowIfMoved()
+    {
+        if (_pairedCode is null || _controller.StateName != "Connected") return;
+
+        var moved = _discovery.Devices.FirstOrDefault(d =>
+            d.Code == _pairedCode && d.Mode == QrPayload.ModeWireguard);
+        if (moved is null) return;
+
+        // RoamAsync is a no-op when the address has not actually changed, which
+        // is every beacon but the one that matters.
+        _ = _controller.RoamAsync(moved.Host, moved.PortNumber);
     }
 
     /// <summary>
@@ -1172,6 +1247,12 @@ public sealed partial class MainWindow : Window
             var payload = await PairAsync(device.Host, device.PairingPort!.Value, device.Name);
             if (payload is null) return; // PairAsync surfaced the reason
             await _controller.ConnectAsync(payload);
+
+            // After, not before: connecting passes through states that are not
+            // Connected, and OnStateChanged clears the code on every one of
+            // them, so a code set up front would be gone by the time it was
+            // wanted.
+            if (_controller.StateName == "Connected") _pairedCode = device.Code;
         }
         finally
         {

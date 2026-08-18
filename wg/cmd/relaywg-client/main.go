@@ -68,6 +68,10 @@ const (
 	// Ends the configuration on stdin without closing it. See [readConfig].
 	configTerminator = "END-CONFIG"
 
+	// Prefix of the line the app sends when the phone turns up at a new address,
+	// e.g. "ENDPOINT 192.168.1.14:51820". See [roam].
+	endpointPrefix = "ENDPOINT "
+
 	// Printed instead of READY when the adapter came up but the peer never
 	// answered. Distinct from a generic failure because the user's next action
 	// is different: rescan the QR, because the phone has almost certainly minted
@@ -193,11 +197,67 @@ func run(name, address, dns, routes, pipe string) error {
 		return fmt.Errorf("reporting readiness: %w", err)
 	}
 
-	waitForShutdown(reader, parentGone, peerLost(dev))
+	// The peer's key, read once: an endpoint update has to name the peer it
+	// moves, and this is the only place the configuration is still in hand.
+	peerKey := peerPublicKey(config)
+
+	waitForShutdown(reader, parentGone, peerLost(dev), func(line string) {
+		endpoint, ok := strings.CutPrefix(line, endpointPrefix)
+		if !ok {
+			return // the app says nothing else here; ignore whatever this was
+		}
+		endpoint = strings.TrimSpace(endpoint)
+		if err := roam(dev, peerKey, endpoint); err != nil {
+			fmt.Fprintf(os.Stderr, "could not follow the peer to %q: %v\n", endpoint, err)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "the peer moved to %s\n", endpoint)
+	})
 	fmt.Fprintln(os.Stderr, "tearing down")
 	// The deferred Close calls remove the adapter, and Windows drops its
 	// addresses and routes with it.
 	return nil
+}
+
+// roam re-points the tunnel at the peer's new address without rebuilding it.
+//
+// WireGuard follows a peer that moves, but only in the direction this end is
+// not: a responder learns an initiator's address from the packets it receives,
+// and here the phone is the responder and the one that moves. Its address is a
+// DHCP lease, so a renewal or a rejoin is enough, and then every handshake goes
+// to an address nobody is listening on until [peerLost] tears the tunnel down —
+// which is what "worked once, then never again" looked like from the outside.
+//
+// Only the endpoint moves. The keys are untouched, so this cannot hand the
+// tunnel to anyone: an endpoint that does not hold the peer's key completes no
+// handshake and gets nothing. update_only is belt and braces on top of that —
+// a line naming an unknown key moves nothing rather than adding a second peer.
+//
+// The address must be a literal. The beacon carries one, and refusing anything
+// else keeps a name lookup — which blocks, and which the tunnel would be
+// routing — off this path entirely.
+func roam(dev *device.Device, peerKey, endpoint string) error {
+	if peerKey == "" {
+		return errors.New("the configuration named no peer to move")
+	}
+	if _, err := netip.ParseAddrPort(endpoint); err != nil {
+		return fmt.Errorf("not an address and port: %w", err)
+	}
+	return dev.IpcSet(fmt.Sprintf(
+		"public_key=%s\nupdate_only=true\nendpoint=%s\n", peerKey, endpoint))
+}
+
+// peerPublicKey returns the peer's key from an IPC configuration.
+//
+// The device's own key is private_key=, so the first public_key= line is the
+// peer's -- and there is exactly one peer, by ADR-0009.
+func peerPublicKey(config string) string {
+	for _, line := range strings.Split(config, "\n") {
+		if key, ok := strings.CutPrefix(strings.TrimSpace(line), "public_key="); ok {
+			return key
+		}
+	}
+	return ""
 }
 
 // waitForHandshake reports whether the peer answered within [within].
@@ -404,12 +464,23 @@ func readConfig(stdin *bufio.Reader) (config string, parentGone bool, err error)
 	return builder.String(), parentGone, nil
 }
 
-// waitForShutdown returns when the parent goes away or the console interrupts.
+// waitForShutdown returns when the parent goes away or the console interrupts,
+// passing each line the parent sends meanwhile to [onLine].
 //
-// Both matter. The parent closing stdin is the ordinary Disconnect; the signal
-// is what a person pressing Ctrl+C in a console window sends. Waiting on only
-// one of them leaves a tunnel running with nobody watching it.
-func waitForShutdown(channel *bufio.Reader, parentAlreadyGone bool, peerGone <-chan struct{}) {
+// Both shutdown paths matter. The parent closing stdin is the ordinary
+// Disconnect; the signal is what a person pressing Ctrl+C in a console window
+// sends. Waiting on only one of them leaves a tunnel running with nobody
+// watching it.
+//
+// The lines are new. This end of the channel used to be drained into
+// io.Discard, because the only thing it had to detect was the stream ending --
+// and reading it for content costs nothing, since it was already being read.
+func waitForShutdown(
+	channel *bufio.Reader,
+	parentAlreadyGone bool,
+	peerGone <-chan struct{},
+	onLine func(string),
+) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -423,8 +494,11 @@ func waitForShutdown(channel *bufio.Reader, parentAlreadyGone bool, peerGone <-c
 
 	closed := make(chan struct{})
 	go func() {
-		io.Copy(io.Discard, channel)
-		close(closed)
+		defer close(closed)
+		scanner := bufio.NewScanner(channel)
+		for scanner.Scan() {
+			onLine(strings.TrimSpace(scanner.Text()))
+		}
 	}()
 
 	select {

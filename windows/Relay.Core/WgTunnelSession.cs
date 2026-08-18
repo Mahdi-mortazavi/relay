@@ -101,6 +101,12 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// <summary>Ends the configuration without closing stdin. Must match the client.</summary>
     public const string ConfigTerminator = "END-CONFIG";
 
+    /// <summary>
+    /// Prefix of the line that moves the tunnel to the phone's new address.
+    /// Must match the client.
+    /// </summary>
+    public const string EndpointPrefix = "ENDPOINT ";
+
     /// <summary>How long to wait for the adapter. Creating one is slow the first time.</summary>
     public static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(45);
 
@@ -176,6 +182,39 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
 
         _tunnel = tunnel;
         return Result.Success;
+    }
+
+    /// <summary>
+    /// Follows the phone to a new address, keeping the tunnel that is already
+    /// up (/shared/pairing-beacon.md → "Following a phone that changes
+    /// address").
+    ///
+    /// A phone's address is a DHCP lease and the PC is the WireGuard initiator,
+    /// which is the direction WireGuard's own roaming does not cover — so a
+    /// renewed lease used to end the session some minutes later, reported as
+    /// the phone having gone away.
+    ///
+    /// Returns false rather than an error code because nothing here is worth
+    /// interrupting a working session for: the caller logs it, and if the phone
+    /// really has gone then the tunnel dies on its own and
+    /// <c>ERR_CONNECTION_LOST</c> says so from the one place that watches.
+    /// </summary>
+    public bool Roam(string host, int port)
+    {
+        var tunnel = _tunnel;
+        if (tunnel is null || tunnel.HasExited) return false;
+
+        try
+        {
+            tunnel.WriteLine($"{EndpointPrefix}{host}:{port}");
+            return true;
+        }
+        catch (Exception)
+        {
+            // The pipe is also how Disconnect is signalled, so a write failing
+            // here is very likely a tunnel that is already going down.
+            return false;
+        }
     }
 
     /// <summary>
