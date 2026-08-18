@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/android-idle.png" alt="ریلی روی گوشی اندروید" width="180">
-&nbsp;&nbsp;&nbsp;
-<img src="docs/assets/windows-idle.png" alt="ریلی روی ویندوز" width="240">
+<img src="docs/assets/cover.svg" alt="ریلی — اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار. Share your phone's internet with your PC." width="100%">
 
 # Relay ⚡
 
