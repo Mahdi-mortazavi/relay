@@ -41,7 +41,12 @@ import kotlin.concurrent.thread
 @RunWith(AndroidJUnit4::class)
 class CrossPlatformSessionTest {
 
-    @get:Rule
+    // Order matters: the walkthrough has to be marked seen before the activity
+    // launches, and the compose rule launches it as the rules are applied.
+    @get:Rule(order = 0)
+    val skipOnboarding = SkipOnboarding()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()
 
     @After

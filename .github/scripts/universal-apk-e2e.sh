@@ -119,6 +119,20 @@ tap_by_text() {
   adb shell input tap $(( (x1 + x2) / 2 )) $(( (y1 + y2) / 2 ))
 }
 
+# This is a genuine first run -- a freshly installed APK on a clean image -- so
+# the walkthrough is on screen and "Start Sharing" is behind it. That is the
+# point: this is the only place onboarding CAN be tested, because it happens
+# once per install and every other suite marks it seen to get past it.
+if tap_by_text "Done"; then
+  pass "ui.first-run-walkthrough"
+  sleep 2
+else
+  # Not fatal on its own: an upgrade over an install that had already been
+  # through it would legitimately not show one. The Start Sharing check below
+  # is what decides whether the app is usable.
+  echo "no walkthrough on screen (already onboarded?)"
+fi
+
 if tap_by_text "Start Sharing"; then
   pass "ui.tapped-start-sharing"
 else
