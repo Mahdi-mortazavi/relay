@@ -166,19 +166,40 @@ private fun StepRow(number: Int, step: OnboardingStep) {
                 color = glass.textTertiary,
             )
 
-            if (step.action != StepAction.Done) {
-                Spacer(Modifier.height(6.dp))
-                TextButton(
-                    onClick = step.onAction,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                ) {
+            when (step.action) {
+                // Something to press: the platform will do the asking.
+                StepAction.Offer -> {
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(
+                        onClick = step.onAction,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    ) {
+                        Text(
+                            step.actionLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = glass.accent,
+                        )
+                    }
+                }
+                // Where the control is, when the platform will not ask for us.
+                //
+                // Plain text, not a button. It was a TextButton with zero
+                // content padding, and the wrapped instruction came out with
+                // the first character of each line shaved off — a button lays
+                // its label out as one line and clips what does not fit. It
+                // also was not a button in any useful sense: pressing it only
+                // repeated the same sentence in a toast.
+                StepAction.Instruct -> {
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         step.actionLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         color = glass.accent,
                     )
                 }
+                StepAction.Done -> Unit
             }
         }
     }
