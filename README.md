@@ -1,19 +1,19 @@
 <div align="center">
 
-<img src="docs/assets/android-idle.png" alt="Relay on Android" width="180">
+<img src="docs/assets/android-idle.png" alt="Relay running on an Android phone, sharing its connection" width="180">
 &nbsp;&nbsp;&nbsp;
-<img src="docs/assets/windows-idle.png" alt="Relay on Windows" width="240">
+<img src="docs/assets/windows-idle.png" alt="Relay on Windows, showing the phone that is sharing" width="240">
 
 # Relay ⚡
 
 ### **Share your phone's internet with your PC.**
-### **Scan a QR code. That's the entire setup.**
+### **Click one row. That's the entire setup.**
 
 <br>
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
 &nbsp;
-[![Download for Android](https://img.shields.io/badge/Download-Android-3DDC84?style=for-the-badge)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+[![Download for Android](https://img.shields.io/badge/Download-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 
 <sub>Always the newest release · [all files & notes](https://github.com/Mahdi-mortazavi/relay/releases/latest)</sub>
 
@@ -22,7 +22,8 @@
 [![CI](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml)
 [![E2E device lab](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml)
 [![Release](https://img.shields.io/github/v/release/Mahdi-mortazavi/relay?sort=semver&color=4ADFBF&label=release)](https://github.com/Mahdi-mortazavi/relay/releases/latest)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/Mahdi-mortazavi/relay?style=flat&color=FFD700)](https://github.com/Mahdi-mortazavi/relay/stargazers)
 
 **🌍 [English](README.md) · [فارسی](README.fa.md)**
 
@@ -30,25 +31,30 @@
 
 ---
 
+Your laptop has no internet. Your phone does. **Relay moves it across** — over your own Wi-Fi or the phone's hotspot, through an encrypted WireGuard tunnel, with **no account, no server, and nothing leaving your two devices**.
+
+It is a free, open-source **reverse tethering** and **internet sharing** tool for **Android → Windows**. Every application on the PC goes through the phone — TCP *and* UDP — and **no root is required**.
+
+---
+
 ## 📥 Download
 
 | | File | Who it's for |
 |---|---|---|
-| **Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10/11. Installs for you alone — no admin prompt. |
+| **Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10/11. Installs for you alone. |
 | Windows 32-bit | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | Only if you know you need it. |
 | **Android** | [**Relay-android-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+. Almost every phone since 2017. |
-| Android (any device) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Bigger, works everywhere. Use this if the one above says *"app not compatible"*. |
+| Android (any) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Bigger, works everywhere. Use this if the one above says *"app not compatible"*. |
 | Checksums | [SHA256SUMS.txt](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/SHA256SUMS.txt) | `sha256sum -c SHA256SUMS.txt` |
 
-**The current version is `1.8.0`, and it is the only release on this repository.** Older releases have been removed on purpose. Every link above always points at the newest one, and both apps now show their version under **Advanced** — so if the phone and the PC ever seem to disagree, check those two numbers first. They should match, and if they don't, that is the whole explanation.
+The two Android files are the **same app** from the same build, differing only in which CPU architectures they carry. If one seems to behave differently, it is an older copy — uninstall and reinstall.
 
-The two Android files are the **same app**, built in the same run, differing only in which CPU architectures they carry. They cannot behave differently. If one seems to, it is an older copy — uninstall and reinstall from the links above.
-
-Windows warns on first run because the installer isn't code-signed yet — **More info → Run anyway**. If Android says *"App not installed"*, [this page](docs/install-troubleshooting.md) covers every cause I've seen.
+> **Windows warns on first run** because the installer isn't code-signed yet — choose **More info → Run anyway**.
+> **Android says "App not installed"?** [Every cause I have seen is on this page](docs/install-troubleshooting.md).
 
 ---
 
-## 🚀 How to use it
+## 🚀 Setup, in about five seconds
 
 **On your phone**
 
@@ -58,86 +64,95 @@ Windows warns on first run because the installer isn't code-signed yet — **Mor
 
 **On your PC**
 
-4. Open Relay. It lists the phones sharing right now, each with the code it is showing — click yours. Or click **Scan QR** and hold the phone up to your webcam, or **Enter the 2-digit code** and type those two digits.
-5. Approve the request that appears on your phone.
+4. Open Relay. **Your phone is already in the list** — click it.
+5. Tap **Allow** on the phone.
 
-That's it — your browser, your apps, everything goes through the phone. Press **Disconnect** when you're done and Windows goes back exactly as it was.
+That is the whole thing. The PC is now on your phone's connection, and the window shows what it is carrying: live download and upload speed, totals, tunnel latency, and how long you have been connected.
 
-<details>
-<summary><b>Why Windows asks for permission once</b></summary>
-
-<br>
-
-Relay carries **everything** — browsing, downloads, video calls, games. TCP and UDP both, because it builds a real WireGuard tunnel rather than a proxy that only some apps honour.
-
-A tunnel needs a network adapter, and Windows only creates one with your permission. So the first time you connect, you get a **UAC prompt** — click **Yes**.
-
-Only the small tunnel process gets that permission, never the whole app, and it lasts exactly as long as the connection. Relay itself installs for you alone and never asks for admin anywhere else.
-
-There used to be a second mode that skipped this prompt. It only carried TCP, so games and calls silently didn't work, and it did it by editing a Windows-wide proxy setting that Relay then had to put back correctly every time — including after a crash. One clear prompt is a better trade than a setting that can be left broken. ([ADR-0009](docs/adr/0009-full-mode-only-and-code-pairing.md))
-
-</details>
-
-<details>
-<summary><b>If something goes wrong</b></summary>
-
-<br>
-
-Relay tries to tell you what actually happened instead of showing "connection failed". Every error has a name and a next step — the full list is in [docs/errors.md](docs/errors.md).
-
-**First check: the version number.** Both apps show it under **Advanced**. Two different versions is the single most common cause of "these two don't work together", and until 1.8.0 the Windows app reported its version wrongly, so nobody could see it.
-
-**Browsers should just work** — no extension, no manual proxy entry. If you previously needed something like SwitchyOmega to get Chrome through Relay, that was a bug in how Relay described the proxy to Windows, and 1.8.0 fixes it. Turn the extension off.
-
-Both apps keep a local log you can read and share (**Advanced → Logs**). Nothing is ever uploaded on its own.
-
-</details>
+No camera on the laptop? The two digits work on their own. Prefer the QR? It is still there.
 
 ---
 
-## 💡 Why I built this
+## ✨ What's new in 2.0
 
-I kept ending up in the same place: laptop with no internet, phone with plenty. Windows hotspot refuses to start. USB tethering needs a driver. Third-party apps want a subscription, an account, and permission to see everything.
+**One transport, and it carries everything.** Relay used to have two modes. The old *Fast Mode* was a system-wide SOCKS5 proxy, and it only ever carried TCP — so games, calls, installers and anything using UDP were never really shared. Telegram Desktop was the usual report: the browser worked, nothing else did. That mode is **gone**, along with the machine-wide proxy setting it had to change. There is now one real WireGuard tunnel, and **every application goes through it**.
 
-The connection was always right there. The problem was never the network — it was the setup.
+**Pair with two digits.** The tunnel's keys only ever lived inside the QR code, so a laptop without a camera had no way in at all. Now the phone offers a short pairing exchange that the person holding the phone has to allow — and phones that are already sharing appear on the PC's first screen, so one click is usually the entire setup.
 
-So Relay has no accounts, no servers, no telemetry, no subscription. Your traffic goes phone → PC over your own Wi-Fi and touches nothing of mine. **Scan a code and it works**, and when it doesn't, it tells you why.
+**The window tells the truth.** "Connected" now means a real WireGuard handshake completed, not merely that a network adapter exists. If the phone stops answering, Relay says so instead of showing a green dot over a tunnel that cannot carry a byte.
+
+**It follows your phone.** A phone's address is a DHCP lease, and leases change. Relay now re-points the tunnel when the phone reappears at a new address, instead of dialling one that has moved.
+
+<sub>Full detail in the [CHANGELOG](CHANGELOG.md) and in [ADR-0009](docs/adr/0009-full-mode-only-and-code-pairing.md).</sub>
 
 ---
 
-## 🔐 Honest about security
+## 🔒 Nothing leaves your devices
 
-Your traffic travels inside **WireGuard**, with keys that are made fresh for one session and thrown away when you stop sharing. Nothing is written to disk, and nothing leaves your two devices.
+This is the part I care most about, so it is a rule rather than a preference:
 
-The interesting question is not the tunnel, it's who gets to use it. The two-digit code is **not a password** — ninety numbers never could be. It only picks your phone out of the ones nearby. **What keeps strangers out is you:** when a computer asks for the keys, your phone stops and asks you first, showing which computer is asking. Nobody gets in while your phone is in your pocket — no answer within a minute counts as no.
+- **No accounts, no servers, no telemetry, no analytics.** There is nothing to sign up for, and nowhere for your data to go.
+- **The tunnel is WireGuard.** Its keys are minted per pairing and destroyed when sharing stops.
+- **Keys are never broadcast.** The phone announces only enough to be *found*. The keys travel over a short exchange that you approve on screen, with the requesting computer's address shown.
+- **Nothing outlives the process.** Relay 2.0 changes no system-wide setting, so a crash cannot strand your machine in a broken state.
 
-Scanning the QR skips that question, because holding your phone up to a camera already answered it.
-
-The full threat model is in [SECURITY.md](SECURITY.md) — including what Relay does *not* protect you from.
+A change that adds a network call to anything but your own phone needs a very good reason and a written decision record. That rule is enforced in [`CLAUDE.md`](CLAUDE.md) and in the [ADRs](docs/adr/).
 
 ---
 
 ## 🧪 How it's tested
 
-Every commit installs the real app on real Android images (API 30–36) and drives it through its own UI: start sharing, show a QR, let a laptop pair by code, answer the prompt, stop. The Windows client's own code runs against a **live phone** over `adb`. The real installer is installed, launched and uninstalled. The tunnel is brought up on a real WinTun adapter and a real WireGuard handshake is verified across it — and the client refuses to report "connected" until that handshake actually happens.
+Every commit installs the real app on real Android images (API 30–36) and drives it through its own UI: start sharing, show a QR, let a laptop pair by code, answer the prompt, stop. The Windows client runs against a **live phone** over `adb`. The real installer is installed, launched and uninstalled. The tunnel is brought up on a real WinTun adapter, and a real WireGuard handshake is verified across it.
 
 Then the *published* APK is installed on Android 11 through 16 — because a release nobody can install is not a release.
 
-What hardware still has to prove is written down in [docs/testing.md](docs/testing.md), not hidden.
+**What hardware still has not proved is written down** in [docs/testing.md](docs/testing.md) rather than hidden. A pipeline that skipped its only meaningful test is also green, so the test names that matter are pinned and CI fails if one silently skips.
 
 ---
 
-## 🗺️ Status
+## 🗺️ Roadmap
 
 | | |
 |:---|:---|
-| 🚀 WireGuard tunnel, TCP + UDP | ✅ **Shipping** — both platforms |
+| 🚀 WireGuard tunnel, TCP + UDP, every app | ✅ **Shipping** |
 | 🔢 Pair by QR **or** two-digit code | ✅ **Shipping** |
-| 🔄 Auto-reconnect, actionable errors, EN + FA | ✅ **Shipping** |
-| ✍️ Signed Windows installer | 🔨 Planned |
+| 📊 Live speed, totals, latency, notification | ✅ **Shipping** |
+| 🔄 Follows the phone across address changes | ✅ **Shipping** |
+| ✍️ Signed Windows installer | 🔨 Next |
+| 🧩 Split tunnelling / per-app routing | 🔨 Next |
+| 🐧 Linux client | 💭 Wanted — [#74](https://github.com/Mahdi-mortazavi/relay/issues/74) |
 | 🍎 macOS client | 💭 Later |
 
-<sub>Detail in [`docs/roadmap.md`](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md)</sub>
+<sub>The full picture, with reasoning: [**ROADMAP.md**](ROADMAP.md)</sub>
+
+---
+
+## 🛠️ For developers
+
+Two apps and one shared contract.
+
+```
+android/   Kotlin + Compose            windows/   .NET 8 + WinUI 3
+wg/        WireGuard endpoint (Go)     shared/    the cross-platform contract
+docs/      architecture, ADRs, testing, errors
+```
+
+**There is no local build step.** CI is the build system ([ADR-0004](docs/adr/0004-github-only-build-and-release.md)) — push a branch and the pipeline builds it, tests it on real devices, and can cut a release. You do **not** need Android Studio, the .NET SDK or Go installed to contribute.
+
+```bash
+git clone https://github.com/Mahdi-mortazavi/relay.git
+cd relay
+git switch -c my-change
+# edit, commit, push — CI builds and tests it for you
+```
+
+**Three things that are easy to break by accident**, worth knowing before your first PR:
+
+1. **Change `/shared` first.** The wire format, the state machine and the pairing rules live there, and both platforms are asserted against it. Editing one platform to match the other is how the two apps drift.
+2. **Every user-facing string exists in English *and* Persian.** This is enforced by tests, not by review.
+3. **Green is not the same as tested.** If you add a test that matters, add its name to the guard, so a run that silently skipped it cannot pass.
+
+Start with [`docs/architecture.md`](docs/architecture.md) and the [ADRs](docs/adr/) — every significant decision is written down together with the reasoning that produced it. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the rest, and issues that are a good place to start are labelled **`good first issue`**.
 
 ---
 
@@ -155,9 +170,9 @@ What hardware still has to prove is written down in [docs/testing.md](docs/testi
 
 <br>
 
-I'm Mahdi. I don't build demos — I build the thing I needed, then keep working on it until it's good enough to hand to someone else.
+I'm Mahdi. I don't build demos — I build the thing I needed, then keep working on it until it is good enough to hand to someone else.
 
-Relay is exactly that. It began as my own frustration with a laptop that had no internet and a phone that did. Now it runs a device lab on every commit, ships on two platforms, and tells you the truth about what it can't do yet. **That last part is the standard I hold my work to** — I'd rather write down a limitation than let you discover it.
+Relay is exactly that. It began as my own frustration with a laptop that had no internet and a phone that did. Now it runs a device lab on every commit, ships on two platforms, and tells you the truth about what it cannot do yet. **That last part is the standard I hold my work to** — I would rather write down a limitation than let you discover it.
 
 If Relay is useful to you, a ⭐ genuinely helps. If it breaks, [tell me](https://github.com/Mahdi-mortazavi/relay/issues/new/choose) — I read everything.
 
@@ -175,31 +190,11 @@ If Relay is useful to you, a ⭐ genuinely helps. If it breaks, [tell me](https:
 &nbsp;
 [![Website](https://img.shields.io/badge/Website-mahdi--mortazavi.github.io-4ADFBF?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mahdi-mortazavi.github.io)
 
-**🚀 [Startup Legend](https://t.me/Startup_legend)** — my community, where I share what I'm building, what broke, and what I learned fixing it.
-
-</div>
-
----
-
-## 🛠️ For developers
-
-Two apps and one shared contract. Android is Kotlin + Compose; Windows is .NET 8 + WinUI 3; Full Mode's tunnel is Go (`wg/`), used by both ends.
-
-There is **no local build required** — CI is the build system (ADR-0004). Push and the pipeline builds, tests on real devices, and can cut a release.
-
-```
-android/   Kotlin + Compose            windows/   .NET 8 + WinUI 3
-wg/        WireGuard endpoint (Go)     shared/    the cross-platform contract
-docs/      architecture, ADRs, testing, errors
-```
-
-Start with [`docs/architecture.md`](docs/architecture.md) and the [ADRs](docs/adr/) — every significant decision is written down with the reasoning that produced it. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the rest.
-
-<div align="center">
+**🚀 [Startup Legend](https://t.me/Startup_legend)** — my community, where I share what I am building, what broke, and what I learned fixing it.
 
 <br>
 
-**Made in Iran 🇮🇷 · [Apache-2.0](LICENSE)**
+**Made in Iran 🇮🇷 · [GPL-3.0](LICENSE)**
 
 <sub>"WireGuard" is a registered trademark of Jason A. Donenfeld.</sub>
 
