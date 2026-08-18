@@ -87,7 +87,7 @@ jobs:
       # job's artifact: what ships has to come from the tagged commit, and an
       # artifact is a promise about a different run.
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.25'
           cache-dependency-path: wg/go.sum
@@ -228,7 +228,7 @@ jobs:
       # they land beside Relay.exe -- wintun.dll is loaded from the executable's
       # own directory, so the three travel together or Full Mode is not there.
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.25'
           cache-dependency-path: wg/go.sum
@@ -367,7 +367,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           merge-multiple: true
