@@ -1,73 +1,109 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img"
      aria-label="Relay app icon">
   <title>Relay</title>
-  <desc>The Relay mark: a signal leaving one point and arriving at another, drawn as a
-        single relayed arc. Built on Apple's icon grid — the glyph occupies the inner
-        ~62% so it stays legible when the launcher masks the corners.</desc>
+  <desc>A signal carried across: one bold arc bridging two points, in white on a
+        saturated teal ground. Drawn to Apple's icon guidance — a single focal
+        shape, light from above, and enough weight to survive 16px.</desc>
 
   <defs>
-    <!-- Ground. Deep, slightly cool, with the light coming from the top-leading
-         corner exactly as the material system specifies. -->
-    <linearGradient id="bg" x1="0.12" y1="0" x2="0.88" y2="1">
-      <stop offset="0"    stop-color="#123A38"/>
-      <stop offset="0.42" stop-color="#0C2430"/>
-      <stop offset="1"    stop-color="#070E16"/>
+    <!-- ==========================================================
+         GROUND. Saturated, not dark.
+
+         The first version of this icon put a thin mint glyph on a
+         near-black square. At 48dp on a launcher that reads as an
+         empty tile: no focal shape, no colour to recognise it by,
+         and the glyph's detail gone. Apple's own icons overwhelmingly
+         put a WHITE glyph on a saturated ground for exactly this
+         reason — Phone, Messages, FaceTime, Health. This does the same.
+         ========================================================== -->
+    <linearGradient id="ground" x1="0.08" y1="0" x2="0.85" y2="1">
+      <stop offset="0"    stop-color="#63EFD0"/>
+      <stop offset="0.38" stop-color="#2ECFB0"/>
+      <stop offset="0.72" stop-color="#12A891"/>
+      <stop offset="1"    stop-color="#0A7A74"/>
     </linearGradient>
 
-    <!-- The accent, brightest where the light lands -->
-    <linearGradient id="markGrad" x1="0.1" y1="0" x2="0.9" y2="1">
-      <stop offset="0"   stop-color="#8FF0DA"/>
-      <stop offset="0.5" stop-color="#4ADFBF"/>
-      <stop offset="1"   stop-color="#17B39A"/>
+    <!-- Light source, top-leading. One light, consistently applied. -->
+    <radialGradient id="keyLight" cx="0.26" cy="0.16" r="0.72">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="1"   stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Weight at the bottom, so the tile sits rather than floats -->
+    <linearGradient id="vignette" x1="0.5" y1="0.42" x2="0.62" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#00201F" stop-opacity="0.30"/>
     </linearGradient>
 
-    <!-- Specular sheen across the top-leading third -->
-    <linearGradient id="sheen" x1="0" y1="0" x2="0.55" y2="1">
-      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.20"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.05"/>
+    <!-- The Liquid Glass pass: a lens of light lying across the upper
+         third, brightest at its leading edge, as light behaves on a
+         curved translucent surface. -->
+    <linearGradient id="glassSweep" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.07"/>
       <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
 
-    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#4ADFBF" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#4ADFBF" stop-opacity="0"/>
-    </radialGradient>
+    <!-- The mark itself is dimensional: brighter where the light lands,
+         settling to a cooler white in shadow. Never flat #FFF. -->
+    <linearGradient id="markFace" x1="0.15" y1="0" x2="0.8" y2="1">
+      <stop offset="0"   stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#FBFFFE"/>
+      <stop offset="1"   stop-color="#D9F7F0"/>
+    </linearGradient>
 
-    <filter id="markGlow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="14"/>
+    <filter id="markShadow" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="9"/>
     </filter>
+    <filter id="softLight" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+
+    <!-- Clips the highlight to the arc so it reads as the lit top edge of a
+         solid form rather than a second stroke floating above it. -->
+    <clipPath id="arcClip">
+      <path d="M140,316 C140,156 372,156 372,316"
+            fill="none" stroke="#000" stroke-width="54" stroke-linecap="round"/>
+    </clipPath>
+
   </defs>
 
-  <!-- Full-bleed ground: launchers and Windows apply their own mask, so the
-       artwork must reach every edge and never draw its own rounded corner. -->
-  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- Full bleed: launchers and Windows apply their own mask, so this must
+       reach every edge and never draw its own rounded corner. -->
+  <rect width="512" height="512" fill="url(#ground)"/>
+  <rect width="512" height="512" fill="url(#keyLight)"/>
+  <rect width="512" height="512" fill="url(#vignette)"/>
 
-  <!-- Ambient light behind the mark, so the glyph sits in the surface -->
-  <circle cx="256" cy="256" r="190" fill="url(#glow)" opacity="0.45"/>
+  <!-- glass lens across the top third -->
+  <path d="M0,0 H512 V212 C384,286 128,286 0,212 Z" fill="url(#glassSweep)"/>
 
-  <!-- Optical centring: the mark's ink spans y 210–344, so it is nudged up to
-       put its visual centre on the icon's centre rather than its bounding box. -->
-  <g transform="translate(0,-21)">
+  <g transform="translate(0,-8)">
+    <!-- 1. contact shadow: the mark sits ON the surface, not in it -->
+    <path d="M140,316 C140,156 372,156 372,316"
+          fill="none" stroke="#04413F" stroke-opacity="0.42" stroke-width="54"
+          stroke-linecap="round" filter="url(#markShadow)" transform="translate(0,13)"/>
 
-  <!-- The mark: the signal is handed from the near point, across, to the far one.
-       One stroke weight throughout, continuous curvature, nothing decorative. -->
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- the relayed arc, glowing -->
-    <path d="M150 314 C 150 196, 362 196, 362 314"
-          stroke="url(#markGrad)" stroke-width="30" filter="url(#markGlow)" opacity="0.75"/>
-    <path d="M150 314 C 150 196, 362 196, 362 314"
-          stroke="url(#markGrad)" stroke-width="30"/>
+    <!-- 2. the face -->
+    <path d="M140,316 C140,156 372,156 372,316"
+          fill="none" stroke="url(#markFace)" stroke-width="54" stroke-linecap="round"/>
 
-    <!-- the two ends it travels between -->
-    <circle cx="150" cy="314" r="30" fill="url(#markGrad)" stroke="none"/>
-    <circle cx="362" cy="314" r="30" fill="url(#markGrad)" stroke="none"/>
+    <!-- 3. the lit top edge, clipped to the form -->
+    <g clip-path="url(#arcClip)">
+      <path d="M140,316 C140,156 372,156 372,316"
+            fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="14"
+            stroke-linecap="round" transform="translate(0,-19)" filter="url(#softLight)"/>
+    </g>
+
+    <!-- Nothing else. Four detail treatments were tried on top of this arc and
+         every one of them introduced a second reading: terminal circles wider
+         than the stroke gave each foot a lip and it became a bone; the same
+         circles with darker centres became a pair of eyes; a bead at the apex
+         sat on the arc like an ornament; an aperture punched through it read as
+         a keyhole, or a figure standing under an archway.
+
+         The arc alone is the mark. It is a span carrying something from one
+         side to the other, which is the product, and at 16px it is the only
+         version that still says so. -->
   </g>
-
-  <!-- the packet in flight, at the apex of the arc -->
-  <circle cx="256" cy="225.5" r="21" fill="#0A1A20"/>
-  <circle cx="256" cy="225.5" r="12" fill="#BFFBEC"/>
-  </g>
-
-  <!-- specular pass, last so it sits on everything -->
-  <rect width="512" height="512" fill="url(#sheen)"/>
 </svg>

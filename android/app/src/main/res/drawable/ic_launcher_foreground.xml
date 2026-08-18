@@ -1,43 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The Relay mark: a signal leaving one point, arcing across, and arriving at
-    another, with the packet drawn at the apex.
+    The mark: one span carrying something from one side to the other.
 
-    Laid out directly in the 108dp adaptive-icon viewport rather than scaled
-    from a 512px master, so the geometry is exact at the size it is actually
-    drawn. The ink spans x 25.5–82.5 and y 40–68.5, which sits inside the
-    66dp safe circle every launcher mask is guaranteed to keep, and is
-    optically centred on 54,54 rather than merely bounding-box centred.
+    Four detail treatments were tried on top of this arc and every one of them
+    introduced a second reading — terminal circles wider than the stroke made it
+    a bone, the same circles with darker centres made a face, a bead at the apex
+    sat on it like an ornament, and an aperture punched through it read as a
+    keyhole. The arc alone is the mark, and at 48dp it is the only version that
+    still says what the product does.
 
-    Solid colours on purpose. A gradient is invisible at 48dp and only adds a
-    way for the build to break.
+    Laid out directly in the 108dp viewport. Ink spans x 23.8–84.2 and
+    y 35.8–72.7, inside the 66dp circle every launcher mask keeps, and optically
+    centred on 54,54 rather than merely bounding-box centred.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- the relayed arc -->
+    <!-- Contact shadow. Android vectors have no blur, so this is a slightly
+         wider stroke of the same path, offset down and held at low alpha. It
+         reads as the mark sitting on the surface rather than floating over it. -->
     <path
-        android:pathData="M32,62 C32,37 76,37 76,62"
-        android:strokeColor="#4ADFBF"
-        android:strokeWidth="6.5"
+        android:pathData="M29.5,68.4 C29.5,34.4 78.5,34.4 78.5,68.4"
+        android:strokeColor="#3D04413F"
+        android:strokeWidth="12.6"
         android:strokeLineCap="round" />
 
-    <!-- the two ends it travels between -->
+    <!-- The face. Brighter where the light lands, cooling into shadow — never
+         a flat white, which is what makes it read as a solid rather than a
+         cut-out. -->
     <path
-        android:pathData="M32,62 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0"
-        android:fillColor="#4ADFBF" />
-    <path
-        android:pathData="M76,62 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0"
-        android:fillColor="#4ADFBF" />
+        android:pathData="M29.5,67 C29.5,33 78.5,33 78.5,67"
+        android:strokeWidth="11.4"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="16"
+                android:startY="30"
+                android:endX="86"
+                android:endY="74">
+                <item android:offset="0"    android:color="#FFFFFFFF" />
+                <item android:offset="0.55" android:color="#FFFBFFFE" />
+                <item android:offset="1"    android:color="#FFD9F7F0" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- the packet in flight: a node punched out of the arc -->
+    <!-- The lit top edge: a thin bright stroke riding the crown of the arc. -->
     <path
-        android:pathData="M54,43.25 m-6.4,0 a6.4,6.4 0 1,0 12.8,0 a6.4,6.4 0 1,0 -12.8,0"
-        android:fillColor="#0A0C10" />
-    <path
-        android:pathData="M54,43.25 m-3.6,0 a3.6,3.6 0 1,0 7.2,0 a3.6,3.6 0 1,0 -7.2,0"
-        android:fillColor="#BFFBEC" />
+        android:pathData="M32.6,60 C33.6,38.6 74.4,38.6 75.4,60"
+        android:strokeColor="#59FFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round" />
 </vector>
