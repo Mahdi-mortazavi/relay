@@ -87,4 +87,19 @@
     <!-- Long-press the launcher icon -->
     <string name="shortcut_start_short">Start Sharing</string>
     <string name="shortcut_start_long">Start sharing the connection on this phone</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_idle">Not sharing</string>
+    <string name="tile_starting">Starting…</string>
+    <string name="tile_waiting">Waiting for your PC</string>
+    <string name="tile_code">Code %1$s</string>
+    <string name="tile_error">Tap to try again</string>
+    <plurals name="tile_connected">
+        <item quantity="one">Sharing with %d device</item>
+        <item quantity="other">Sharing with %d devices</item>
+    </plurals>
+
+    <!-- Home screen widget -->
+    <string name="widget_description">Sharing state and the code to type on your PC.</string>
+    <string name="widget_tap_to_start">Tap to start sharing</string>
 </resources>
