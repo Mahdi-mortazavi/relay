@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's own surface. Widgets sit on the wallpaper, so this carries the
+     same saturated ground the icon does rather than trying to be translucent
+     over something it cannot see. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="24dp" />
+    <gradient
+        android:type="linear"
+        android:angle="315"
+        android:startColor="#2ECFB0"
+        android:centerColor="#12A891"
+        android:endColor="#0A7A74" />
+</shape>

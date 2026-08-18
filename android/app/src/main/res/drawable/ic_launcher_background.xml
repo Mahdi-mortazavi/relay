@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The adaptive icon's background layer.
+
+    This used to be a flat @color/ic_launcher_background, very near black. On a
+    launcher that read as an empty tile: nothing to recognise the app by at a
+    glance, and the thin glyph on top of it disappeared. A saturated ground with
+    a white glyph is what Apple's own icons do, and it is the reason they are
+    identifiable at 1cm across.
+
+    Three passes, matching docs/assets/icon.svg: the base gradient, one key
+    light from the top-leading corner, and weight at the bottom so the tile
+    sits rather than floats. Android composes these as ordinary paths, so
+    there is no blur — the falloff is carried by the gradients themselves.
+
+    Drawn at 108x108 and deliberately oversized to 200%: the launcher mask can
+    crop up to a quarter of this layer away, so it has to keep painting well
+    past the nominal edge.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- base -->
+    <path android:pathData="M-54,-54h216v216h-216z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="8"
+                android:startY="0"
+                android:endX="92"
+                android:endY="108">
+                <item android:offset="0"    android:color="#FF63EFD0" />
+                <item android:offset="0.38" android:color="#FF2ECFB0" />
+                <item android:offset="0.72" android:color="#FF12A891" />
+                <item android:offset="1"    android:color="#FF0A7A74" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- key light, top-leading -->
+    <path android:pathData="M-54,-54h216v216h-216z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="28"
+                android:centerY="17"
+                android:gradientRadius="78">
+                <item android:offset="0"    android:color="#6BFFFFFF" />
+                <item android:offset="0.45" android:color="#1AFFFFFF" />
+                <item android:offset="1"    android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- weight at the bottom -->
+    <path android:pathData="M-54,-54h216v216h-216z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="45"
+                android:endX="67"
+                android:endY="108">
+                <item android:offset="0" android:color="#0000201F" />
+                <item android:offset="1" android:color="#4D00201F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

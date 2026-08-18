@@ -87,4 +87,19 @@
     <!-- نگه‌داشتن آیکون برنامه -->
     <string name="shortcut_start_short">شروع اشتراک‌گذاری</string>
     <string name="shortcut_start_long">اشتراک‌گذاری اتصال این گوشی را شروع کن</string>
+
+    <!-- کاشی تنظیمات سریع -->
+    <string name="tile_idle">اشتراک‌گذاری خاموش</string>
+    <string name="tile_starting">در حال شروع…</string>
+    <string name="tile_waiting">در انتظار رایانه شما</string>
+    <string name="tile_code">کد %1$s</string>
+    <string name="tile_error">برای تلاش دوباره بزنید</string>
+    <plurals name="tile_connected">
+        <item quantity="one">در حال اشتراک با %d دستگاه</item>
+        <item quantity="other">در حال اشتراک با %d دستگاه</item>
+    </plurals>
+
+    <!-- ویجت صفحه اصلی -->
+    <string name="widget_description">وضعیت اشتراک‌گذاری و کدی که باید در رایانه وارد کنید.</string>
+    <string name="widget_tap_to_start">برای شروع بزنید</string>
 </resources>

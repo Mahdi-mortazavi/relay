@@ -45,6 +45,36 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <receiver
+            android:name=".service.SharingWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_sharing_info" />
+        </receiver>
+
+        <!-- Sharing from the notification shade. BIND_QUICK_SETTINGS_TILE is
+             held by the system, which is what makes exported="true" correct
+             here: only the system can bind it. -->
+        <service
+            android:name=".service.SharingTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_shortcut_start"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <!-- Lets the tile be added while the phone is locked; it only ever
+                 reflects state and opens the app, never hands anything out. -->
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
         <service
             android:name=".service.SharingService"
             android:exported="false"

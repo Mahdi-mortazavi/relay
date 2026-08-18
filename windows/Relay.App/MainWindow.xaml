@@ -311,18 +311,30 @@
                      could not previously tell that was what they were doing,
                      and the diagnostic report they sent claimed 1.0.0. -->
                 <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedVersionLabel" Style="{StaticResource CaptionText}"
-                               VerticalAlignment="Center" />
-                    <TextBlock x:Name="AdvancedVersionValue" HorizontalAlignment="Right"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <TextBlock x:Name="AdvancedVersionValue" Grid.Column="1" HorizontalAlignment="Right"
                                Style="{StaticResource MonoText}"
                                IsTextSelectionEnabled="True"
                                FlowDirection="LeftToRight"
                                Foreground="{StaticResource LabelSecondary}" />
                 </Grid>
                 <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedAddressLabel" Style="{StaticResource CaptionText}"
-                               VerticalAlignment="Center" />
-                    <TextBlock x:Name="AdvancedAddressValue" HorizontalAlignment="Right"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <TextBlock x:Name="AdvancedAddressValue" Grid.Column="1" HorizontalAlignment="Right"
                                Style="{StaticResource MonoText}"
                                Foreground="{StaticResource LabelSecondary}" />
                 </Grid>
@@ -330,16 +342,28 @@
                      only useful if it is already there when you need it, and the
                      per-user Run key needs no elevation to set. -->
                 <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedStartupLabel" Style="{StaticResource CaptionText}"
-                               VerticalAlignment="Center" />
-                    <ToggleSwitch x:Name="AdvancedStartupToggle" HorizontalAlignment="Right"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedStartupToggle" Grid.Column="1" HorizontalAlignment="Right"
                                   MinWidth="0" Margin="0,-6,0,-6"
                                   Toggled="OnStartupToggled" />
                 </Grid>
                 <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedLogsLabel" Style="{StaticResource CaptionText}"
-                               VerticalAlignment="Center" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
                         <HyperlinkButton x:Name="AdvancedLogsShare" Padding="0"
                                          Click="OnShareLogsClick" />
                         <HyperlinkButton x:Name="AdvancedLogsClear" Padding="0"

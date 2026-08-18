@@ -1,26 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The themed-icon layer (Android 13+). Android tints this by the wallpaper
-    palette and uses only its alpha, so the packet's dark ring — which reads as
-    a hole in the colour version — would silently fill in and turn the mark into
-    a blob. This is the same geometry with that detail dropped, which is what a
-    silhouette of it should be.
+    The themed-icon layer (Android 13+). Android tints this from the wallpaper
+    palette and uses only its alpha, so the shadow and the highlight would each
+    fill in solid and thicken the mark. This is the same arc with only its face.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
     <path
-        android:pathData="M32,62 C32,37 76,37 76,62"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="6.5"
+        android:pathData="M29.5,67 C29.5,33 78.5,33 78.5,67"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="11.4"
         android:strokeLineCap="round" />
-    <path
-        android:pathData="M32,62 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0"
-        android:fillColor="#FFFFFF" />
-    <path
-        android:pathData="M76,62 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0"
-        android:fillColor="#FFFFFF" />
 </vector>

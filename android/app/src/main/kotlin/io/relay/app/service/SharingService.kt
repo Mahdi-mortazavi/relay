@@ -92,6 +92,11 @@ class SharingService : Service() {
                 if (state !is ConnectionState.Idle) {
                     notificationManager.notify(NOTIFICATION_ID, buildNotification(state))
                 }
+                // The widget lives in the launcher's process and cannot watch a
+                // flow, so every state change has to be pushed to it. Idle is
+                // included deliberately: the transition a widget most needs to
+                // hear about is sharing stopping.
+                SharingWidgetProvider.refresh(this@SharingService)
             }
         }
     }
