@@ -64,14 +64,24 @@ fun OnboardingScreen(
 ) {
     val glass = LocalGlass.current
 
-    Box(Modifier.fillMaxSize()) {
+    // The steps scroll; the button does not.
+    //
+    // It was inside the scroller, and on a short screen it sat below the fold —
+    // caught on an emulator, where the first-run check could not find it. A
+    // primary action that has to be scrolled to is a primary action some people
+    // never reach, and "some people" on a first-run screen means they never get
+    // past it.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(32.dp))
 
             Text(
                 text = stringResource(R.string.onboarding_title),
@@ -92,23 +102,23 @@ fun OnboardingScreen(
                 Spacer(Modifier.height(12.dp))
             }
 
-            Spacer(Modifier.height(20.dp))
-
-            Button(
-                onClick = onDone,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = glass.accent,
-                    contentColor = glass.onAccent,
-                ),
-            ) {
-                Text(
-                    stringResource(R.string.onboarding_done),
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
         }
+
+        Button(
+            onClick = onDone,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = glass.accent,
+                contentColor = glass.onAccent,
+            ),
+        ) {
+            Text(
+                stringResource(R.string.onboarding_done),
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Spacer(Modifier.height(28.dp))
     }
 }
 
