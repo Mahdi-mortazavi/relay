@@ -241,6 +241,15 @@ public sealed partial class MainWindow : Window
             // most anxious part of connecting, and while Windows' own elevation
             // prompt was taking focus. Error counts too: an error nobody can
             // read is an error nobody can act on.
+            // Minimising deactivates the window too, and this handler used to
+            // treat that as "focus went elsewhere" and hide to the tray instead.
+            // The button said minimise and the window went somewhere else
+            // entirely -- no taskbar button, gone from Alt-Tab, findable only
+            // behind the tray chevron. Verified on hardware: after clicking
+            // Minimise the window reported visible=false, iconic=false, which is
+            // hidden, not minimised.
+            if (_presenter?.State == OverlappedPresenterState.Minimized) return;
+
             if (e.WindowActivationState == WindowActivationState.Deactivated
                 && _mode == InputMode.None
                 && _controller.StateName == "Idle"
@@ -495,6 +504,17 @@ public sealed partial class MainWindow : Window
         AdvancedVersionValue.Text = AppVersion.Current;
         AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
         AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
+        // Glyph-only buttons carry no text, so without these two they announce
+        // nothing at all: a screen reader reaches the header and finds a pair of
+        // unnamed buttons. The tooltip also does the explaining that "close does
+        // not quit" needs, in the one place a person will look for it.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            MinimiseButton, Strings.Get("WindowMinimise"));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            CloseButton, Strings.Get("WindowClose"));
+        ToolTipService.SetToolTip(MinimiseButton, Strings.Get("WindowMinimise"));
+        ToolTipService.SetToolTip(CloseButton, Strings.Get("WindowCloseHint"));
+
         AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
         AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
         AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
