@@ -209,6 +209,32 @@
         <Setter Property="Height" Value="{StaticResource TargetMin}" />
     </Style>
 
+    <!--
+        Caption controls. Relay draws its own: the window is created with
+        SetBorderAndTitleBar(true, false), so there is no system caption and
+        therefore no close button — which is exactly how a user came to report
+        that the window could not be closed. Escape worked; nothing on screen
+        said so.
+
+        Small, quiet, and 32x28 rather than the 44pt touch minimum used
+        elsewhere: these are pointer-only affordances on a pointer-only surface,
+        and sizing them like primary actions would make the header shout.
+    -->
+    <Style x:Key="CaptionButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource LabelTertiary}" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="7" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <!-- ===== Text roles ===================================================== -->
 
     <Style x:Key="TitleText" TargetType="TextBlock">

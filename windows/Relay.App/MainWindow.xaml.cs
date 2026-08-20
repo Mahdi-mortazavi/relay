@@ -186,7 +186,11 @@ public sealed partial class MainWindow : Window
         {
             presenter.IsResizable = false;
             presenter.IsMaximizable = false;
-            presenter.IsMinimizable = false;
+            // Minimise is real now that the header offers it. Maximise stays off:
+            // the popover is a fixed-width card positioned against the tray, and
+            // stretching it to fill a monitor would be a worse window, not a
+            // bigger one.
+            presenter.IsMinimizable = true;
             presenter.SetBorderAndTitleBar(true, false);
             presenter.IsAlwaysOnTop = true;
             _presenter = presenter;
@@ -320,6 +324,26 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new SizeInt32(w, h));
         AppWindow.Move(new PointInt32(x, area.Y + area.Height - h - margin));
     }
+
+
+    /// <summary>
+    /// Minimise. Ordinary, and the reason the presenter allows it.
+    /// </summary>
+    private void OnMinimiseClick(object sender, RoutedEventArgs e)
+    {
+        try { _presenter?.Minimize(); }
+        catch (Exception ex) { LocalLog.Add($"Minimise failed: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Close puts Relay away rather than quitting it.
+    ///
+    /// The tunnel is owned by this process, so quitting takes a live connection
+    /// with it. A close button that did that silently would be a worse surprise
+    /// than the missing button this replaces — Exit on the tray menu is the one
+    /// that really quits, and it says so.
+    /// </summary>
+    private void OnCloseClick(object sender, RoutedEventArgs e) => HideToTray();
 
     private void HideToTray()
     {
