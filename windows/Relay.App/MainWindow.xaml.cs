@@ -241,6 +241,15 @@ public sealed partial class MainWindow : Window
             // most anxious part of connecting, and while Windows' own elevation
             // prompt was taking focus. Error counts too: an error nobody can
             // read is an error nobody can act on.
+            // Minimising deactivates the window too, and this handler used to
+            // treat that as "focus went elsewhere" and hide to the tray instead.
+            // The button said minimise and the window went somewhere else
+            // entirely -- no taskbar button, gone from Alt-Tab, findable only
+            // behind the tray chevron. Verified on hardware: after clicking
+            // Minimise the window reported visible=false, iconic=false, which is
+            // hidden, not minimised.
+            if (_presenter?.State == OverlappedPresenterState.Minimized) return;
+
             if (e.WindowActivationState == WindowActivationState.Deactivated
                 && _mode == InputMode.None
                 && _controller.StateName == "Idle"
