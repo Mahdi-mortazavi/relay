@@ -74,17 +74,64 @@ No camera on the laptop? The two digits work on their own. Prefer the QR? It is 
 
 ---
 
-## ✨ What's new in 2.0
+## ✨ Everything Relay does
 
-**One transport, and it carries everything.** Relay used to have two modes. The old *Fast Mode* was a system-wide SOCKS5 proxy, and it only ever carried TCP — so games, calls, installers and anything using UDP were never really shared. Telegram Desktop was the usual report: the browser worked, nothing else did. That mode is **gone**, along with the machine-wide proxy setting it had to change. There is now one real WireGuard tunnel, and **every application goes through it**.
+### Sharing
 
-**Pair with two digits.** The tunnel's keys only ever lived inside the QR code, so a laptop without a camera had no way in at all. Now the phone offers a short pairing exchange that the person holding the phone has to allow — and phones that are already sharing appear on the PC's first screen, so one click is usually the entire setup.
+| | |
+|---|---|
+| **One WireGuard tunnel** | TCP *and* UDP, so games, calls and installers are shared — not only the browser |
+| **Every application** | Nothing to configure per-app; the whole machine goes through the phone |
+| **No root** | On either device |
+| **Live statistics** | Download and upload speed, totals, tunnel latency and connection duration, read from the adapter |
+| **Honest state** | "Connected" means a real WireGuard handshake completed, not that an adapter exists |
+| **Follows a moving phone** | When the phone's DHCP lease changes, the tunnel is re-pointed instead of dying |
+| **Reconnects** | Bounded automatic recovery when the hotspot drops ([ADR-0007](docs/adr/0007-bounded-auto-reconnect.md)) |
 
-**The window tells the truth.** "Connected" now means a real WireGuard handshake completed, not merely that a network adapter exists. If the phone stops answering, Relay says so instead of showing a green dot over a tunnel that cannot carry a byte.
+### Pairing
 
-**It follows your phone.** A phone's address is a DHCP lease, and leases change. Relay now re-points the tunnel when the phone reappears at a new address, instead of dialling one that has moved.
+| | |
+|---|---|
+| **One click** | Phones already sharing appear on the PC's first screen |
+| **Two-digit code** | For a laptop with no camera |
+| **QR code** | Point the webcam at the phone |
+| **You approve it** | The phone asks before handing out keys, showing the requesting computer's address |
 
-<sub>Full detail in the [CHANGELOG](CHANGELOG.md) and in [ADR-0009](docs/adr/0009-full-mode-only-and-code-pairing.md).</sub>
+### On the phone
+
+| | |
+|---|---|
+| **Quick Settings tile** | Start and stop from the notification shade, with the pairing code in the subtitle |
+| **Home screen widget** | The code, big enough to read while you're looking at the laptop |
+| **Long-press shortcut** | *Start Sharing* straight from the launcher icon |
+| **First-run setup** | Walks through notifications, battery exemption, the tile and the widget — and adds them for you where Android allows it |
+| **Themed icon** | Follows your wallpaper palette on Android 13+ |
+
+### On the PC
+
+| | |
+|---|---|
+| **Lives in the tray** | With minimise and close controls, and Alt-Tab as a way back |
+| **Start with Windows** | A switch in Advanced, using the per-user key — no elevation |
+| **Connect notification** | When the tunnel comes up |
+| **Diagnostic report** | One button, copies what a bug report needs — and nothing is uploaded |
+
+### Updates
+
+Relay checks GitHub for a newer release and offers it. The download is checked
+against the **SHA256SUMS.txt published in that same release**, and nothing that
+fails is kept or installed — a rejected download is deleted rather than left on
+disk. That verification is the reason updating is allowed to be this automatic:
+Relay carries your whole connection, so replacing itself has to mean replacing
+itself with exactly the bytes the release published.
+
+Android still shows its own install prompt. That is a floor the platform sets
+for any sideloaded app, not a choice made here.
+
+### Both
+
+English and Persian throughout, right-to-left correct, with every user-facing
+string enforced by tests.
 
 ---
 
@@ -111,18 +158,25 @@ Then the *published* APK is installed on Android 11 through 16 — because a rel
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ What's next
 
 | | |
 |:---|:---|
-| 🚀 WireGuard tunnel, TCP + UDP, every app | ✅ **Shipping** |
-| 🔢 Pair by QR **or** two-digit code | ✅ **Shipping** |
-| 📊 Live speed, totals, latency, notification | ✅ **Shipping** |
-| 🔄 Follows the phone across address changes | ✅ **Shipping** |
-| ✍️ Signed Windows installer | 🔨 Next |
-| 🧩 Split tunnelling / per-app routing | 🔨 Next |
-| 🐧 Linux client | 💭 Wanted — [#74](https://github.com/Mahdi-mortazavi/relay/issues/74) |
-| 🍎 macOS client | 💭 Later |
+| ✍️ **Signed Windows installer** | 🔨 Next — it is the SmartScreen warning that stops people |
+| 🧩 **Split tunnelling / per-app routing** | 🔨 Next — the tunnel is all-or-nothing today |
+| 📵 **Sharing a phone that is itself on a VPN** | 🔨 Detected and explained, not yet solved — [why](docs/vpn-compat.md) |
+| 🐧 **Linux client** | 💭 Wanted, and the best place to contribute — [#74](https://github.com/Mahdi-mortazavi/relay/issues/74) |
+| 🍎 **macOS client** | 💭 Later |
+| 🌐 **IPv6** | 💭 Later — the tunnel is IPv4 today |
+| 👥 **More than one PC per session** | 🚫 Not planned — one peer per session by design ([ADR-0009](docs/adr/0009-full-mode-only-and-code-pairing.md)) |
+| ☁️ **Accounts, servers, telemetry** | 🚫 Never |
+
+**Known limitation:** if the phone's own VPN captures Relay's UID, the tunnel's
+traffic is swallowed by that VPN. Relay detects this and says so, but cannot fix
+it from inside the app. [The detail is written down](docs/vpn-compat.md).
+
+**Not yet proven on hardware:** what CI cannot reach is listed in
+[docs/testing.md](docs/testing.md) rather than hidden.
 
 <sub>The full picture, with reasoning: [**ROADMAP.md**](ROADMAP.md)</sub>
 
