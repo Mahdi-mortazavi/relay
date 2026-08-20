@@ -12,6 +12,7 @@ import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
 import io.relay.app.service.SharingService
 import io.relay.app.core.UpdateCheck
+import io.relay.app.service.UpdateFetcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
@@ -69,6 +70,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissUpdate() {
         _updateAvailable.value = null
+    }
+
+    /** True while an update is being fetched, so the button cannot be tapped twice. */
+    private val _updating = MutableStateFlow(false)
+    val updating: StateFlow<Boolean> = _updating
+
+    /**
+     * Downloads the release APK, verifies it against the release's published
+     * checksums, and opens the system installer.
+     *
+     * The "Get it" button used to call nothing at all: HomeScreen took an
+     * onGetUpdate lambda, MainActivity never passed one, and the default was
+     * empty — so the banner offered an update it had no way to deliver.
+     */
+    fun getUpdate() {
+        if (_updating.value) return
+        _updating.value = true
+        viewModelScope.launch {
+            val result = UpdateFetcher.downloadAndInstall(getApplication())
+            _updating.value = false
+            when (result) {
+                UpdateFetcher.Result.Installing -> _updateAvailable.value = null
+                UpdateFetcher.Result.ChecksumMismatch ->
+                    LocalLog.add("Update refused: the download did not match the published checksum")
+                UpdateFetcher.Result.Unverifiable ->
+                    LocalLog.add("Update refused: that release published no checksums")
+                UpdateFetcher.Result.Unavailable ->
+                    LocalLog.add("Update could not be downloaded; try again later")
+            }
+        }
     }
 
     private val _batteryExempt = MutableStateFlow(readBatteryExempt())

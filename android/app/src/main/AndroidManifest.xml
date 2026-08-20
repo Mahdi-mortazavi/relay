@@ -4,9 +4,16 @@
      "Requested internal only, but not enough space" — surfaced to the user as
      nothing more than "App not installed". "auto" lets the system place the
      app on adoptable storage when internal is tight, and changes nothing on a
-     phone with room. Relay has no widgets, no account authenticators and no
-     device-admin receiver, none of which survive being moved, so there is
-     nothing here that "auto" can break. -->
+     phone with room.
+
+     This used to say Relay had nothing that "auto" could break. It now has a
+     home screen widget, and a widget IS removed if the app is moved to
+     adoptable storage. The trade is deliberate and it is not close: a failed
+     install stops everyone, on a phone that reports nothing more useful than
+     "App not installed", while losing a widget affects only someone who has
+     both placed one and moved the app to an SD card, and is fixed by placing
+     it again. If that ever stops being the right call, internalOnly is the
+     one-word change — and the install failure comes back with it. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     android:installLocation="auto">
 
@@ -17,6 +24,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Handing a downloaded APK to the system installer. Android still shows
+         its own prompt; this only allows Relay to be the app that asks. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
@@ -44,6 +54,20 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+
+        <!-- Serves the verified update APK to the package installer. Not
+             exported: the installer reads it through the one-shot read
+             permission the intent grants, and nothing else can open it. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
 
         <receiver
             android:name=".service.SharingWidgetProvider"

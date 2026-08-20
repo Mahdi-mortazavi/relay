@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val pendingClient by ConnectionRepository.clientGate.pending.collectAsState()
+                    val updateAvailable by viewModel.updateAvailable.collectAsState()
 
                     // The launcher shortcut. Honoured only from Idle: arriving
                     // here while already sharing means the person tapped it out
@@ -130,6 +131,10 @@ class MainActivity : ComponentActivity() {
                         onDismissWarning = viewModel::dismissWarning,
                         onSetTheme = viewModel::setThemeMode,
                         onClearLogs = viewModel::clearLogs,
+                        // The banner used to offer an update it had no way to
+                        // deliver: HomeScreen took this lambda, nothing passed
+                        // one, and the default was empty.
+                        onGetUpdate = viewModel::getUpdate,
                         onShareLogs = {
                             // Built here rather than in the view model because the
                             // report needs the installed version, and the share
@@ -140,6 +145,7 @@ class MainActivity : ComponentActivity() {
                             val report = DiagnosticReport.build(state, logs, version)
                             startActivity(DiagnosticReport.shareIntent(this@MainActivity, report))
                         },
+                        updateAvailable = updateAvailable,
                         pendingClient = pendingClient?.address,
                         onApproveClient = { allowed ->
                             pendingClient?.let {
