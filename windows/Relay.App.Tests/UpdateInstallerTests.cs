@@ -130,12 +130,32 @@ public class UpdateInstallerTests
     [Theory]
     [InlineData("https://x/Relay-Setup-x64.exe", "Relay-Setup-x64.exe")]
     [InlineData("https://x/Relay-Setup-x64.exe?token=1", "Relay-Setup-x64.exe")]
-    // A URL is attacker-influenced input the moment anything but GitHub answers.
-    // Neither of these may become a path the download escapes into.
-    [InlineData("https://x/..\\..\\evil.exe", "")]
-    [InlineData("https://x/../../evil.exe", "")]
-    public void NeverLetsADownloadNameEscapeItsDirectory(string url, string expected)
+    [InlineData("https://x/Relay-Setup-x64.exe#frag", "Relay-Setup-x64.exe")]
+    public void TakesTheFileNameOffADownloadUrl(string url, string expected)
     {
         Assert.Equal(expected, UpdateInstaller.FileName(url));
+    }
+
+    [Theory]
+    // A download URL is attacker-influenced the moment anything but GitHub
+    // answers, so what matters is not which string comes back — it is that
+    // combining it with the download directory cannot land outside that
+    // directory. Asserting the property rather than the string: an earlier
+    // version of this test demanded "" for the traversal cases and failed,
+    // because taking the last path segment already contains them.
+    [InlineData("https://x/../../evil.exe")]
+    [InlineData("https://x/..\\..\\evil.exe")]
+    [InlineData("https://x/%2e%2e%2fevil.exe")]
+    [InlineData("https://x/C:\\Windows\\System32\\evil.exe")]
+    [InlineData("https://x/")]
+    public void NeverLetsADownloadNameEscapeItsDirectory(string url)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "relay-escape-test");
+        var name = UpdateInstaller.FileName(url);
+
+        var resolved = Path.GetFullPath(Path.Combine(directory, name));
+        var root = Path.GetFullPath(directory);
+
+        Assert.StartsWith(root, resolved, StringComparison.OrdinalIgnoreCase);
     }
 }
