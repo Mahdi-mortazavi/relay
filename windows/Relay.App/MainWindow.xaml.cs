@@ -495,6 +495,17 @@ public sealed partial class MainWindow : Window
         AdvancedVersionValue.Text = AppVersion.Current;
         AdvancedAddressLabel.Text = Strings.Get("AdvancedAddress");
         AdvancedLogsLabel.Text = Strings.Get("AdvancedLogs");
+        // Glyph-only buttons carry no text, so without these two they announce
+        // nothing at all: a screen reader reaches the header and finds a pair of
+        // unnamed buttons. The tooltip also does the explaining that "close does
+        // not quit" needs, in the one place a person will look for it.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            MinimiseButton, Strings.Get("WindowMinimise"));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            CloseButton, Strings.Get("WindowClose"));
+        ToolTipService.SetToolTip(MinimiseButton, Strings.Get("WindowMinimise"));
+        ToolTipService.SetToolTip(CloseButton, Strings.Get("WindowCloseHint"));
+
         AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
         AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
         AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
