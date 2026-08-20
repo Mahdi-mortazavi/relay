@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the one directory updates are downloaded into. A provider that shared
+     the whole cache would expose every other thing Relay writes there. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>
