@@ -167,6 +167,18 @@ func (e *Endpoint) statValue(name string) int64 {
 	return 0
 }
 
+// spliceBuffers backs every forwarded connection's two copy loops.
+//
+// io.Copy would allocate 32 KB per direction per connection. On a phone
+// carrying a laptop's whole browsing session that is a steady stream of
+// garbage to collect, on the one CPU that measurement showed to be the limit.
+var spliceBuffers = sync.Pool{
+	New: func() any {
+		b := make([]byte, 64*1024)
+		return &b
+	},
+}
+
 // forward splices two connections and returns when either side is done.
 //
 // Both directions are needed and both must be able to end the pair: a download
@@ -179,7 +191,13 @@ func forward(a, b net.Conn) {
 	done := make(chan struct{}, 2)
 	copyOneWay := func(dst, src net.Conn) {
 		_ = extendDeadline(dst)
-		_, _ = io.Copy(dst, src)
+		// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
+		// fresh buffer for every call, which is two allocations per connection
+		// on a device that is already the bottleneck; at 64 KB it also halves
+		// the number of round trips through the netstack per megabyte.
+		buf := spliceBuffers.Get().(*[]byte)
+		_, _ = io.CopyBuffer(dst, src, *buf)
+		spliceBuffers.Put(buf)
 		done <- struct{}{}
 	}
 	go copyOneWay(a, b)
