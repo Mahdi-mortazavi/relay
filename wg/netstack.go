@@ -44,7 +44,16 @@ const (
 	dialTimeout = 10 * time.Second
 
 	// gVisor's own recommended queue depth for a channel endpoint.
-	channelQueueDepth = 1024
+	// Deep enough to ride out a scheduling hiccup, shallow enough not to become
+	// a bufferbloat queue. It was 1024 -- about 1.4 MB of packets at this MTU --
+	// and on a link that actually runs at a few Mbps that is over a second of
+	// queue. Measured on hardware: tunnel latency went from 4 ms to 25 ms
+	// average with spikes to 121 ms while a transfer was running, which is the
+	// signature of exactly that.
+	channelQueueDepth = 256
+
+	// Matches conn.IdealBatchSize in wireguard-go. See [netTun.Read].
+	batchSize = 128
 )
 
 // netTun is a wireguard-go tun.Device backed by a gVisor stack we control.
@@ -73,6 +82,30 @@ func newNetTun(mtu int) (*netTun, error) {
 			tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4, icmp.NewProtocol6,
 		},
 	})
+
+	// TCP options, none of which gVisor turns on by default.
+	//
+	// SACK matters most here. Without it a single lost segment costs a full
+	// retransmit-and-wait, and this traffic crosses Wi-Fi twice -- once to the
+	// phone and once back out of it -- so loss is ordinary rather than rare.
+	// Receive-buffer moderation lets a connection's window grow to the path
+	// instead of sitting at the default forever.
+	sack := tcpip.TCPSACKEnabled(true)
+	if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &sack); err != nil {
+		return nil, fmt.Errorf("relaywg: could not enable SACK: %v", err)
+	}
+	moderate := tcpip.TCPModerateReceiveBufferOption(true)
+	if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &moderate); err != nil {
+		return nil, fmt.Errorf("relaywg: could not enable receive buffer moderation: %v", err)
+	}
+	sendRange := tcpip.TCPSendBufferSizeRangeOption{Min: 4 << 10, Default: 256 << 10, Max: 4 << 20}
+	if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &sendRange); err != nil {
+		return nil, fmt.Errorf("relaywg: could not size the send buffer: %v", err)
+	}
+	recvRange := tcpip.TCPReceiveBufferSizeRangeOption{Min: 4 << 10, Default: 256 << 10, Max: 4 << 20}
+	if err := s.SetTransportProtocolOption(tcp.ProtocolNumber, &recvRange); err != nil {
+		return nil, fmt.Errorf("relaywg: could not size the receive buffer: %v", err)
+	}
 
 	endpoint := channel.New(channelQueueDepth, uint32(mtu), "")
 	if err := s.CreateNIC(nicID, endpoint); err != nil {
@@ -139,20 +172,59 @@ func (d *netTun) pumpOutbound() {
 	}
 }
 
+// Read fills as many of [bufs] as there are packets waiting.
+//
+// It used to return exactly one packet per call, with BatchSize reporting 1.
+// That is the single most expensive line in the forwarder: wireguard-go is
+// built around batches of up to conn.IdealBatchSize, and hands each batch to a
+// crypto worker as a unit. A batch of one pays the whole per-batch cost -- the
+// queue hand-off, the worker wake-up, the nonce and ring bookkeeping -- for
+// every single packet, and at 1420 bytes a packet that is the entire budget of
+// a weak phone.
+//
+// So: block for the first packet, then take everything else already queued
+// without blocking. Under load a call returns a full batch; when idle it
+// behaves exactly as before.
 func (d *netTun) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
+	if len(bufs) == 0 {
+		return 0, nil
+	}
+
+	read := func(packet *stack.PacketBuffer, into []byte) (int, error) {
+		defer packet.DecRef()
+		view := packet.ToView()
+		return view.Read(into)
+	}
+
+	// The first one blocks: returning zero packets would spin the caller.
 	select {
 	case <-d.closed:
 		return 0, net.ErrClosed
 	case packet := <-d.incoming:
-		defer packet.DecRef()
-		view := packet.ToView()
-		n, err := view.Read(bufs[0][offset:])
+		n, err := read(packet, bufs[0][offset:])
 		if err != nil {
 			return 0, err
 		}
 		sizes[0] = n
-		return 1, nil
 	}
+
+	count := 1
+	for count < len(bufs) {
+		select {
+		case packet := <-d.incoming:
+			n, err := read(packet, bufs[count][offset:])
+			if err != nil {
+				// The batch so far is still valid and already dequeued;
+				// dropping it to report this error would lose real packets.
+				return count, nil
+			}
+			sizes[count] = n
+			count++
+		default:
+			return count, nil
+		}
+	}
+	return count, nil
 }
 
 func (d *netTun) Write(bufs [][]byte, offset int) (int, error) {
@@ -190,7 +262,9 @@ func (d *netTun) MTU() (int, error)        { return d.mtu, nil }
 func (d *netTun) Name() (string, error)    { return "relay0", nil }
 func (d *netTun) File() *os.File           { return nil }
 func (d *netTun) Events() <-chan tun.Event { return d.events }
-func (d *netTun) BatchSize() int           { return 1 }
+// BatchSize is what wireguard-go sizes its buffers and crypto batches by.
+// It must match what Read is actually willing to fill.
+func (d *netTun) BatchSize() int           { return batchSize }
 
 func (d *netTun) Close() error {
 	d.closeOnce.Do(func() {
