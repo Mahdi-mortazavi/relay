@@ -43,7 +43,6 @@ const (
 	// shorter and a slow-but-live host is called dead.
 	dialTimeout = 10 * time.Second
 
-	// gVisor's own recommended queue depth for a channel endpoint.
 	// Deep enough to ride out a scheduling hiccup, shallow enough not to become
 	// a bufferbloat queue. It was 1024 -- about 1.4 MB of packets at this MTU --
 	// and on a link that actually runs at a few Mbps that is over a second of
@@ -262,9 +261,10 @@ func (d *netTun) MTU() (int, error)        { return d.mtu, nil }
 func (d *netTun) Name() (string, error)    { return "relay0", nil }
 func (d *netTun) File() *os.File           { return nil }
 func (d *netTun) Events() <-chan tun.Event { return d.events }
+
 // BatchSize is what wireguard-go sizes its buffers and crypto batches by.
 // It must match what Read is actually willing to fill.
-func (d *netTun) BatchSize() int           { return batchSize }
+func (d *netTun) BatchSize() int { return batchSize }
 
 func (d *netTun) Close() error {
 	d.closeOnce.Do(func() {
