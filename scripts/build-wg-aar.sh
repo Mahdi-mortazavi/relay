@@ -51,6 +51,17 @@ cd "${repo}/wg"
 #
 # Reading the version out of go.mod rather than writing it here means the tool
 # and the library it binds can never drift apart.
+# gomobile installs its own gobind, and hardcodes @latest when it does. Pinning
+# our own install above is not enough, because that second install happens
+# inside the tool. actions/setup-go pins GOTOOLCHAIN=local, so when x/mobile
+# published a release needing a newer Go than this pipeline runs, that internal
+# install failed and took every Android build with it.
+#
+# auto lets Go fetch the toolchain a tool asks for. The module versions stay
+# pinned by go.mod, so what is being relaxed is which compiler runs, not which
+# code is built. The real fix belongs upstream in gomobile.
+export GOTOOLCHAIN=auto
+
 mobile_version="$(go list -m -f '{{.Version}}' golang.org/x/mobile)"
 echo "Installing gomobile ${mobile_version}..."
 go install "golang.org/x/mobile/cmd/gomobile@${mobile_version}"
