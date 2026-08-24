@@ -88,14 +88,29 @@ class SharingService : Service() {
         super.onCreate()
         createChannel()
         scope.launch {
+            // Only when something these two actually show has changed.
+            //
+            // The byte counters update once a second while connected, and every
+            // one of those used to rebuild the notification and push a fresh
+            // RemoteViews across a binder to the launcher. Neither surface
+            // displays bytes -- the notification counts devices, the widget
+            // shows the code -- so that was a cross-process round trip every
+            // second to redraw the identical pixels, on the CPU that is already
+            // the bottleneck. A user reported 2.2 as slower than 2.0 at
+            // transferring data; the widget push is what 2.2 added.
+            var shown: String? = null
             ConnectionRepository.state.collectLatest { state ->
+                val signature = visibleSignature(state)
+                if (signature == shown) return@collectLatest
+                shown = signature
+
                 if (state !is ConnectionState.Idle) {
                     notificationManager.notify(NOTIFICATION_ID, buildNotification(state))
                 }
                 // The widget lives in the launcher's process and cannot watch a
-                // flow, so every state change has to be pushed to it. Idle is
-                // included deliberately: the transition a widget most needs to
-                // hear about is sharing stopping.
+                // flow, so it has to be pushed. Idle is included deliberately:
+                // the transition a widget most needs to hear about is sharing
+                // stopping.
                 SharingWidgetProvider.refresh(this@SharingService)
             }
         }
@@ -541,6 +556,23 @@ class SharingService : Service() {
                 NotificationManager.IMPORTANCE_LOW,
             )
         )
+    }
+
+    /**
+     * Everything the notification and the widget can actually display, and
+     * nothing else. Two states with the same signature look identical on
+     * screen, so redrawing between them is work with no observer.
+     *
+     * Deliberately excludes bytesUp and bytesDown: they change every second and
+     * neither surface shows them.
+     */
+    private fun visibleSignature(state: ConnectionState): String = when (state) {
+        is ConnectionState.Idle -> "idle"
+        is ConnectionState.Preparing -> "preparing"
+        is ConnectionState.Advertising -> "advertising:${state.shortCode}:${state.reconnecting}"
+        is ConnectionState.Connected ->
+            "connected:${state.shortCode}:${state.clientCount}:${state.reconnecting}"
+        is ConnectionState.Error -> "error:${state.code}"
     }
 
     private fun buildNotification(state: ConnectionState): Notification {
