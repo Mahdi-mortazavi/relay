@@ -42,9 +42,19 @@ export ANDROID_HOME="$sdk"
 
 cd "${repo}/wg"
 
-echo "Installing gomobile..."
-go install golang.org/x/mobile/cmd/gomobile@latest
-go install golang.org/x/mobile/cmd/gobind@latest
+# Pinned to the x/mobile that go.mod already resolved, never @latest.
+#
+# @latest is a build that breaks on somebody else's release schedule. It did:
+# x/mobile published a version requiring Go 1.26 while this pipeline pins
+# 1.25 with GOTOOLCHAIN=local, and every build started failing at
+# "requires go >= 1.26.0" without a line of this repository having changed.
+#
+# Reading the version out of go.mod rather than writing it here means the tool
+# and the library it binds can never drift apart.
+mobile_version="$(go list -m -f '{{.Version}}' golang.org/x/mobile)"
+echo "Installing gomobile ${mobile_version}..."
+go install "golang.org/x/mobile/cmd/gomobile@${mobile_version}"
+go install "golang.org/x/mobile/cmd/gobind@${mobile_version}"
 export PATH="$(go env GOPATH)/bin:$PATH"
 gomobile init
 
