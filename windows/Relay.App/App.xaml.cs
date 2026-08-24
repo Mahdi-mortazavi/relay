@@ -233,6 +233,22 @@ public partial class App : Application
                         // a failure worth surfacing.
                     }
                 });
+
+                // Setup takes the same single-instance mutex this app holds, so
+                // leaving it running would stop the update on a "please close
+                // Relay" box that /SILENT does not suppress and that nobody is
+                // there to answer. Relay closes itself and the installer starts
+                // it again (/relaunch=1, handled in relay.iss).
+                //
+                // Safe by construction: the service only reaches Installing
+                // while the state is Idle, so this exits a tunnel that is
+                // already down. It still goes through the ordinary tray exit
+                // rather than Environment.Exit, so the proxy rollback and the
+                // three-second backstop both still apply.
+                if (notice == UpdateNotice.Installing)
+                {
+                    _window?.DispatcherQueue.TryEnqueue(() => _ = ExitFromTrayAsync());
+                }
             });
         _updates.Start();
 
