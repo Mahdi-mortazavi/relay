@@ -273,6 +273,13 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             return;
         }
         LocalLog.Add("Connected (Full Mode)");
+        // Said every time, not once: a person who turned leak protection on is
+        // entitled to know it did not happen, and the log is what the
+        // diagnostic report carries to whoever reads the bug.
+        if (_tunnel.LeakProtectionUnavailable)
+        {
+            LocalLog.Add("Leak protection NOT active — DNS and IPv6 can leave outside the tunnel");
+        }
         StartTunnelWatch();
     }
 

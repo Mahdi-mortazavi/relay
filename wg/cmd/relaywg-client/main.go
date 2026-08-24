@@ -53,7 +53,6 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/windows/tunnel/firewall"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
@@ -172,51 +171,39 @@ func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
 		return err
 	}
 
-	// Everything that could go around the tunnel, closed.
+	// Close the two ways traffic was leaving around the tunnel.
 	//
-	// Two ways out were open until now, and a user found the first of them.
+	// DNS   Windows resolves names on every interface at once, so on a Wi-Fi
+	//       shared with the phone the router answered alongside the tunnel and a
+	//       leak test listed the local ISP. A user reported exactly that, and
+	//       only ever on Wi-Fi -- on a hotspot the only other resolver is the
+	//       phone, so nothing showed.
+	// IPv6  This client configures AF_INET only, so every v6 connection left by
+	//       the physical adapter carrying the real address.
 	//
-	// DNS: SetDNS above puts a resolver on this adapter, but Windows resolves
-	// names on *every* interface at once -- "smart multi-homed name resolution".
-	// On a phone hotspot the only other resolver is the phone, so nothing shows.
-	// On a Wi-Fi the laptop shares with the phone, the other resolver is the
-	// router, and a leak test then lists the local ISP beside the tunnel's exit.
-	// That is exactly what was reported, and why it only ever appeared on Wi-Fi.
-	//
-	// IPv6: this client configures AF_INET only. On a network with working IPv6
-	// every v6 connection left by the physical adapter, carrying the real
-	// address, and the tunnel never saw it.
-	//
-	// The filters live in a WFP session created with FWPM_SESSION_FLAG_DYNAMIC,
-	// so Windows removes every one of them when this process ends -- including
-	// when it is killed or crashes. That is the same property the adapter has,
-	// and it is what makes failing closed safe: a dead Relay cannot leave a
-	// machine unable to reach the network.
+	// wfp_windows.go says why this is written against WFP directly rather than
+	// using wireguard-windows' firewall package, which cannot work from a
+	// non-service process. Failure is reported and the tunnel still comes up: a
+	// leak is bad, but a Relay that refuses to connect is worse, and every
+	// release before this one ran without these filters anyway. What must not
+	// happen is silence, because the person now believes they are protected.
 	if blockLeaks {
 		var resolvers []netip.Addr
 		if server, err := netip.ParseAddr(dns); err == nil {
 			resolvers = append(resolvers, server)
 		}
-		// A failure here must not take the tunnel down with it.
-		//
-		// The first version returned this error, and a CI runner where WFP is
-		// unavailable ("The specified group does not exist") then could not
-		// bring the tunnel up at all. That trades a leak for a product that does
-		// not work, which is a worse bargain than the one being fixed: before
-		// this change every connection ran without these filters, so falling
-		// back to that is the status quo rather than a regression.
-		//
-		// What is not acceptable is doing it quietly, because the person now has
-		// reason to believe they are protected. So it is said on stderr, which
-		// the app puts in the log the diagnostic report carries.
-		if err := firewall.EnableFirewall(uint64(luid), false, resolvers); err != nil {
-			msg := fmt.Sprintf("%s could not enable leak protection (%v); DNS and IPv6 may leave outside the tunnel", leakProtectionFailedLine, err)
-			fmt.Fprintln(os.Stderr, msg)
+		stop, err := enableLeakProtection(resolvers)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "leak protection unavailable: %v", err)
+			if _, werr := fmt.Fprintln(channel, leakProtectionFailedLine); werr != nil {
+				return fmt.Errorf("reporting that leak protection is unavailable: %w", werr)
+			}
 		} else {
-			defer firewall.DisableFirewall()
-			fmt.Fprintln(os.Stderr, "leak protection on: only the tunnel, loopback and DHCP may leave")
+			defer stop()
+			fmt.Fprintln(os.Stderr, "leak protection on: DNS is pinned to the tunnel and IPv6 is refused")
 		}
 	}
+
 	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)
 
 	// Readiness is the handshake, not the adapter.

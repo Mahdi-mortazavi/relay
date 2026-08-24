@@ -199,10 +199,16 @@ func TestReadyIsWithheldWhenThePeerNeverAnswers(t *testing.T) {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			text := strings.TrimSpace(scanner.Text())
-			if text != "" {
-				lines <- text
-				return
+			// Informational, and it arrives first. The app skips it for the same
+			// reason: it says something about the tunnel's protection, not about
+			// whether the tunnel came up, and treating it as the verdict is what
+			// this test did until it started failing on a line it had no opinion
+			// about.
+			if text == "" || text == leakProtectionFailedLine {
+				continue
 			}
+			lines <- text
+			return
 		}
 		lines <- ""
 	}()
@@ -232,6 +238,8 @@ func waitForReady(t *testing.T, stdout io.Reader, client *exec.Cmd) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
+			// Reads until READY, so any informational line before it -- such as
+			// leakProtectionFailedLine -- is skipped by construction.
 			if strings.TrimSpace(scanner.Text()) == "READY" {
 				ready <- "READY"
 				return

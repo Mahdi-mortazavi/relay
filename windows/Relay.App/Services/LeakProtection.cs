@@ -22,6 +22,14 @@ namespace Relay.App.Services;
 /// Stored per user, like <see cref="StartupRegistration"/>, and read rather
 /// than remembered so the value cannot drift from what the tunnel was actually
 /// started with.
+///
+/// KNOWN GAP, measured on hardware: asking for it does not currently achieve
+/// it. The tunnel client cannot install the filters from an elevated user
+/// process — wireguard-windows' firewall package needs a service SID that only
+/// a Windows service has — so it reports LEAK-PROTECTION-FAILED and the app
+/// logs that on every connection. The switch therefore records an intent that
+/// is not yet honoured, which is why the tunnel says so out loud rather than
+/// letting this quietly read "On".
 /// </summary>
 public static class LeakProtection
 {
