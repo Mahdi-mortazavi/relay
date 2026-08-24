@@ -217,8 +217,8 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 	// it. There is no v6 inside the tunnel for it to use instead, so the honest
 	// thing is to refuse rather than to leak.
 	if err := addFilter(engine, filterSpec{
-		name:  "Relay: block IPv6, which the tunnel does not carry",
-		layer: layerAleAuthConnectV6,
+		name:   "Relay: block IPv6, which the tunnel does not carry",
+		layer:  layerAleAuthConnectV6,
 		action: fwpActionBlock,
 		weight: weightBlock,
 	}); err != nil {
@@ -231,10 +231,10 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 	// a leak test listed the local ISP. Blocked here, permitted below for the
 	// tunnel's own resolver only.
 	if err := addFilter(engine, filterSpec{
-		name:   "Relay: block DNS outside the tunnel",
-		layer:  layerAleAuthConnectV4,
-		action: fwpActionBlock,
-		weight: weightBlock,
+		name:       "Relay: block DNS outside the tunnel",
+		layer:      layerAleAuthConnectV4,
+		action:     fwpActionBlock,
+		weight:     weightBlock,
 		remotePort: dnsPort,
 	}); err != nil {
 		shutdown()
@@ -246,10 +246,10 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 			continue
 		}
 		if err := addFilter(engine, filterSpec{
-			name:   "Relay: permit DNS to the tunnel's resolver",
-			layer:  layerAleAuthConnectV4,
-			action: fwpActionPermit,
-			weight: weightPermit,
+			name:       "Relay: permit DNS to the tunnel's resolver",
+			layer:      layerAleAuthConnectV4,
+			action:     fwpActionPermit,
+			weight:     weightPermit,
 			remotePort: dnsPort,
 			remoteIPv4: resolver,
 			hasRemote:  true,
