@@ -23,11 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private companion object {
-        const val LATEST_RELEASE_API =
-            "https://api.github.com/repos/Mahdi-mortazavi/relay/releases/latest"
-    }
-
 
     private val settings = Settings(application)
 
@@ -47,29 +42,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Asks GitHub once per launch. Failure is silence by design: the whole
      * feature is a courtesy, and a courtesy that interrupts you when the
      * network is down is not one.
+     *
+     * Nothing called this until now, so [updateAvailable] was permanently null
+     * and the banner HomeScreen draws for it had never been drawn for anybody.
+     * The whole update path -- check, compare, download, verify, install -- was
+     * written and tested and connected to no caller, on both platforms.
      */
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val latest = runCatching {
-                val text = java.net.URL(LATEST_RELEASE_API).openConnection().let { connection ->
-                    connection.setRequestProperty("User-Agent", "Relay")
-                    connection.connectTimeout = 8_000
-                    connection.readTimeout = 8_000
-                    connection.getInputStream().bufferedReader().use { it.readText() }
-                }
-                val json = org.json.JSONObject(text)
-                if (json.optBoolean("draft") || json.optBoolean("prerelease")) null
-                else json.optString("tag_name").takeIf { it.isNotEmpty() }
-            }.getOrNull()
+            val latest = UpdateFetcher.latestVersion() ?: return@launch
+            if (!UpdateCheck.isNewer(latest, currentVersion)) return@launch
 
-            if (latest != null && UpdateCheck.isNewer(latest, currentVersion)) {
-                val version = latest.trimStart('v')
-                LocalLog.add("Update available: $latest")
-                _updateAvailable.value = version
-                // The banner only reaches someone already opening the app,
-                // which is the person least likely to be on an old build.
-                UpdateNotice.show(getApplication(), version)
-            }
+            val version = latest.trimStart('v')
+            LocalLog.add("Update available: $latest")
+            _updateAvailable.value = version
+            // The banner only reaches someone already opening the app, which is
+            // the person least likely to be on an old build.
+            UpdateNotice.show(getApplication(), version)
         }
     }
 

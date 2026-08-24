@@ -16,6 +16,7 @@ import androidx.core.app.ServiceCompat
 import io.relay.app.MainActivity
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
+import io.relay.app.core.UpdateCheck
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
@@ -113,6 +114,32 @@ class SharingService : Service() {
                 // stopping.
                 SharingWidgetProvider.refresh(this@SharingService)
             }
+        }
+
+        // The only update check that reaches someone who never opens the app.
+        //
+        // Relay is designed to be started from the tile, the widget or a
+        // long-press, and someone doing that goes months without seeing a
+        // screen -- which is exactly the person left behind on an old build.
+        // The check in MainActivity cannot reach them by definition.
+        //
+        // Cheap enough to sit on the start path: one conditional GET that
+        // fails silently, off the main thread, on a service that is about to
+        // enumerate interfaces and bind four sockets anyway.
+        scope.launch { announceUpdateIfAny() }
+    }
+
+    /**
+     * Raises the update notification if GitHub has something newer. Silent on
+     * failure and silent when current: this is a courtesy on a background path
+     * and must never be the reason sharing did not start.
+     */
+    private suspend fun announceUpdateIfAny() {
+        runCatching {
+            val installed = packageManager.getPackageInfo(packageName, 0).versionName
+            val latest = UpdateFetcher.latestVersion() ?: return
+            if (!UpdateCheck.isNewer(latest, installed)) return
+            UpdateNotice.show(this, latest.trimStart('v'))
         }
     }
 
