@@ -171,35 +171,36 @@ func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
 		return err
 	}
 
-	// Leak protection is NOT installed, and the app is told so rather than left
-	// to imply otherwise.
+	// Close the two ways traffic was leaving around the tunnel.
 	//
-	// Two ways around the tunnel are open, and a user found the first:
+	// DNS   Windows resolves names on every interface at once, so on a Wi-Fi
+	//       shared with the phone the router answered alongside the tunnel and a
+	//       leak test listed the local ISP. A user reported exactly that, and
+	//       only ever on Wi-Fi -- on a hotspot the only other resolver is the
+	//       phone, so nothing showed.
+	// IPv6  This client configures AF_INET only, so every v6 connection left by
+	//       the physical adapter carrying the real address.
 	//
-	//   DNS   SetDNS puts a resolver on this adapter, but Windows resolves names
-	//         on every interface at once. On a hotspot the only other resolver is
-	//         the phone, so nothing shows; on a Wi-Fi shared with the phone it is
-	//         the router, and a leak test lists the local ISP beside the tunnel.
-	//   IPv6  This client configures AF_INET only, so on a v6-capable network
-	//         every v6 connection leaves by the physical adapter.
-	//
-	// The obvious fix -- wireguard-windows' firewall package, which is what
-	// WireGuard's own client uses -- cannot work here, and that is worth writing
-	// down so nobody spends the afternoon again. Its permitWireGuardService
-	// requires a service SID in the calling process's token (helpers.go looks for
-	// a group whose first sub-authority is 80, i.e. NT SERVICE\...). WireGuard
-	// runs its tunnel as a Windows service and therefore has one. Relay runs this
-	// as an elevated *user* process on purpose (ADR-0005), so the token has no
-	// such group and EnableFirewall returns ERROR_NO_SUCH_GROUP before installing
-	// a single filter. Verified on hardware: with it "enabled", the router's
-	// resolver still answered and no WireGuard WFP session existed at all.
-	//
-	// Closing these properly needs a decision that is not this file's to make --
-	// run the tunnel as a service, write our own WFP filters, or use the NRPT --
-	// so until then the honest thing is to say it is not protected.
+	// wfp_windows.go says why this is written against WFP directly rather than
+	// using wireguard-windows' firewall package, which cannot work from a
+	// non-service process. Failure is reported and the tunnel still comes up: a
+	// leak is bad, but a Relay that refuses to connect is worse, and every
+	// release before this one ran without these filters anyway. What must not
+	// happen is silence, because the person now believes they are protected.
 	if blockLeaks {
-		if _, err := fmt.Fprintln(channel, leakProtectionFailedLine); err != nil {
-			return fmt.Errorf("reporting that leak protection is unavailable: %w", err)
+		var resolvers []netip.Addr
+		if server, err := netip.ParseAddr(dns); err == nil {
+			resolvers = append(resolvers, server)
+		}
+		stop, err := enableLeakProtection(resolvers)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "leak protection unavailable: %v", err)
+			if _, werr := fmt.Fprintln(channel, leakProtectionFailedLine); werr != nil {
+				return fmt.Errorf("reporting that leak protection is unavailable: %w", werr)
+			}
+		} else {
+			defer stop()
+			fmt.Fprintln(os.Stderr, "leak protection on: DNS is pinned to the tunnel and IPv6 is refused")
 		}
 	}
 
