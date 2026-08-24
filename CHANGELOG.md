@@ -9,6 +9,8 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-08-25
+
 ### Fixed — Relay could not update itself, on either platform
 
 The check, the version comparison, the download, the checksum verification and
