@@ -138,6 +138,32 @@ public class WgTunnelSessionTests
     }
 
     [Fact]
+    public void ReportsWhenTheTunnelCameUpWithoutLeakProtection()
+    {
+        // The failure that must never be silent. A window showing "protected"
+        // over a tunnel that is not is worse than the leak it claims to fix,
+        // because it stops the person looking.
+        var process = new StubProcess();
+        process.Output.Enqueue(WgTunnelSession.LeakProtectionFailedLine);
+        process.Output.Enqueue("READY");
+        var session = new WgTunnelSession(new StubHost(process));
+
+        Assert.True(session.Connect(Params(), "192.168.43.1").Ok);
+
+        Assert.True(session.LeakProtectionUnavailable);
+    }
+
+    [Fact]
+    public void DoesNotClaimAnUnprotectedTunnelWhenTheClientSaidNothing()
+    {
+        var session = new WgTunnelSession(new StubHost(ReadyProcess()));
+
+        Assert.True(session.Connect(Params(), "192.168.43.1").Ok);
+
+        Assert.False(session.LeakProtectionUnavailable);
+    }
+
+    [Fact]
     public void ConnectHandsTheChildTheIpcConfigurationAndTheTerminator()
     {
         var process = ReadyProcess();

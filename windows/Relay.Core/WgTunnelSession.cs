@@ -110,6 +110,17 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// <summary>What the client takes to stop closing the paths around the tunnel.</summary>
     public const string DisableLeakBlockArgument = "-block-leaks=false";
 
+    /// <summary>
+    /// Printed by the client when it could not close the paths around the
+    /// tunnel. It always can't today — see the long comment in the client — and
+    /// the point of carrying it over the pipe rather than to stderr is that the
+    /// app must never show "protected" over a tunnel that is not.
+    /// </summary>
+    public const string LeakProtectionFailedLine = "LEAK-PROTECTION-FAILED";
+
+    /// <summary>True when the last connection came up without leak protection.</summary>
+    public bool LeakProtectionUnavailable { get; private set; }
+
     /// <summary>How long to wait for the adapter. Creating one is slow the first time.</summary>
     public static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(45);
 
@@ -180,7 +191,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
             return Result.Fail("ERR_WG_START_FAILED");
         }
 
-        var failure = WaitForReady(tunnel);
+        var failure = WaitForReady(tunnel, out var unprotected);
         if (failure is not null)
         {
             Stop(tunnel);
@@ -188,6 +199,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         }
 
         _tunnel = tunnel;
+        LeakProtectionUnavailable = unprotected;
         return Result.Success;
     }
 
@@ -268,8 +280,9 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     }
 
     /// <summary>Null when the tunnel came up; otherwise the error code to surface.</summary>
-    private static string? WaitForReady(IProcessHandle tunnel)
+    private static string? WaitForReady(IProcessHandle tunnel, out bool unprotected)
     {
+        unprotected = false;
         var deadline = DateTimeOffset.UtcNow + ReadyTimeout;
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -278,6 +291,11 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
             var line = tunnel.ReadLine();
             if (line is null) return "ERR_WG_START_FAILED";
             var trimmed = line.Trim();
+            if (trimmed == LeakProtectionFailedLine)
+            {
+                unprotected = true;
+                continue;
+            }
             if (trimmed == ReadyLine) return null;
             if (trimmed == NoHandshakeLine) return "ERR_WG_NO_HANDSHAKE";
         }
