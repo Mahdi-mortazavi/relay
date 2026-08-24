@@ -9,6 +9,100 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-08-25
+
+Two things a user found, both fixed and both checked on the machines they were
+reported from.
+
+### Fixed — traffic was leaving around the tunnel
+
+Reported with the detail that made it findable: it happened on a Wi-Fi the
+laptop shared with the phone, and never on the hotspot the reporter normally
+uses. That asymmetry names the cause.
+
+**DNS.** The tunnel sets a resolver on its own adapter, but Windows resolves
+names on *every* interface at once. On a hotspot the only other resolver is the
+phone, so nothing shows. On a shared Wi-Fi the other resolver is the router —
+and a leak test then lists the local ISP beside the tunnel's exit.
+
+**IPv6.** The client configures IPv4 and nothing else. No v6 address, no v6
+route, no v6 block. On any network with working IPv6, every v6 connection left
+by the physical adapter carrying the real address, and the tunnel never saw it.
+
+Both are now closed with Windows Filtering Platform rules the tunnel installs
+for itself: block IPv6, block DNS, permit DNS only to the tunnel's resolver.
+The filters live in a session marked dynamic, so Windows destroys every one of
+them when the tunnel process ends — including when it is killed or crashes. A
+dead Relay cannot leave a machine that resolves no names, which is what makes
+failing closed safe rather than reckless.
+
+Deliberately narrower than a full kill switch. Relay's own discovery keeps
+working, so following a phone that changes address survives. There is a switch
+in Advanced for anyone who needs the filters off, and it says what it trades.
+
+The first attempt at this shipped and did nothing: the library Relay borrowed
+needs a Windows service account, and Relay's tunnel is an elevated user process
+by design. It reported success while installing no filters. That is why the
+tunnel now says `LEAK-PROTECTION-FAILED` out loud when it cannot protect you.
+
+### Fixed — 2.2 moved data more slowly than 2.0
+
+While connected, the byte counters update once a second. Each update rebuilt the
+foreground notification *and* pushed a fresh view across a process boundary into
+the launcher, on the phone CPU that is already the limit. Neither surface shows
+bytes — the notification counts devices, the widget shows the code — so that was
+a round trip every second to redraw identical pixels. Both are now skipped
+unless something visible changed.
+
+Measured on two machines on one Wi-Fi, before and after: **5.66 → 14.89 Mbps**
+down.
+
+### Changed — the phone does less work per packet
+
+The tunnel handed WireGuard one packet at a time where it is built to take up to
+128, so every packet paid the whole per-batch cost. TCP options gVisor leaves
+off are now on, including SACK, which matters because this traffic crosses Wi-Fi
+twice. The packet queue was over a second deep on a slow link and is now a
+quarter of that. Connection splicing reuses pooled buffers instead of allocating
+64 KB per direction per connection.
+
+Honest note: on the hotspot topology none of this is measurable, because the
+tunnel is not the bottleneck there. Latency through it is 10 ms against 11 ms
+for the bare hotspot.
+
+## [2.2.0] — 2026-08-20
+
+### Added
+
+- **A mark of its own.** A signal arcing from one point to another, white on a
+  saturated ground, drawn to survive 16 px. Android had been carrying a leftover
+  play triangle and Windows whatever .NET puts on an unbranded executable.
+- **Quick Settings tile**, with the pairing code in its subtitle, so the shade
+  answers "what do I type on the PC" without opening anything.
+- **Home screen widget** showing the code large enough to read while you are
+  looking at the laptop.
+- **Long-press the icon → Start Sharing**, available before the app has ever
+  been opened.
+- **First-run setup** that walks through notifications, battery exemption, the
+  tile and the widget — and adds them for you where Android allows it.
+- **Start with Windows**, using the per-user key so it needs no elevation.
+  Launched that way Relay comes up in the tray rather than over your work.
+- **Updates that install.** The download is checked against the SHA256SUMS the
+  release publishes, and nothing that fails verification is kept or run.
+
+### Fixed
+
+- **The window could not be closed.** It was created without a title bar, so
+  there was no close button, no minimise, nothing — and clicking away stops
+  working once a connection is up. It draws its own controls now. Close puts
+  Relay in the tray; Exit on the tray menu still quits.
+- **Minimise minimised to the wrong place**, because the tray auto-hide read the
+  deactivation as focus moving elsewhere.
+- **The update banner's button did nothing.** It had never been wired up.
+- **The tunnel now follows a phone that changes address** instead of dialling a
+  DHCP lease that has moved.
+
+
 ## [2.0.0] — 2026-08-18
 
 One transport instead of two, a two-digit code that works for it, and the

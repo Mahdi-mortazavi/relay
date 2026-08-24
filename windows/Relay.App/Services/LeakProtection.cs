@@ -23,13 +23,13 @@ namespace Relay.App.Services;
 /// than remembered so the value cannot drift from what the tunnel was actually
 /// started with.
 ///
-/// KNOWN GAP, measured on hardware: asking for it does not currently achieve
-/// it. The tunnel client cannot install the filters from an elevated user
-/// process — wireguard-windows' firewall package needs a service SID that only
-/// a Windows service has — so it reports LEAK-PROTECTION-FAILED and the app
-/// logs that on every connection. The switch therefore records an intent that
-/// is not yet honoured, which is why the tunnel says so out loud rather than
-/// letting this quietly read "On".
+/// This was briefly a switch that recorded an intent nothing acted on:
+/// wireguard-windows' firewall package needs a service SID, which an elevated
+/// user process does not have, so it refused before installing anything. The
+/// tunnel client now writes its own WFP filters and the switch means what it
+/// says. Verified on the topology the leak was reported from — the router's
+/// resolver stops answering while connected, and every filter is gone the
+/// instant the process is killed.
 /// </summary>
 public static class LeakProtection
 {
