@@ -72,9 +72,13 @@ public sealed class UpdateInstaller(HttpClient? http = null)
 
         var directory = downloadDirectory ?? Path.Combine(Path.GetTempPath(), "Relay-update");
         var target = Path.Combine(directory, name);
+        // Downloaded under a name nothing will run, then renamed once the hash
+        // matches. A rejected or half-finished download must never be left on
+        // disk as something a person could double-click by mistake.
+        var partial = target + ".part";
 
         string expected;
-        byte[] payload;
+        string actual;
         try
         {
             Directory.CreateDirectory(directory);
@@ -83,29 +87,28 @@ public sealed class UpdateInstaller(HttpClient? http = null)
             if (found is null) return Outcome.Unverifiable;
             expected = found;
 
-            payload = await _http.GetByteArrayAsync(update.Url, token).ConfigureAwait(false);
+            actual = await DownloadAndHashAsync(update.Url, partial, token).ConfigureAwait(false);
         }
         catch (Exception)
         {
+            Discard(partial);
             return Outcome.Unavailable;
         }
 
-        var actual = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
         if (!CryptographicOperations.FixedTimeEquals(
                 Convert.FromHexString(actual), Convert.FromHexString(expected)))
         {
+            Discard(partial);
             return Outcome.ChecksumMismatch;
         }
 
         try
         {
-            // Written only after the hash matches. A rejected download never
-            // reaches disk as something a person could later double-click by
-            // mistake.
-            await File.WriteAllBytesAsync(target, payload, token).ConfigureAwait(false);
+            File.Move(partial, target, overwrite: true);
         }
         catch (Exception)
         {
+            Discard(partial);
             return Outcome.Unavailable;
         }
 
@@ -118,6 +121,52 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         {
             return Outcome.Unavailable;
         }
+    }
+
+    /// <summary>
+    /// Streams the installer to <paramref name="path"/>, returning its SHA-256.
+    ///
+    /// Streamed rather than fetched with GetByteArrayAsync, which is how this
+    /// was first written, for two reasons that only showed up on a real
+    /// machine. It held the whole installer -- around fifty megabytes -- in
+    /// memory. And <see cref="HttpClient.Timeout"/> covers a buffered request
+    /// end to end, so that one deadline had to cover the entire transfer: on a
+    /// slow link it simply expired, and because every failure on this path is
+    /// deliberately silent, the update was abandoned and not retried for
+    /// another day. Every day. Forever.
+    ///
+    /// ResponseHeadersRead scopes the client's timeout to getting the headers,
+    /// which is the part that should have a deadline. How long the body takes
+    /// is the network's business, and the caller's token is what stops it.
+    /// </summary>
+    private async Task<string> DownloadAndHashAsync(
+        string url, string path, CancellationToken token)
+    {
+        using var response = await _http.GetAsync(
+            url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        await using var body = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        await using var file = new FileStream(
+            path, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 128 * 1024, useAsync: true);
+
+        var buffer = new byte[128 * 1024];
+        int read;
+        while ((read = await body.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+            await file.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    /// <summary>Removes a download that must not survive. Never throws.</summary>
+    private static void Discard(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
     }
 
     /// <summary>
