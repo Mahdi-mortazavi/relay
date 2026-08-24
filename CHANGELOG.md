@@ -9,6 +9,35 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+### Fixed — Relay could not update itself, on either platform
+
+The check, the version comparison, the download, the checksum verification and
+the installer launch were all written, all tested, and called by nothing. On
+Windows, `UpdateCheck` and `UpdateInstaller` had sat unused for three releases.
+On Android, `checkForUpdate` had no callers at all, so the update banner in the
+app has never appeared for anybody. A Windows user stayed on whatever version
+they first installed, while the README said updates were offered.
+
+They are connected now:
+
+- **Windows** checks a couple of minutes after launch and then daily, tells you
+  what it found, and installs it at the next moment the tunnel is down. It never
+  interrupts a connection — the installer stops Relay to replace it, and doing
+  that mid-call would drop the call.
+- **Android** checks when you open the app *and* when sharing starts, so someone
+  who only ever uses the Quick Settings tile or the widget finds out too. Android
+  does not let a sideloaded app install silently, so it offers; the last tap is
+  always yours.
+
+Nothing is installed that was not verified against the checksums the release
+published.
+
+Windows also comes back after updating itself. It now closes before running the
+installer — otherwise Setup stops on a "please close Relay" dialog that a silent
+install does not suppress and nobody is there to answer — and Setup starts it
+again afterwards.
+
+
 ## [2.5.0] — 2026-08-25
 
 Two things a user found, both fixed and both checked on the machines they were
