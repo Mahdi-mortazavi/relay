@@ -114,6 +114,30 @@ public class WgTunnelSessionTests
     }
 
     [Fact]
+    public void BlocksThePathsAroundTheTunnelUnlessToldNotTo()
+    {
+        var host = new StubHost(ReadyProcess());
+
+        new WgTunnelSession(host).Connect(Params(), "192.168.43.1");
+
+        // The client already defaults to blocking. The point of asserting the
+        // absence here is that the app must never be the thing that turns it
+        // off by accident: a leak is the failure a user reported, and it only
+        // showed on a shared Wi-Fi, where nobody thinks to look.
+        Assert.DoesNotContain(WgTunnelSession.DisableLeakBlockArgument, host.Arguments);
+    }
+
+    [Fact]
+    public void PassesTheOptOutOnlyWhenAskedTo()
+    {
+        var host = new StubHost(ReadyProcess());
+
+        new WgTunnelSession(host).Connect(Params(), "192.168.43.1", blockLeaks: false);
+
+        Assert.Contains(WgTunnelSession.DisableLeakBlockArgument, host.Arguments);
+    }
+
+    [Fact]
     public void ConnectHandsTheChildTheIpcConfigurationAndTheTerminator()
     {
         var process = ReadyProcess();

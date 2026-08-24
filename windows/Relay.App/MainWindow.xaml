@@ -358,6 +358,26 @@
                                Style="{StaticResource MonoText}"
                                Foreground="{StaticResource LabelSecondary}" />
                 </Grid>
+                <!-- Leak protection. On by default: Windows resolves names on
+                     every interface at once, and this tunnel is IPv4-only, so
+                     without these filters a shared Wi-Fi leaks the local
+                     resolver and any IPv6 route goes around the tunnel
+                     entirely. Off is offered because the filters permit only
+                     the tunnel process, which stops Relay following a phone
+                     that changes address. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="AdvancedLeakLabel" Style="{StaticResource CaptionText}"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedLeakToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnLeakBlockToggled" />
+                </Grid>
                 <!-- Start with Windows. A tray app that shares a connection is
                      only useful if it is already there when you need it, and the
                      per-user Run key needs no elevation to set. -->
