@@ -124,4 +124,6 @@
     <string name="onboarding_widget_manual">روی صفحه اصلی نگه دار، ویجت‌ها را انتخاب کن و رله را پیدا کن.</string>
     <string name="onboarding_shortcut_title">آیکون رله را نگه دار</string>
     <string name="onboarding_shortcut_body">«شروع اشتراک‌گذاری» همان‌جا هست — چیزی برای تنظیم نیست.</string>
+    <string name="update_channel">به‌روزرسانی‌ها</string>
+    <string name="update_notice_body">برای باز کردن رله و نصب آن بزنید.</string>
 </resources>

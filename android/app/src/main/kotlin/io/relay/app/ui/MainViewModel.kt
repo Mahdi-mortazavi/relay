@@ -13,6 +13,7 @@ import io.relay.app.service.Settings
 import io.relay.app.service.SharingService
 import io.relay.app.core.UpdateCheck
 import io.relay.app.service.UpdateFetcher
+import io.relay.app.service.UpdateNotice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
@@ -62,8 +63,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrNull()
 
             if (latest != null && UpdateCheck.isNewer(latest, currentVersion)) {
+                val version = latest.trimStart('v')
                 LocalLog.add("Update available: $latest")
-                _updateAvailable.value = latest.trimStart('v')
+                _updateAvailable.value = version
+                // The banner only reaches someone already opening the app,
+                // which is the person least likely to be on an old build.
+                UpdateNotice.show(getApplication(), version)
             }
         }
     }
@@ -91,7 +96,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = UpdateFetcher.downloadAndInstall(getApplication())
             _updating.value = false
             when (result) {
-                UpdateFetcher.Result.Installing -> _updateAvailable.value = null
+                UpdateFetcher.Result.Installing -> {
+                    _updateAvailable.value = null
+                    UpdateNotice.clear(getApplication())
+                }
                 UpdateFetcher.Result.ChecksumMismatch ->
                     LocalLog.add("Update refused: the download did not match the published checksum")
                 UpdateFetcher.Result.Unverifiable ->

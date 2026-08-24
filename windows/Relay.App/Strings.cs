@@ -21,6 +21,14 @@ public static class Strings
     private static readonly bool IsPersian =
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("fa", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// <see cref="Get"/> with arguments substituted. Kept here so a caller never
+    /// reaches for string.Format on a key and silently loses the Persian
+    /// version's different word order.
+    /// </summary>
+    public static string Format(string key, params object[] args) =>
+        string.Format(Get(key), args);
+
     public static string Get(string key)
     {
         if (IsPersian && Fa.TryGetValue(key, out var fa)) return fa;
@@ -56,6 +64,10 @@ public static class Strings
         ["ConnectedVia"] = "Connected via {0}",
         ["Advanced"] = "Advanced",
         ["AdvancedVersion"] = "Version",
+        ["NotifyUpdateTitle"] = "Relay update",
+        ["NotifyUpdateBody"] = "Version {0} is available. It will install when you are not connected.",
+        ["NotifyUpdateInstalling"] = "Installing version {0}…",
+        ["NotifyUpdateRefused"] = "An update was refused: the download did not match the published checksum.",
         ["WindowMinimise"] = "Minimise",
         ["WindowClose"] = "Close to the tray",
         ["WindowCloseHint"] = "Relay keeps running. Use Exit on the tray icon to quit.",
@@ -160,6 +172,10 @@ public static class Strings
         ["ConnectedVia"] = "متصل از طریق {0}",
         ["Advanced"] = "پیشرفته",
         ["AdvancedVersion"] = "نسخه",
+        ["NotifyUpdateTitle"] = "به‌روزرسانی رله",
+        ["NotifyUpdateBody"] = "نسخهٔ {0} موجود است. وقتی متصل نباشید نصب می‌شود.",
+        ["NotifyUpdateInstalling"] = "در حال نصب نسخهٔ {0}…",
+        ["NotifyUpdateRefused"] = "یک به‌روزرسانی رد شد: فایل دانلودشده با چک‌سام منتشرشده نخواند.",
         ["WindowMinimise"] = "کوچک‌کردن",
         ["WindowClose"] = "بستن به سینی",
         ["WindowCloseHint"] = "رله در حال اجرا می‌ماند. برای خروج، از «خروج» روی آیکون سینی استفاده کنید.",

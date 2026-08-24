@@ -124,4 +124,6 @@
     <string name="onboarding_widget_manual">Long-press the home screen, choose Widgets, then find Relay.</string>
     <string name="onboarding_shortcut_title">Long-press the Relay icon</string>
     <string name="onboarding_shortcut_body">Start Sharing is already there — nothing to set up.</string>
+    <string name="update_channel">Updates</string>
+    <string name="update_notice_body">Tap to open Relay and install it.</string>
 </resources>
