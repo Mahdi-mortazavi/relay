@@ -69,6 +69,11 @@ const (
 	// Ends the configuration on stdin without closing it. See [readConfig].
 	configTerminator = "END-CONFIG"
 
+	// Printed when the tunnel is up but the filters that keep traffic inside it
+	// could not be installed. Not fatal -- see where it is used -- but the app
+	// must be able to tell the difference between protected and not.
+	leakProtectionFailedLine = "LEAK-PROTECTION-FAILED"
+
 	// Prefix of the line the app sends when the phone turns up at a new address,
 	// e.g. "ENDPOINT 192.168.1.14:51820". See [roam].
 	endpointPrefix = "ENDPOINT "
@@ -192,11 +197,25 @@ func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
 		if server, err := netip.ParseAddr(dns); err == nil {
 			resolvers = append(resolvers, server)
 		}
+		// A failure here must not take the tunnel down with it.
+		//
+		// The first version returned this error, and a CI runner where WFP is
+		// unavailable ("The specified group does not exist") then could not
+		// bring the tunnel up at all. That trades a leak for a product that does
+		// not work, which is a worse bargain than the one being fixed: before
+		// this change every connection ran without these filters, so falling
+		// back to that is the status quo rather than a regression.
+		//
+		// What is not acceptable is doing it quietly, because the person now has
+		// reason to believe they are protected. So it is said on stderr, which
+		// the app puts in the log the diagnostic report carries.
 		if err := firewall.EnableFirewall(uint64(luid), false, resolvers); err != nil {
-			return fmt.Errorf("could not close the paths around the tunnel: %w", err)
+			msg := fmt.Sprintf("%s could not enable leak protection (%v); DNS and IPv6 may leave outside the tunnel", leakProtectionFailedLine, err)
+			fmt.Fprintln(os.Stderr, msg)
+		} else {
+			defer firewall.DisableFirewall()
+			fmt.Fprintln(os.Stderr, "leak protection on: only the tunnel, loopback and DHCP may leave")
 		}
-		defer firewall.DisableFirewall()
-		fmt.Fprintln(os.Stderr, "leak protection on: only the tunnel, loopback and DHCP may leave")
 	}
 	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)
 
