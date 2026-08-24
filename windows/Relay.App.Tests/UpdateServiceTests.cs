@@ -46,29 +46,24 @@ public class UpdateServiceTests
         public void Add(UpdateNotice kind, string version) => Kinds.Add(kind);
     }
 
-    /// <summary>A service whose tunnel is up, which is the interesting case.</summary>
+    /// <summary>
+    /// A service whose tunnel is up, which is the interesting case.
+    ///
+    /// The zero idle budget is what keeps this a millisecond test: the real one
+    /// is a day of one-minute polls. It changes when the service gives up
+    /// waiting, never whether it was allowed to install.
+    /// </summary>
     private static UpdateService Connected(Notices notices) =>
         new("1.0.0", () => "Connected", notices.Add, Check,
-            new UpdateInstaller(new HttpClient(new Canned(Sums))));
-
-    /// <summary>
-    /// Already cancelled, so the wait-for-idle loop returns at once instead of
-    /// holding the test for a poll interval. Every assertion here is about what
-    /// happens before that wait.
-    /// </summary>
-    private static CancellationToken Cancelled()
-    {
-        var source = new CancellationTokenSource();
-        source.Cancel();
-        return source.Token;
-    }
+            new UpdateInstaller(new HttpClient(new Canned(Sums))),
+            idleWait: TimeSpan.Zero);
 
     [Fact]
     public async Task AnnouncesAnUpdateAsSoonAsItIsFound()
     {
         var notices = new Notices();
 
-        await Connected(notices).CheckAndMaybeInstallAsync(Cancelled());
+        await Connected(notices).CheckAndMaybeInstallAsync();
 
         // Announced even though a tunnel is up: knowing early costs nothing,
         // and only the install has to wait.
@@ -81,8 +76,8 @@ public class UpdateServiceTests
         var notices = new Notices();
         var service = Connected(notices);
 
-        await service.CheckAndMaybeInstallAsync(Cancelled());
-        await service.CheckAndMaybeInstallAsync(Cancelled());
+        await service.CheckAndMaybeInstallAsync();
+        await service.CheckAndMaybeInstallAsync();
 
         // A daily check that re-notified every day would teach people to
         // dismiss it, which is how the one that matters gets missed.
@@ -94,10 +89,12 @@ public class UpdateServiceTests
     {
         var notices = new Notices();
 
-        await Connected(notices).CheckAndMaybeInstallAsync(Cancelled());
+        await Connected(notices).CheckAndMaybeInstallAsync();
 
-        // The installer stops Relay in order to replace it. Doing that during a
-        // call would drop the call.
+        // Announced, so we know the path ran and this is not passing on an
+        // empty list — and then stopped, because the installer stops Relay in
+        // order to replace it and doing that during a call would drop the call.
+        Assert.Contains(UpdateNotice.Available, notices.Kinds);
         Assert.DoesNotContain(UpdateNotice.Installing, notices.Kinds);
     }
 
@@ -108,9 +105,10 @@ public class UpdateServiceTests
         var current = """{"tag_name":"v1.0.0","draft":false,"prerelease":false,"assets":[]}""";
         var service = new UpdateService(
             "1.0.0", () => "Idle", notices.Add,
-            () => new UpdateCheck("1.0.0", new HttpClient(new Canned(current))));
+            () => new UpdateCheck("1.0.0", new HttpClient(new Canned(current))),
+            idleWait: TimeSpan.Zero);
 
-        await service.CheckAndMaybeInstallAsync(Cancelled());
+        await service.CheckAndMaybeInstallAsync();
 
         // Silence is the whole contract when there is nothing to say.
         Assert.Empty(notices.Kinds);

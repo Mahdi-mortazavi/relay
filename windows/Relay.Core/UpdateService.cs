@@ -38,7 +38,8 @@ public sealed class UpdateService(
     Func<string> currentState,
     Action<UpdateNotice, string> notify,
     Func<UpdateCheck>? checkFactory = null,
-    UpdateInstaller? installer = null)
+    UpdateInstaller? installer = null,
+    TimeSpan? idleWait = null)
 {
     /// <summary>
     /// Long enough that launching Relay never waits on GitHub, short enough
@@ -54,6 +55,14 @@ public sealed class UpdateService(
 
     /// <summary>How often to look for an idle moment once an update is waiting.</summary>
     public static readonly TimeSpan IdlePoll = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// How long to keep looking for that idle moment before giving up until the
+    /// next cycle. Injectable only so a test can say "do not wait", which is
+    /// what makes the never-install-while-connected rule assertable in
+    /// milliseconds rather than a day.
+    /// </summary>
+    private readonly TimeSpan _idleWait = idleWait ?? Interval;
 
     /// <summary>The state name that means "nothing would be lost by restarting".</summary>
     private const string Idle = "Idle";
@@ -125,7 +134,7 @@ public sealed class UpdateService(
         // Wait for a moment where replacing the app costs nothing — bounded, so
         // a machine that stays connected all day tries again next cycle instead
         // of holding a thread forever.
-        var deadline = DateTimeOffset.UtcNow + Interval;
+        var deadline = DateTimeOffset.UtcNow + _idleWait;
         while (currentState() != Idle && DateTimeOffset.UtcNow < deadline)
         {
             try

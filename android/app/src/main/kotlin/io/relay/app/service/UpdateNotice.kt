@@ -52,10 +52,16 @@ object UpdateNotice {
             // notification. Downloading is tens of megabytes and Android will
             // ask about installing anyway, so the honest place for both is a
             // screen the person is looking at.
-            val intent = Intent(context, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            //
+            // Built inline, like the sharing notification's, so the component
+            // is visibly explicit at the call: an analyser that loses track of
+            // it through a local variable reads this as an implicit intent
+            // handed to an unknown app, and it is not wrong to be strict about
+            // that -- a PendingIntent is a capability someone else can hold.
             val pending = PendingIntent.getActivity(
-                context, 0, intent,
+                context,
+                0,
+                Intent(context, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
