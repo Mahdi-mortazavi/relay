@@ -54,6 +54,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readStartRequest(intent)
+        // Nothing called this, so the update banner below has never appeared for
+        // anyone: updateAvailable stayed null for every build that shipped it.
+        viewModel.checkForUpdate(
+            runCatching {
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }.getOrNull() ?: "unknown",
+        )
         enableEdgeToEdge()
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()

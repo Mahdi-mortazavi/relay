@@ -122,8 +122,13 @@ public sealed class UpdateInstaller(HttpClient? http = null)
 
     /// <summary>
     /// Runs the installer in the same per-user, no-prompt way the first install
-    /// ran, and does not wait: it stops Relay (AppMutex in the .iss) and
-    /// replaces this executable underneath us.
+    /// ran, and does not wait.
+    ///
+    /// This does <em>not</em> stop Relay, which an earlier comment here claimed
+    /// it did. AppMutex makes Setup <em>ask</em> for the app to be closed — a
+    /// modal message box that /SILENT does not suppress — so an update left to
+    /// itself would have sat on a dialog nobody was there to answer. The caller
+    /// has to leave, and <see cref="Relaunch"/> is how it gets to come back.
     /// </summary>
     private static void Launch(string installer) =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer)
@@ -131,9 +136,21 @@ public sealed class UpdateInstaller(HttpClient? http = null)
             // Not /VERYSILENT: a person who did not press anything should still
             // see that something is installing. /SILENT shows progress and no
             // questions, which is the honest middle.
-            Arguments = "/SILENT /NORESTART",
+            Arguments = $"/SILENT /NORESTART {Relaunch}",
             UseShellExecute = true,
         });
+
+    /// <summary>
+    /// Asks Setup to start Relay again when it is done.
+    ///
+    /// The installer's ordinary post-install launch carries Inno's
+    /// <c>skipifsilent</c> flag, which is right for someone who chose a silent
+    /// install from a command line and wrong for an update that closed the app
+    /// on its own — that path would have left the tray empty and the app gone,
+    /// which reads as a crash, not an update. The .iss has a second entry
+    /// keyed on this parameter.
+    /// </summary>
+    public const string Relaunch = "/relaunch=1";
 
     /// <summary>
     /// Pulls one file's hash out of a sha256sum-format listing:

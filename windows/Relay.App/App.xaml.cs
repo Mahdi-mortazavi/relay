@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Relay.App.Services;
+using Relay.Core;
 
 namespace Relay.App;
 
@@ -14,6 +15,7 @@ public partial class App : Application
     private const string ShowSignalName = @"Local\RelayAppShow";
 
     private TaskbarIcon? _tray;
+    private UpdateService? _updates;
     private MainWindow? _window;
 
     public App()
@@ -200,6 +202,56 @@ public partial class App : Application
         // traffic wants.
         _tray.ForceCreate(enablesEfficiencyMode: false);
 
+        // Keep Relay current. UpdateCheck and UpdateInstaller existed and were
+        // tested for three releases with nothing calling either of them, so a
+        // Windows user stayed on whatever they first installed. The service
+        // waits for an idle moment before replacing the app, because the
+        // installer stops Relay and a live tunnel would go with it.
+        _updates = new UpdateService(
+            AppVersion.Current,
+            () => AppController.Instance.StateName,
+            (notice, version) =>
+            {
+                var message = notice switch
+                {
+                    UpdateNotice.Installing => Strings.Format("NotifyUpdateInstalling", version),
+                    UpdateNotice.Refused => Strings.Get("NotifyUpdateRefused"),
+                    _ => Strings.Format("NotifyUpdateBody", version),
+                };
+                LocalLog.Add($"Update {notice}: {version}");
+                _window?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        _tray?.ShowNotification(
+                            title: Strings.Get("NotifyUpdateTitle"), message: message,
+                            icon: H.NotifyIcon.Core.NotificationIcon.Info);
+                    }
+                    catch (Exception)
+                    {
+                        // A toast is a courtesy; notifications being off is not
+                        // a failure worth surfacing.
+                    }
+                });
+
+                // Setup takes the same single-instance mutex this app holds, so
+                // leaving it running would stop the update on a "please close
+                // Relay" box that /SILENT does not suppress and that nobody is
+                // there to answer. Relay closes itself and the installer starts
+                // it again (/relaunch=1, handled in relay.iss).
+                //
+                // Safe by construction: the service only reaches Installing
+                // while the state is Idle, so this exits a tunnel that is
+                // already down. It still goes through the ordinary tray exit
+                // rather than Environment.Exit, so the proxy rollback and the
+                // three-second backstop both still apply.
+                if (notice == UpdateNotice.Installing)
+                {
+                    _window?.DispatcherQueue.TryEnqueue(() => _ = ExitFromTrayAsync());
+                }
+            });
+        _updates.Start();
+
         var previousState = AppController.Instance.StateName;
         AppController.Instance.StateChanged += () =>
         {
@@ -295,6 +347,7 @@ public partial class App : Application
 
         _window?.DispatcherQueue.TryEnqueue(() =>
         {
+            try { _updates?.Stop(); } catch { }
             try { _tray?.Dispose(); } catch { }
             // Exit() works by closing the app's windows, so the popover has to
             // stop cancelling its own close first (issue #18).
