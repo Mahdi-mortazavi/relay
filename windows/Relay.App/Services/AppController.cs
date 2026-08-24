@@ -376,7 +376,7 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     // Full Mode's tunnel shares the same lock: a user Disconnect and anything
     // else touching the session must not overlap, exactly as for the proxy.
     private Task<WgTunnelSession.Result> TunnelConnectLocked(WgParams wg, string host) =>
-        Task.Run(() => { lock (_sessionLock) return _tunnel.Connect(wg, host); });
+        Task.Run(() => { lock (_sessionLock) return _tunnel.Connect(wg, host, LeakProtection.IsEnabled()); });
 
     private Task<WgTunnelSession.Result> TunnelDisconnectLocked() =>
         Task.Run(() => { lock (_sessionLock) return _tunnel.Disconnect(); });

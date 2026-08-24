@@ -53,6 +53,7 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/windows/tunnel/firewall"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
@@ -99,15 +100,17 @@ func main() {
 	routes := flag.String("routes", "0.0.0.0/0", "comma-separated prefixes to send through the tunnel")
 	pipe := flag.String("config-pipe", "",
 		"named pipe carrying the configuration and readiness; stdin/stdout when empty")
+	blockLeaks := flag.Bool("block-leaks", true,
+		"block traffic that would bypass the tunnel (other resolvers, IPv6, other adapters)")
 	flag.Parse()
 
-	if err := run(*name, *address, *dns, *routes, *pipe); err != nil {
+	if err := run(*name, *address, *dns, *routes, *pipe, *blockLeaks); err != nil {
 		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(name, address, dns, routes, pipe string) error {
+func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
 	// The app talks over a named pipe rather than stdin, because a process
 	// launched through the elevation prompt cannot have its streams redirected
 	// at all -- and the only other way to hand it a private key would be a temp
@@ -164,6 +167,37 @@ func run(name, address, dns, routes, pipe string) error {
 		return err
 	}
 
+	// Everything that could go around the tunnel, closed.
+	//
+	// Two ways out were open until now, and a user found the first of them.
+	//
+	// DNS: SetDNS above puts a resolver on this adapter, but Windows resolves
+	// names on *every* interface at once -- "smart multi-homed name resolution".
+	// On a phone hotspot the only other resolver is the phone, so nothing shows.
+	// On a Wi-Fi the laptop shares with the phone, the other resolver is the
+	// router, and a leak test then lists the local ISP beside the tunnel's exit.
+	// That is exactly what was reported, and why it only ever appeared on Wi-Fi.
+	//
+	// IPv6: this client configures AF_INET only. On a network with working IPv6
+	// every v6 connection left by the physical adapter, carrying the real
+	// address, and the tunnel never saw it.
+	//
+	// The filters live in a WFP session created with FWPM_SESSION_FLAG_DYNAMIC,
+	// so Windows removes every one of them when this process ends -- including
+	// when it is killed or crashes. That is the same property the adapter has,
+	// and it is what makes failing closed safe: a dead Relay cannot leave a
+	// machine unable to reach the network.
+	if blockLeaks {
+		var resolvers []netip.Addr
+		if server, err := netip.ParseAddr(dns); err == nil {
+			resolvers = append(resolvers, server)
+		}
+		if err := firewall.EnableFirewall(uint64(luid), false, resolvers); err != nil {
+			return fmt.Errorf("could not close the paths around the tunnel: %w", err)
+		}
+		defer firewall.DisableFirewall()
+		fmt.Fprintln(os.Stderr, "leak protection on: only the tunnel, loopback and DHCP may leave")
+	}
 	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)
 
 	// Readiness is the handshake, not the adapter.

@@ -515,6 +515,11 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(MinimiseButton, Strings.Get("WindowMinimise"));
         ToolTipService.SetToolTip(CloseButton, Strings.Get("WindowCloseHint"));
 
+        AdvancedLeakLabel.Text = Strings.Get("AdvancedLeakBlock");
+        AdvancedLeakToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedLeakToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedLeakToggle, Strings.Get("AdvancedLeakBlockHint"));
+        SyncLeakToggle();
         AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
         AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
         AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
@@ -574,6 +579,36 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Guards the programmatic IsOn write above from re-entering the handler.</summary>
     private bool _syncingStartup;
+
+    /// <summary>
+    /// Reads the setting rather than remembering it, for the same reason the
+    /// startup switch does: it must show what the next connection will actually
+    /// do, not what this window was told once.
+    /// </summary>
+    private void SyncLeakToggle()
+    {
+        _syncingLeak = true;
+        try { AdvancedLeakToggle.IsOn = LeakProtection.IsEnabled(); }
+        finally { _syncingLeak = false; }
+    }
+
+    private bool _syncingLeak;
+
+    private void OnLeakBlockToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingLeak) return;
+
+        var wanted = AdvancedLeakToggle.IsOn;
+        if (!LeakProtection.Set(wanted))
+        {
+            LocalLog.Add("Windows would not save that");
+            SyncLeakToggle();
+            return;
+        }
+        LocalLog.Add(wanted
+            ? "Leak protection on — takes effect on the next connection"
+            : "Leak protection OFF — DNS and IPv6 can leave outside the tunnel");
+    }
 
     private void OnStartupToggled(object sender, RoutedEventArgs e)
     {

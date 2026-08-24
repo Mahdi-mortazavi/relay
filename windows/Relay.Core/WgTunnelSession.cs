@@ -107,6 +107,9 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// </summary>
     public const string EndpointPrefix = "ENDPOINT ";
 
+    /// <summary>What the client takes to stop closing the paths around the tunnel.</summary>
+    public const string DisableLeakBlockArgument = "-block-leaks=false";
+
     /// <summary>How long to wait for the adapter. Creating one is slow the first time.</summary>
     public static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(45);
 
@@ -123,7 +126,11 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// than <see cref="Proxy.ProxySession"/>, where Relay edits the registry
     /// itself and has to be able to put it back.
     /// </summary>
-    public Result Connect(WgParams wg, string host)
+    /// <param name="blockLeaks">
+    /// Close the paths that go around the tunnel. Defaults to true here as well
+    /// as in the client, so a caller that forgets still fails closed.
+    /// </param>
+    public Result Connect(WgParams wg, string host, bool blockLeaks = true)
     {
         if (IsRunning) return Result.Fail("ERR_WG_ALREADY_RUNNING");
 
@@ -144,7 +151,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         IProcessHandle tunnel;
         try
         {
-            tunnel = processHost.Start(Arguments(wg));
+            tunnel = processHost.Start(Arguments(wg, blockLeaks));
         }
         catch (ElevationDeclined)
         {
@@ -281,7 +288,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// The client's arguments. The DNS server and the tunnel address come from
     /// the payload and the shared contract rather than being repeated here.
     /// </summary>
-    internal static string Arguments(WgParams wg)
+    internal static string Arguments(WgParams wg, bool blockLeaks = true)
     {
         var arguments = new List<string>
         {
@@ -294,6 +301,9 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
             arguments.Add("-dns");
             arguments.Add(wg.Dns);
         }
+        // Only ever passed to turn it OFF. The client defaults to blocking, so
+        // a Relay that somehow forgets to pass anything still fails closed.
+        if (!blockLeaks) arguments.Add(DisableLeakBlockArgument);
         return string.Join(' ', arguments.Select(Quote));
     }
 
