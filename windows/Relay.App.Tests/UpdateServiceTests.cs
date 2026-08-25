@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using Relay.Core;
 using Xunit;
 
@@ -24,6 +25,36 @@ public class UpdateServiceTests
             });
     }
 
+    /// <summary>
+    /// Serves a real, self-consistent release: a checksum listing that matches
+    /// the installer bytes it also serves.
+    ///
+    /// Needed because the download now happens before the wait for idle. With a
+    /// listing that named some other file, "did not install while connected"
+    /// would pass because the download was refused, which proves nothing about
+    /// the rule under test.
+    /// </summary>
+    private sealed class Servable : HttpMessageHandler
+    {
+        private static readonly byte[] Payload = "pretend installer"u8.ToArray();
+
+        private static string Listing =>
+            Convert.ToHexString(SHA256.HashData(Payload)).ToLowerInvariant()
+            + "  Relay-Setup-x64.exe";
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken token)
+        {
+            var url = request.RequestUri!.ToString();
+            HttpContent content = url.EndsWith("SHA256SUMS.txt", StringComparison.Ordinal)
+                ? new StringContent(Listing)
+                : url.Contains("api.github.com", StringComparison.Ordinal)
+                    ? new StringContent(NewerRelease)
+                    : new ByteArrayContent(Payload);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
+    }
+
     /// <summary>A release far newer than any build could be.</summary>
     private const string NewerRelease = """
         {"tag_name":"v99.0.0","draft":false,"prerelease":false,
@@ -32,10 +63,6 @@ public class UpdateServiceTests
            {"name":"Relay-Setup-x86.exe","browser_download_url":"https://x/Relay-Setup-x86.exe"},
            {"name":"SHA256SUMS.txt","browser_download_url":"https://x/SHA256SUMS.txt"}]}
         """;
-
-    /// <summary>A listing naming a different file, so nothing here can install.</summary>
-    private const string Sums =
-        "0000000000000000000000000000000000000000000000000000000000000000  other.exe";
 
     private static UpdateCheck Check() => new("1.0.0", new HttpClient(new Canned(NewerRelease)));
 
@@ -55,7 +82,7 @@ public class UpdateServiceTests
     /// </summary>
     private static UpdateService Connected(Notices notices) =>
         new("1.0.0", () => "Connected", notices.Add, Check,
-            new UpdateInstaller(new HttpClient(new Canned(Sums))),
+            new UpdateInstaller(new HttpClient(new Servable())),
             idleWait: TimeSpan.Zero);
 
     [Fact]
@@ -94,8 +121,29 @@ public class UpdateServiceTests
         // Announced, so we know the path ran and this is not passing on an
         // empty list — and then stopped, because the installer stops Relay in
         // order to replace it and doing that during a call would drop the call.
+        //
+        // The bytes were fetched and verified first: that is deliberate, and the
+        // handler here serves a listing that genuinely matches, so nothing but
+        // the connected state can be what stopped it.
         Assert.Contains(UpdateNotice.Available, notices.Kinds);
         Assert.DoesNotContain(UpdateNotice.Installing, notices.Kinds);
+    }
+
+    [Fact]
+    public async Task FetchesTheUpdateEvenWhileTheTunnelIsUp()
+    {
+        var target = Path.Combine(Path.GetTempPath(), "Relay-update", "Relay-Setup-x64.exe");
+        if (File.Exists(target)) File.Delete(target);
+
+        await Connected(new Notices()).CheckAndMaybeInstallAsync();
+
+        // The reason this matters is not speed. Relay is used where the tunnel
+        // is the only working route to GitHub's release CDN, so waiting for
+        // "disconnected" before downloading meant waiting for the one state in
+        // which the bytes cannot be reached — and the update never landed at
+        // all. Installing still waits; fetching must not.
+        Assert.True(File.Exists(target));
+        File.Delete(target);
     }
 
     [Fact]

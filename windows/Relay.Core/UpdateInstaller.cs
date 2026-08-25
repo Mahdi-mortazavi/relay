@@ -65,10 +65,39 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         Action<string>? run = null,
         CancellationToken token = default)
     {
-        if (string.IsNullOrWhiteSpace(update.ChecksumsUrl)) return Outcome.Unverifiable;
+        var (outcome, path) = await DownloadAsync(update, downloadDirectory, token)
+            .ConfigureAwait(false);
+        return path is null ? outcome : Run(path, run);
+    }
+
+    /// <summary>
+    /// Fetches and verifies the installer, and stops there.
+    ///
+    /// Separate from running it because the two have opposite constraints.
+    /// Running it stops Relay, so it has to wait for a moment when nothing is
+    /// connected. Downloading has to <em>not</em> wait for that — on the
+    /// networks Relay is built for, the tunnel is often the only route to
+    /// GitHub's release CDN in the first place, so "download only while
+    /// disconnected" means "download only while it is unreachable", and the
+    /// update never arrives at all. Verified on a connection that reaches
+    /// api.github.com fine and cannot reach the asset host at all.
+    ///
+    /// The cost is that the download can use the phone's data. Once per
+    /// release, for an app that has no other way to stay current, that is the
+    /// better of the two mistakes.
+    /// </summary>
+    /// <returns>
+    /// The verified installer's path, or null with the reason it is not there.
+    /// </returns>
+    public async Task<(Outcome Outcome, string? Path)> DownloadAsync(
+        UpdateCheck.Available update,
+        string? downloadDirectory = null,
+        CancellationToken token = default)
+    {
+        if (string.IsNullOrWhiteSpace(update.ChecksumsUrl)) return (Outcome.Unverifiable, null);
 
         var name = FileName(update.Url);
-        if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return Outcome.Unavailable;
+        if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return (Outcome.Unavailable, null);
 
         var directory = downloadDirectory ?? Path.Combine(Path.GetTempPath(), "Relay-update");
         var target = Path.Combine(directory, name);
@@ -84,7 +113,7 @@ public sealed class UpdateInstaller(HttpClient? http = null)
             Directory.CreateDirectory(directory);
             var sums = await _http.GetStringAsync(update.ChecksumsUrl, token).ConfigureAwait(false);
             var found = HashFor(sums, name);
-            if (found is null) return Outcome.Unverifiable;
+            if (found is null) return (Outcome.Unverifiable, null);
             expected = found;
 
             actual = await DownloadAndHashAsync(update.Url, partial, token).ConfigureAwait(false);
@@ -92,14 +121,14 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         catch (Exception)
         {
             Discard(partial);
-            return Outcome.Unavailable;
+            return (Outcome.Unavailable, null);
         }
 
         if (!CryptographicOperations.FixedTimeEquals(
                 Convert.FromHexString(actual), Convert.FromHexString(expected)))
         {
             Discard(partial);
-            return Outcome.ChecksumMismatch;
+            return (Outcome.ChecksumMismatch, null);
         }
 
         try
@@ -109,12 +138,18 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         catch (Exception)
         {
             Discard(partial);
-            return Outcome.Unavailable;
+            return (Outcome.Unavailable, null);
         }
 
+        return (Outcome.Started, target);
+    }
+
+    /// <summary>Runs an installer that <see cref="DownloadAsync"/> already verified.</summary>
+    public Outcome Run(string path, Action<string>? run = null)
+    {
         try
         {
-            (run ?? Launch)(target);
+            (run ?? Launch)(path);
             return Outcome.Started;
         }
         catch (Exception)
