@@ -38,6 +38,17 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     /// <summary>Raised on any state change; may fire on a worker thread.</summary>
     public event Action? StateChanged;
 
+    /// <summary>
+    /// True when the tunnel came up but the filters that keep traffic inside it
+    /// did not.
+    ///
+    /// Exposed because the log was the only place this was said, and the log is
+    /// not where anybody looks. The switch still reads "on", so the person is
+    /// told they are protected while they are not — which is worse than not
+    /// offering the feature, because it is acted on.
+    /// </summary>
+    public bool LeakProtectionUnavailable => _tunnel.LeakProtectionUnavailable;
+
     private enum Probe { Ok, Refused, Unreachable }
 
     /// <summary>Call once at startup, before any UI: undo a crashed session's proxy.</summary>
