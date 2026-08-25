@@ -22,6 +22,14 @@ package main
 // a phone that changes address still works, which a blanket block would have
 // killed.
 //
+// One exception is carved back out: loopback is permitted above both blocks.
+// "Block all of ALE_AUTH_CONNECT_V6" turned out to mean all of it, loopback
+// included, and on Windows "localhost" resolves to ::1 before 127.0.0.1 — so
+// the first version of this broke every localhost connection on the machine
+// for as long as Relay was connected. Permitting it cannot leak, because
+// loopback never reaches a network interface for anything to escape by.
+// TestLeakProtectionLeavesLoopbackAlone fails without it.
+//
 // Every filter is added inside a session opened with FWPM_SESSION_FLAG_DYNAMIC.
 // Windows destroys the whole session, and with it every filter, when this
 // process ends — including when it is killed or crashes. That is the same

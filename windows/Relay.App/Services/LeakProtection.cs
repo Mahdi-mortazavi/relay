@@ -23,6 +23,13 @@ namespace Relay.App.Services;
 /// than remembered so the value cannot drift from what the tunnel was actually
 /// started with.
 ///
+/// Loopback is exempt. The IPv6 rule is "all of ALE_AUTH_CONNECT_V6", and WFP
+/// classifies loopback at that layer too, so it took ::1 with it — and Windows
+/// resolves "localhost" to ::1 first, so while connected, every localhost
+/// connection on the machine failed or stalled. That was unrelated software
+/// breaking and being blamed on the tunnel. Permitting loopback cannot leak:
+/// it never reaches a network interface.
+///
 /// This was briefly a switch that recorded an intent nothing acted on:
 /// wireguard-windows' firewall package needs a service SID, which an elevated
 /// user process does not have, so it refused before installing anything. The
