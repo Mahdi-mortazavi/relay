@@ -238,18 +238,6 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 	// Permitting it cannot leak anything. Loopback does not reach a network
 	// interface at all, so there is no adapter for it to escape by. This is the
 	// same exception wireguard-windows carves out, for the same reason.
-	for _, layer := range []windows.GUID{layerAleAuthConnectV4, layerAleAuthConnectV6} {
-		if err := addFilter(engine, filterSpec{
-			name:     "Relay: permit loopback, which never leaves the machine",
-			layer:    layer,
-			action:   fwpActionPermit,
-			weight:   weightLoopback,
-			loopback: true,
-		}); err != nil {
-			shutdown()
-			return nil, err
-		}
-	}
 
 	// IPv6, all of it. This client configures AF_INET only, so every v6
 	// connection was leaving by the physical adapter with the real address on
