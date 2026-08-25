@@ -153,13 +153,11 @@ func BenchmarkEndToEndDownload(b *testing.B) {
 	clientPrivate, clientPublic := keyPair(b)
 	port := freeUDPPort(b)
 
-	endpoint, err := Start(fmt.Sprintf(
-		"private_key=%s
+	endpoint, err := Start(fmt.Sprintf(`private_key=%s
 listen_port=%d
 public_key=%s
 allowed_ip=10.13.37.2/32
-",
-		serverPrivate, port, clientPublic))
+`, serverPrivate, port, clientPublic))
 	if err != nil {
 		b.Fatalf("endpoint did not start: %v", err)
 	}
