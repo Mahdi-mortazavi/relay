@@ -131,9 +131,36 @@ public sealed class UpdateService(
             notify(UpdateNotice.Available, update.Version);
         }
 
-        // Wait for a moment where replacing the app costs nothing — bounded, so
-        // a machine that stays connected all day tries again next cycle instead
-        // of holding a thread forever.
+        // Fetch first, connected or not.
+        //
+        // This used to wait for idle before downloading, and on the networks
+        // Relay is built for that meant it could never update at all: the
+        // tunnel is frequently the only route to GitHub's release CDN, so the
+        // one moment it was willing to download was the one moment the bytes
+        // were unreachable. Measured on a connection that answers
+        // api.github.com in under a second and cannot open the asset host at
+        // all. Only running the installer has to wait, because only running it
+        // costs someone their connection.
+        var (outcome, installer) = await _installer
+            .DownloadAsync(update, token: token).ConfigureAwait(false);
+
+        if (installer is null)
+        {
+            if (outcome == UpdateInstaller.Outcome.ChecksumMismatch)
+            {
+                // Never retried quietly: the bytes on offer were not the bytes
+                // the release published.
+                notify(UpdateNotice.Refused, update.Version);
+            }
+            // Unverifiable and Unavailable both mean "try again next cycle",
+            // and neither is worth interrupting anyone about.
+            return;
+        }
+
+        // Now wait for a moment where replacing the app costs nothing —
+        // bounded, so a machine that stays connected all day tries again next
+        // cycle instead of holding a thread forever. The download is already on
+        // disk and verified, so that next cycle is cheap.
         var deadline = DateTimeOffset.UtcNow + _idleWait;
         while (currentState() != Idle && DateTimeOffset.UtcNow < deadline)
         {
@@ -148,21 +175,9 @@ public sealed class UpdateService(
         }
         if (currentState() != Idle) return;
 
-        var outcome = await _installer.InstallAsync(update, token: token).ConfigureAwait(false);
-        switch (outcome)
+        if (_installer.Run(installer) == UpdateInstaller.Outcome.Started)
         {
-            case UpdateInstaller.Outcome.Started:
-                notify(UpdateNotice.Installing, update.Version);
-                break;
-            case UpdateInstaller.Outcome.ChecksumMismatch:
-                // Never retried quietly: the bytes on offer were not the bytes
-                // the release published.
-                notify(UpdateNotice.Refused, update.Version);
-                break;
-            case UpdateInstaller.Outcome.Unverifiable:
-            case UpdateInstaller.Outcome.Unavailable:
-                // Try again on the next cycle; neither is worth a toast.
-                break;
+            notify(UpdateNotice.Installing, update.Version);
         }
     }
 }
