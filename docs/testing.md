@@ -303,3 +303,40 @@ between a fresh install and "no phone has that code".
 2. Briefly disable the phone's hotspot (or move out/in of range) for **< 11 s**, then re-enable.
 3. **Expected:** both apps show **Reconnecting…** (amber), the Windows proxy stays applied, and the session resumes automatically without re-pairing. Recovery completes within the ~11 s bound (`ReconnectPolicy`).
 4. **Now exceed the bound:** keep the hotspot off > 11 s. **Expected:** phone → `HOTSPOT_LOST`, Windows → `ERR_CONNECTION_LOST` with the proxy rolled back (verify by read-back, as AC1.4).
+
+### Automatic updates — what August 2026 hardware proved, and what it did not
+
+Run on a Samsung SM-A307FN and the maintainer's Windows laptop, both on the same
+Wi-Fi, against the real 2.6.0 and 2.6.1 releases.
+
+**Proven end to end on Android.** A build stamped below the latest release
+found it, posted the notification, showed the banner, downloaded the APK,
+verified it against the release's `SHA256SUMS.txt`, and handed it to the system
+installer, which installed it. The phone finished the run on 2.6.1. The tile
+path was checked separately: sharing started from Quick Settings with
+`MainActivity` never created, and the notification still appeared — which is the
+whole reason that check exists in the service and not only in the activity.
+
+Two platform gates sit in front of it and neither is Relay's to remove: the app
+needs *Install unknown apps* (`REQUEST_INSTALL_PACKAGES`), and Play Protect asks
+about an unsigned sideloaded APK it has not seen before.
+
+**Proven on Windows.** The check fires at the two-minute mark and reaches
+GitHub. Setup restarts Relay after a silent install when, and only when, the
+updater's `/relaunch=1` is passed — verified in both directions, since a
+one-way check would pass on an installer that always relaunched.
+
+**Not proven on Windows: the download completing, and the install that follows
+it.** Not for want of trying — the laptop cannot fetch a GitHub release binary
+at all. It downloads a 454-byte asset in five seconds and returns *zero bytes in
+five minutes* for anything real, while the phone on the same Wi-Fi downloads the
+same file without trouble. That is the environment Relay exists for, and it is
+what surfaced the two bugs in 2.6.1 (the wait-for-idle before downloading, and
+the whole installer buffered in memory under one deadline).
+
+Closing it needs a route on the laptop that can carry fifty megabytes, which on
+that network means going through Relay itself. That attempt was blocked by a
+third thing: the phone had another VPN holding `tun0`, so Relay's replies would
+have left by the wrong interface. Relay detected exactly that and said so —
+`VPN_CAPTURES_RELAY`, correct, and still unfixable from inside the app. So the
+last leg of the Windows update waits on a phone whose VPN slot is free.
