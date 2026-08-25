@@ -30,16 +30,6 @@ package main
 // loopback never reaches a network interface for anything to escape by.
 // TestLeakProtectionLeavesLoopbackAlone fails without it.
 //
-// The filters live in Relay's own sublayer, registered at the maximum weight.
-// They used to live in FWPM_SUBLAYER_UNIVERSAL, which avoided registering one
-// and also avoided working: that is where Windows Firewall keeps its own
-// filters, several of which permit outbound traffic at weights far above
-// anything set here, and within a sublayer the highest weight wins. The DNS
-// block was installed, reported success, and lost every arbitration it entered
-// -- which is why a leak test still listed the local resolver. Measured, not
-// deduced: TestLeakProtectionBlocksWhatItShouldAndNothingElse probes each rule
-// with the tunnel down and again with it up, and asserts on the difference.
-//
 // Every filter is added inside a session opened with FWPM_SESSION_FLAG_DYNAMIC.
 // Windows destroys the whole session, and with it every filter, when this
 // process ends — including when it is killed or crashes. That is the same
@@ -66,9 +56,8 @@ import (
 // kernel in its own test suite; a mismatch is a build failure rather than a
 // pointer handed to a driver.
 const (
-	wtFwpmFilter0Size64   = 200
-	wtFwpmSession0Size64  = 72
-	wtFwpmSublayer0Size64 = 72
+	wtFwpmFilter0Size64  = 200
+	wtFwpmSession0Size64 = 72
 )
 
 type fwpmDisplayData0 struct {
@@ -118,17 +107,6 @@ type fwpmSession0 struct {
 	_                    [7]byte
 }
 
-type fwpmSublayer0 struct {
-	subLayerKey  windows.GUID
-	displayData  fwpmDisplayData0
-	flags        uint32
-	_            [4]byte
-	providerKey  *windows.GUID
-	providerData fwpByteBlob
-	weight       uint16
-	_            [6]byte
-}
-
 type fwpmFilter0 struct {
 	filterKey           windows.GUID
 	displayData         fwpmDisplayData0
@@ -157,7 +135,6 @@ type fwpmFilter0 struct {
 // shape. These fail the build instead.
 var _ [1]struct{} = [unsafe.Sizeof(fwpmFilter0{}) - wtFwpmFilter0Size64 + 1]struct{}{}
 var _ [1]struct{} = [unsafe.Sizeof(fwpmSession0{}) - wtFwpmSession0Size64 + 1]struct{}{}
-var _ [1]struct{} = [unsafe.Sizeof(fwpmSublayer0{}) - wtFwpmSublayer0Size64 + 1]struct{}{}
 
 const (
 	fwpActionFlagTerminating = 0x00001000
@@ -205,33 +182,19 @@ var (
 		Data1: 0x632ce23b, Data2: 0x5167, Data3: 0x435c,
 		Data4: [8]byte{0x86, 0xd7, 0xe9, 0x03, 0x68, 0x4a, 0xa8, 0x0c},
 	}
-	// Relay's own sublayer.
-	//
-	// This used to be FWPM_SUBLAYER_UNIVERSAL, on the reasoning that using the
-	// built-in sublayer avoided registering one. It avoided the registration
-	// and it also avoided working: the universal sublayer is where Windows
-	// Firewall keeps its own filters, several of which permit outbound traffic
-	// at weights far above anything set here, and within a sublayer the highest
-	// weight wins. So the DNS block sat there, correctly installed, losing
-	// every arbitration it entered.
-	//
-	// Sublayers are arbitrated before the filters inside them, and this one is
-	// registered at the maximum weight, so a block here beats a permit in the
-	// universal sublayer. Traffic this sublayer says nothing about still falls
-	// through to Windows Firewall exactly as before, which is what keeps this
-	// from becoming a second firewall.
-	sublayerRelay = windows.GUID{
-		Data1: 0x2171bbec, Data2: 0xcdd2, Data3: 0x4667,
-		Data4: [8]byte{0x81, 0x80, 0x4e, 0x48, 0xc2, 0x10, 0x1b, 0x71},
+	// FWPM_SUBLAYER_UNIVERSAL. Using the built-in sublayer means no provider and
+	// no sublayer registration, which is the entire code path that failed.
+	sublayerUniversal = windows.GUID{
+		Data1: 0xeebecc03, Data2: 0xced4, Data3: 0x4380,
+		Data4: [8]byte{0x81, 0x9a, 0x27, 0x34, 0x39, 0x7b, 0x2b, 0x74},
 	}
 )
 
 var (
-	fwpuclnt             = windows.NewLazySystemDLL("fwpuclnt.dll")
-	procFwpmEngineOpen0  = fwpuclnt.NewProc("FwpmEngineOpen0")
-	procFwpmEngineClose  = fwpuclnt.NewProc("FwpmEngineClose0")
-	procFwpmFilterAdd0   = fwpuclnt.NewProc("FwpmFilterAdd0")
-	procFwpmSubLayerAdd0 = fwpuclnt.NewProc("FwpmSubLayerAdd0")
+	fwpuclnt            = windows.NewLazySystemDLL("fwpuclnt.dll")
+	procFwpmEngineOpen0 = fwpuclnt.NewProc("FwpmEngineOpen0")
+	procFwpmEngineClose = fwpuclnt.NewProc("FwpmEngineClose0")
+	procFwpmFilterAdd0  = fwpuclnt.NewProc("FwpmFilterAdd0")
 )
 
 // enableLeakProtection blocks the two ways traffic was leaving around the
@@ -259,14 +222,6 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 		return nil, fmt.Errorf("opening a filtering session: %w", windows.Errno(ret))
 	}
 	shutdown := func() { procFwpmEngineClose.Call(engine) }
-
-	// The sublayer has to exist before anything is put in it. Registered inside
-	// the dynamic session, so Windows removes it with everything else when this
-	// process ends, by any route.
-	if err := addSublayer(engine); err != nil {
-		shutdown()
-		return nil, err
-	}
 
 	// Weights are compared within the sublayer; the permits must outrank the
 	// blocks or the tunnel's own resolver would be blocked along with the rest.
@@ -354,38 +309,6 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 	return shutdown, nil
 }
 
-// addSublayer registers Relay's own sublayer at the maximum weight.
-//
-// Sublayers are arbitrated before the filters within them, so this is what
-// decides whether a block here can beat Windows Firewall's own permits. Without
-// it -- which is how this shipped -- the DNS block was installed correctly,
-// reported success, and lost every arbitration it entered.
-func addSublayer(engine uintptr) error {
-	name, _ := windows.UTF16PtrFromString("Relay")
-	description, _ := windows.UTF16PtrFromString("Relay leak protection")
-
-	sublayer := fwpmSublayer0{
-		subLayerKey: sublayerRelay,
-		displayData: fwpmDisplayData0{name: name, description: description},
-		// The highest weight there is. Anything less and the question of whether
-		// leak protection works depends on what else is installed on the
-		// machine, which is not a property worth having.
-		weight: ^uint16(0),
-	}
-
-	ret, _, _ := procFwpmSubLayerAdd0.Call(
-		engine,
-		uintptr(unsafe.Pointer(&sublayer)),
-		0,
-	)
-	runtime.KeepAlive(name)
-	runtime.KeepAlive(description)
-	if ret != 0 {
-		return fmt.Errorf("registering the filtering sublayer: %w", windows.Errno(ret))
-	}
-	return nil
-}
-
 type filterSpec struct {
 	name       string
 	layer      windows.GUID
@@ -443,7 +366,7 @@ func addFilter(engine uintptr, spec filterSpec) error {
 	filter := fwpmFilter0{
 		displayData: fwpmDisplayData0{name: name},
 		layerKey:    spec.layer,
-		subLayerKey: sublayerRelay,
+		subLayerKey: sublayerUniversal,
 		weight: fwpValue0{
 			kind:  fwpUint8,
 			value: uintptr(spec.weight),
