@@ -60,15 +60,16 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 		{"loopback IPv4", func() error { return dialTCP(loopback4) }, true},
 		{"loopback IPv6", func() error { return dialTCP(loopback6) }, true},
 		{"ordinary IPv4", func() error { return dialTCP(lan) }, true},
-		{"DNS to the tunnel's resolver", func() error { return sendUDP(tunnelResolver + ":53") }, true},
-		{"DNS to another resolver", func() error { return sendUDP(otherResolver + ":53") }, false},
+		{"DNS to the tunnel's resolver (UDP)", func() error { return resolve(tunnelResolver + ":53") }, true},
+		{"DNS to another resolver (UDP)", func() error { return resolve(otherResolver + ":53") }, false},
+		{"DNS to another resolver (TCP)", func() error { return dialTCP(otherResolver + ":53") }, false},
 		{"IPv6 off the machine", func() error { return sendUDP("[2606:4700:4700::1111]:53") }, false},
 	}
 
 	before := make([]error, len(probes))
 	for i, probe := range probes {
 		before[i] = probe.run()
-		t.Logf("baseline   %-30s %s", probe.what, outcome(before[i]))
+		t.Logf("baseline   %-34s %s", probe.what, outcome(before[i]))
 	}
 
 	stop := startProtectedTunnel(t, "RelayTestMatrix", tunnelResolver)
@@ -76,13 +77,13 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 
 	for i, probe := range probes {
 		after := probe.run()
-		t.Logf("protected  %-30s %s", probe.what, outcome(after))
+		t.Logf("protected  %-34s %s", probe.what, outcome(after))
 
 		if before[i] != nil {
 			// It did not work without the tunnel either, so this machine can say
 			// nothing about it. Logged rather than passed over in silence: a
 			// green run that skipped its own assertions has proven nothing.
-			t.Logf("           %-30s NOT MEASURED: unreachable at baseline", probe.what)
+			t.Logf("           %-34s NOT MEASURED: unreachable at baseline", probe.what)
 			continue
 		}
 
@@ -195,6 +196,36 @@ func dialTCP(address string) error {
 	return conn.Close()
 }
 
+// resolve asks a resolver a question and waits for its answer.
+//
+// This is the measurement that matters, and sendUDP is not it. A WFP block does
+// not always fail the send on a UDP socket -- Windows can accept the datagram
+// and drop it -- so "the send returned no error" is not "the query left". What
+// the feature is about is whether the other resolver *answers*, which is
+// exactly how the leak was seen in the first place: a leak test listing the
+// local ISP beside the tunnel's exit.
+func resolve(address string) error {
+	conn, err := net.DialTimeout("udp", address, 4*time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write(dnsQuery); err != nil {
+		return err
+	}
+	reply := make([]byte, 512)
+	n, err := conn.Read(reply)
+	if err != nil {
+		return err
+	}
+	if n < 12 || reply[0] != dnsQuery[0] || reply[1] != dnsQuery[1] {
+		return errors.New("no matching answer")
+	}
+	return nil
+}
+
 // sendUDP reports whether the machine was allowed to send at all.
 //
 // Whether an answer comes back is the network's business; what a WFP block at
@@ -207,15 +238,16 @@ func sendUDP(address string) error {
 	}
 	defer conn.Close()
 	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
-	// A well-formed A query for example.com, so nothing downstream is being
-	// asked to make sense of garbage.
-	query := []byte{
-		0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
-		0x03, 0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01,
-	}
-	_, err = conn.Write(query)
+	_, err = conn.Write(dnsQuery)
 	return err
+}
+
+// A well-formed A query for example.com, so nothing downstream is being asked
+// to make sense of garbage.
+var dnsQuery = []byte{
+	0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+	0x03, 0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01,
 }
 
 func outcome(err error) string {

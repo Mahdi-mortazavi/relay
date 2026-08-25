@@ -227,9 +227,9 @@ var (
 )
 
 var (
-	fwpuclnt            = windows.NewLazySystemDLL("fwpuclnt.dll")
-	procFwpmEngineOpen0 = fwpuclnt.NewProc("FwpmEngineOpen0")
-	procFwpmEngineClose = fwpuclnt.NewProc("FwpmEngineClose0")
+	fwpuclnt             = windows.NewLazySystemDLL("fwpuclnt.dll")
+	procFwpmEngineOpen0  = fwpuclnt.NewProc("FwpmEngineOpen0")
+	procFwpmEngineClose  = fwpuclnt.NewProc("FwpmEngineClose0")
 	procFwpmFilterAdd0   = fwpuclnt.NewProc("FwpmFilterAdd0")
 	procFwpmSubLayerAdd0 = fwpuclnt.NewProc("FwpmSubLayerAdd0")
 )
