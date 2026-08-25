@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
@@ -197,11 +198,28 @@ func forward(a, b net.Conn, idle time.Duration) {
 	defer a.Close()
 	defer b.Close()
 
+	// One clock for the pair, not one per direction. A download is silent
+	// upstream for its whole length and a upload is silent downstream, so a
+	// per-direction timeout reaps exactly the transfers it exists to protect.
+	var seen activity
+	seen.mark()
+
 	done := make(chan struct{}, 2)
-	go copyUntilIdle(a, b, idle, done)
-	go copyUntilIdle(b, a, idle, done)
+	go copyUntilIdle(a, b, idle, &seen, done)
+	go copyUntilIdle(b, a, idle, &seen, done)
 	<-done
 }
+
+// activity is when either direction of a pair last moved a byte.
+type activity struct {
+	nanos atomic.Int64
+}
+
+func (a *activity) mark() { a.nanos.Store(time.Now().UnixNano()) }
+
+func (a *activity) last() time.Time { return time.Unix(0, a.nanos.Load()) }
+
+func (a *activity) idleFor() time.Duration { return time.Since(a.last()) }
 
 // copyUntilIdle copies until the source ends, the destination fails, or nothing
 // crosses for [idle].
@@ -214,7 +232,7 @@ func forward(a, b net.Conn, idle time.Duration) {
 // session and a websocket all died at the same mark, which from the outside is
 // indistinguishable from a flaky network, and is exactly what a user reported
 // as instability.
-func copyUntilIdle(dst, src net.Conn, idle time.Duration, done chan<- struct{}) {
+func copyUntilIdle(dst, src net.Conn, idle time.Duration, seen *activity, done chan<- struct{}) {
 	defer func() { done <- struct{}{} }()
 
 	// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
@@ -224,25 +242,31 @@ func copyUntilIdle(dst, src net.Conn, idle time.Duration, done chan<- struct{}) 
 	buf := spliceBuffers.Get().(*[]byte)
 	defer spliceBuffers.Put(buf)
 
-	// Rearmed only once it is more than half spent. SetDeadline arms a runtime
-	// timer, and doing that twice per 64 KB buys nothing when the deadline is
-	// measured in minutes.
-	var armed time.Time
 	for {
-		if now := time.Now(); now.Sub(armed) > idle/2 {
-			armed = now
-			deadline := now.Add(idle)
-			_ = src.SetReadDeadline(deadline)
-			_ = dst.SetWriteDeadline(deadline)
-		}
+		// Armed from when the pair last moved, so a direction that is quiet
+		// because the other one is busy wakes up and goes back to waiting.
+		_ = src.SetReadDeadline(seen.last().Add(idle))
 
 		n, readErr := src.Read(*buf)
 		if n > 0 {
+			seen.mark()
+			_ = dst.SetWriteDeadline(time.Now().Add(idle))
 			if _, writeErr := dst.Write((*buf)[:n]); writeErr != nil {
 				return
 			}
+			seen.mark()
 		}
 		if readErr != nil {
+			// A timeout only ends things if the whole pair has gone quiet. The
+			// first version of this checked only its own direction, and the
+			// test that caught it is the one worth keeping: a download is
+			// silent upstream from beginning to end, so that version killed
+			// every download at the timeout instead of at five minutes, which
+			// is a worse bug than the one it was fixing.
+			var timeout net.Error
+			if errors.As(readErr, &timeout) && timeout.Timeout() && seen.idleFor() < idle {
+				continue
+			}
 			return
 		}
 	}

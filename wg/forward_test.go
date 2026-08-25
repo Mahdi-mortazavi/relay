@@ -7,18 +7,24 @@ import (
 	"time"
 )
 
-// A connection that is busy must not be torn down.
+// A download must not be torn down while it is downloading.
 //
-// This is the test that was missing. forward set a deadline once, five minutes
-// out, and called the variable holding it an idle timeout -- so a connection
-// carrying traffic the whole time died at exactly five minutes, and a download,
-// a call or an SSH session died with it. Nothing in the suite noticed, because
-// nothing ran a connection for longer than its own timeout.
+// This is the test that was missing, and it has now caught two separate bugs.
+// The original forward set a deadline once, five minutes out, and called the
+// variable holding it an idle timeout -- so a connection carrying traffic the
+// whole time died at exactly five minutes, and a download, a call or an SSH
+// session died with it.
+//
+// The first fix then failed this too, for a better reason: it gave each
+// direction its own idle timeout. A download is silent upstream from beginning
+// to end, so that reaped every download at the timeout -- sooner than the bug
+// it replaced. The traffic below only ever flows one way, deliberately, because
+// that is the shape that breaks.
 //
 // Written against a short idle so it takes milliseconds rather than minutes:
 // what is under test is whether the deadline moves with the traffic, and that
 // is the same question at any scale.
-func TestABusyConnectionOutlivesTheIdleTimeout(t *testing.T) {
+func TestADownloadOutlivesTheIdleTimeout(t *testing.T) {
 	t.Parallel()
 
 	const idle = 100 * time.Millisecond
