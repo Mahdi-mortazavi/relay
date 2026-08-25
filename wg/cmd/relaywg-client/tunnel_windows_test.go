@@ -304,83 +304,26 @@ func freeUDPPort(t *testing.T) int {
 
 // Leak protection must not take localhost down with IPv6.
 //
+// Kept as its own named test, separate from the matrix, because this is the one
+// the CI job lists as required: it is the regression that shipped, and a job
+// that silently stopped running it would still be green.
+//
 // The IPv6 rule is written as "all of ALE_AUTH_CONNECT_V6", and WFP classifies
 // loopback at that layer too -- so the first version of it blocked ::1 as well.
 // On Windows "localhost" resolves to ::1 before 127.0.0.1, which meant that
 // while Relay was connected, every localhost connection on the machine failed
 // or stalled: development servers, database clients, desktop apps talking to
 // their own helpers. Unrelated software breaking, blamed on the tunnel.
-//
-// This is the only place that can be caught. The endpoint's suite runs on Linux
-// with no WFP at all, and the app's own tests never start the tunnel; a runner
-// with Administrator and a real filtering engine is the whole point.
 func TestLeakProtectionLeavesLoopbackAlone(t *testing.T) {
-	binary := os.Getenv("RELAYWG_CLIENT")
-	if binary == "" {
+	if os.Getenv("RELAYWG_CLIENT") == "" {
 		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
 	}
 	if !ipv6LoopbackWorks(t) {
 		t.Skip("this machine cannot reach ::1 even without the tunnel")
 	}
 
-	_, serverPublic := keyPair(t)
-	clientPrivate, _ := keyPair(t)
-
-	// No endpoint on the other end: the filters are installed before the
-	// handshake is waited for, so they are live for the whole timeout and this
-	// never needs a peer that answers.
-	client := exec.Command(binary,
-		"-name", "RelayTestLoopback",
-		"-address", "10.13.37.2/32",
-		"-routes", "198.51.100.0/24",
-		"-dns", "1.1.1.1",
-	)
-	stdin, err := client.StdinPipe()
-	if err != nil {
-		t.Fatalf("stdin: %v", err)
-	}
-	stderr, err := client.StderrPipe()
-	if err != nil {
-		t.Fatalf("stderr: %v", err)
-	}
-	if err := client.Start(); err != nil {
-		t.Fatalf("starting the client (Administrator required): %v", err)
-	}
-	defer func() {
-		_ = client.Process.Kill()
-		_, _ = client.Process.Wait()
-	}()
-
-	fmt.Fprintf(stdin, "private_key=%s\npublic_key=%s\nendpoint=127.0.0.1:9\nallowed_ip=0.0.0.0/0\n%s\n",
-		clientPrivate, serverPublic, configTerminator)
-
-	// Wait for the filters to be in place rather than for a fixed delay: the
-	// window this is testing opens exactly when that line is printed.
-	protected := make(chan bool, 1)
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.Contains(line, "leak protection on") {
-				protected <- true
-				return
-			}
-			if strings.Contains(line, "leak protection unavailable") {
-				protected <- false
-				return
-			}
-		}
-		protected <- false
-	}()
-
-	select {
-	case on := <-protected:
-		if !on {
-			t.Skip("leak protection did not install here; nothing to assert about it")
-		}
-	case <-time.After(30 * time.Second):
-		t.Fatal("the client never said whether leak protection was installed")
-	}
+	stop := startProtectedTunnel(t, "RelayTestLoopback", "1.1.1.1")
+	defer stop()
 
 	if !ipv6LoopbackWorks(t) {
 		t.Fatal("::1 stopped working while leak protection was on — " +
