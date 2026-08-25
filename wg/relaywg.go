@@ -23,7 +23,6 @@ package relaywg
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -43,10 +42,20 @@ const (
 	// Matches WireGuard's own default and leaves room under a 1500-byte path.
 	mtu = 1420
 
-	// How long a forwarded connection may sit with nothing crossing it. UDP has
-	// no close, so without this every DNS lookup would leak a goroutine and a
-	// socket for the life of the session.
-	idleTimeout = 5 * time.Minute
+	// How long a forwarded connection may sit with nothing crossing it.
+	//
+	// TCP says when it is done, so this is only the backstop for a peer that
+	// vanished without a FIN.
+	tcpIdleTimeout = 5 * time.Minute
+
+	// UDP never says it is done, so this is the only thing that reaps it -- and
+	// a browsing session opens one flow per DNS lookup, each holding two
+	// goroutines, a socket and a 64 KB buffer until it is reaped. Five minutes
+	// of that on a phone is hundreds of megabytes and thousands of goroutines
+	// for exchanges that ended in milliseconds. A minute is still generous for
+	// the flows that legitimately persist: QUIC and games keep themselves
+	// alive, and anything that does not is finished.
+	udpIdleTimeout = 60 * time.Second
 )
 
 // Endpoint is one running Full Mode session. It is safe to call Stop on an
@@ -184,27 +193,57 @@ var spliceBuffers = sync.Pool{
 // Both directions are needed and both must be able to end the pair: a download
 // finishes when the remote closes, an upload when the client does, and waiting
 // for the wrong one hangs the transfer.
-func forward(a, b net.Conn) {
+func forward(a, b net.Conn, idle time.Duration) {
 	defer a.Close()
 	defer b.Close()
 
 	done := make(chan struct{}, 2)
-	copyOneWay := func(dst, src net.Conn) {
-		_ = extendDeadline(dst)
-		// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
-		// fresh buffer for every call, which is two allocations per connection
-		// on a device that is already the bottleneck; at 64 KB it also halves
-		// the number of round trips through the netstack per megabyte.
-		buf := spliceBuffers.Get().(*[]byte)
-		_, _ = io.CopyBuffer(dst, src, *buf)
-		spliceBuffers.Put(buf)
-		done <- struct{}{}
-	}
-	go copyOneWay(a, b)
-	go copyOneWay(b, a)
+	go copyUntilIdle(a, b, idle, done)
+	go copyUntilIdle(b, a, idle, done)
 	<-done
 }
 
-func extendDeadline(c net.Conn) error {
-	return c.SetDeadline(time.Now().Add(idleTimeout))
+// copyUntilIdle copies until the source ends, the destination fails, or nothing
+// crosses for [idle].
+//
+// The deadline moves forward as data flows, which is what an idle timeout is
+// and what this was documented to be. What it actually did was call SetDeadline
+// once, to five minutes from the moment the connection opened, and never touch
+// it again -- so every forwarded connection was torn down five minutes after it
+// started no matter how busy it was. A large download, a video call, an SSH
+// session and a websocket all died at the same mark, which from the outside is
+// indistinguishable from a flaky network, and is exactly what a user reported
+// as instability.
+func copyUntilIdle(dst, src net.Conn, idle time.Duration, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
+
+	// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
+	// fresh buffer for every call, which is two allocations per connection on a
+	// device that is already the bottleneck; at 64 KB it also halves the number
+	// of round trips through the netstack per megabyte.
+	buf := spliceBuffers.Get().(*[]byte)
+	defer spliceBuffers.Put(buf)
+
+	// Rearmed only once it is more than half spent. SetDeadline arms a runtime
+	// timer, and doing that twice per 64 KB buys nothing when the deadline is
+	// measured in minutes.
+	var armed time.Time
+	for {
+		if now := time.Now(); now.Sub(armed) > idle/2 {
+			armed = now
+			deadline := now.Add(idle)
+			_ = src.SetReadDeadline(deadline)
+			_ = dst.SetWriteDeadline(deadline)
+		}
+
+		n, readErr := src.Read(*buf)
+		if n > 0 {
+			if _, writeErr := dst.Write((*buf)[:n]); writeErr != nil {
+				return
+			}
+		}
+		if readErr != nil {
+			return
+		}
+	}
 }
