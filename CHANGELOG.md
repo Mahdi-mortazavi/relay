@@ -9,6 +9,70 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-08-25
+
+Four defects on the path every byte takes, found by reading it end to end and
+then measuring it. Numbers below are from benchmarks that now run on every pull
+request, so the next regression here is visible rather than silent.
+
+### Fixed — every connection died after five minutes
+
+The forwarder set a deadline once, five minutes out, and called it an idle
+timeout. It was an absolute one: a connection carrying traffic the whole time
+was still torn down five minutes after it opened. Large downloads, video calls,
+SSH sessions and websockets all failed at the same mark — which from the outside
+is indistinguishable from a flaky network, and was reported as instability.
+
+The deadline now moves with the traffic, and it belongs to the pair rather than
+to each direction: a download is silent upstream from the first byte to the
+last, so a per-direction timeout would reap exactly the transfers it exists to
+protect.
+
+### Fixed — leak protection broke `localhost`
+
+The IPv6 rule was written as "all of `ALE_AUTH_CONNECT_V6`", and that is
+literally all of it — Windows classifies loopback at that layer too, so it took
+`::1` with it. Windows resolves `localhost` to `::1` before `127.0.0.1`, so
+while Relay was connected every localhost connection on the machine failed or
+stalled: development servers, database clients, apps talking to their own
+helpers. Unrelated software breaking, and the tunnel getting the blame.
+
+Loopback is now permitted above the blocks. This cannot leak — loopback never
+reaches a network interface, so there is no adapter for it to escape by.
+
+### Fixed — the phone leaked a pooled buffer for every packet
+
+The read path took a buffer from the network stack's own pool for each packet
+and never gave it back, so the pool never recycled and the garbage collector
+chased the difference — on the phone, on the one processor that measurement
+keeps finding to be the limit. Per packet, in both directions, for the life of
+every session.
+
+That path is now **3.3× faster and allocates 57% less**. A second queue and a
+thread hand-off per packet went with it, which also means the buffering that was
+deliberately cut to hold latency down is now the size it was meant to be
+(it had been quietly double).
+
+Honest note: this does **not** make downloads faster. End-to-end throughput is
+governed by encryption, and measured the same before and after. What it buys is
+lower latency under load, and less work and memory on the phone.
+
+### Fixed — UDP held its resources five times too long
+
+Every DNS lookup opens a flow, and each one held two threads, a socket and a
+64 KB buffer until it was reaped. UDP never says when it is finished, so that
+was five minutes per lookup; a browsing session accumulated hundreds. Now one
+minute, which is still generous for the flows that legitimately persist.
+
+### Changed — you are told when the tunnel comes up unprotected
+
+If the filters cannot be installed the tunnel still comes up, deliberately: a
+leak is bad and a Relay that refuses to connect is worse. But the only place
+that was said was a log nobody reads, while the switch still read "on" — so the
+person had been told they were protected and would act on it. It now says so on
+screen.
+
+
 ## [2.6.1] — 2026-08-25
 
 ### Fixed — the Windows updater could not work on the connections Relay is for
