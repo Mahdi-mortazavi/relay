@@ -276,12 +276,24 @@ public partial class App : Application
                 // The window hides itself, and the tray icon usually lives in
                 // the overflow, so without this the successful moment is the one
                 // moment Relay says nothing at all.
+                // Connecting unprotected is not the good news the ordinary
+                // notification carries, and saying "Connected" over it would be
+                // the app agreeing with a switch that is now lying. This was
+                // written to the local log only, where nobody looks.
+                var unprotected = LeakProtection.IsEnabled()
+                    && AppController.Instance.LeakProtectionUnavailable;
                 try
                 {
                     _tray.ShowNotification(
-                        title: Strings.Get("NotifyConnectedTitle"),
-                        message: Strings.Get("NotifyConnectedBody"),
-                        icon: H.NotifyIcon.Core.NotificationIcon.Info);
+                        title: unprotected
+                            ? Strings.Get("NotifyUnprotectedTitle")
+                            : Strings.Get("NotifyConnectedTitle"),
+                        message: unprotected
+                            ? Strings.Get("NotifyUnprotectedBody")
+                            : Strings.Get("NotifyConnectedBody"),
+                        icon: unprotected
+                            ? H.NotifyIcon.Core.NotificationIcon.Warning
+                            : H.NotifyIcon.Core.NotificationIcon.Info);
                 }
                 catch (Exception)
                 {
