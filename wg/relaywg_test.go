@@ -28,7 +28,7 @@ import (
 // addressed to somewhere it does not own, the forwarder opened a real socket,
 // and the reply made it home. That is the whole feature.
 
-func keyPair(t *testing.T) (private, public string) {
+func keyPair(t testing.TB) (private, public string) {
 	t.Helper()
 	var priv [32]byte
 	if _, err := io.ReadFull(crand.Reader, priv[:]); err != nil {
@@ -46,7 +46,7 @@ func keyPair(t *testing.T) (private, public string) {
 	return hex.EncodeToString(priv[:]), hex.EncodeToString(pub)
 }
 
-func freeUDPPort(t *testing.T) int {
+func freeUDPPort(t testing.TB) int {
 	t.Helper()
 	c, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
@@ -212,7 +212,7 @@ func TestStopIsSafeTwiceAndOnNil(t *testing.T) {
 // Opening a UDP socket toward a routable address asks the kernel the same
 // question without netlink: nothing is sent, but the socket is bound to the
 // address the route would use.
-func nonLoopbackAddress(t *testing.T) string {
+func nonLoopbackAddress(t testing.TB) string {
 	t.Helper()
 
 	// Retried, because on a freshly booted emulator the default route appears a
@@ -267,7 +267,7 @@ func routableAddress() string {
 	return ""
 }
 
-func httpServer(t *testing.T, body string) string {
+func httpServer(t testing.TB, body string) string {
 	t.Helper()
 	// Deliberately not loopback. gVisor drops packets addressed to 127.0.0.0/8
 	// that arrive on an ordinary NIC, so a destination on loopback would make
@@ -291,7 +291,7 @@ func httpServer(t *testing.T, body string) string {
 // wireguardClient is an ordinary wireguard-go client — the same shape the
 // Windows app will be — so the test exercises the endpoint through the real
 // protocol rather than through anything built for testing.
-func wireguardClient(t *testing.T, privateKey, serverPublic string, port int) (*device.Device, *netstack.Net) {
+func wireguardClient(t testing.TB, privateKey, serverPublic string, port int) (*device.Device, *netstack.Net) {
 	t.Helper()
 	address := netip.MustParseAddr("10.13.37.2")
 	tunDevice, tunNet, err := netstack.CreateNetTUN([]netip.Addr{address}, nil, mtu)
