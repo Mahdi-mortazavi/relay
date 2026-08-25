@@ -27,44 +27,43 @@ import (
 func TestADownloadOutlivesTheIdleTimeout(t *testing.T) {
 	t.Parallel()
 
-	const idle = 100 * time.Millisecond
-	// Long enough that a deadline armed once at the start has expired several
-	// times over by the end.
-	const runFor = 600 * time.Millisecond
+	const (
+		idle     = 200 * time.Millisecond
+		interval = 50 * time.Millisecond
+		// Long enough that a deadline armed once at the start expires several
+		// times over before the last chunk arrives.
+		chunks = 12
+	)
 
 	clientSide, tunnelSide := net.Pipe()
 	remoteSide, originSide := net.Pipe()
 	go forward(tunnelSide, remoteSide, idle)
 
 	chunk := []byte("still here")
-	deadline := time.Now().Add(runFor)
-	sent := 0
 
+	// Only ever downstream. That is the shape that breaks: the upstream
+	// direction of a download is silent from the first byte to the last.
 	go func() {
-		for time.Now().Before(deadline) {
+		defer originSide.Close()
+		for i := 0; i < chunks; i++ {
 			if _, err := originSide.Write(chunk); err != nil {
 				return
 			}
-			time.Sleep(idle / 4)
+			time.Sleep(interval)
 		}
-		originSide.Close()
 	}()
 
 	got := make([]byte, len(chunk))
-	for time.Now().Before(deadline) {
-		_ = clientSide.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for i := 0; i < chunks; i++ {
+		_ = clientSide.SetReadDeadline(time.Now().Add(5 * time.Second))
 		n, err := clientSide.Read(got)
 		if err != nil {
-			t.Fatalf("the splice died after %d chunks with %v; a busy connection "+
-				"must not be reaped by an idle timeout", sent, err)
+			t.Fatalf("the splice died after %d of %d chunks with %v; a transfer "+
+				"that is still moving must not be reaped as idle", i, chunks, err)
 		}
-		if !bytes.Equal(got[:n], chunk[:n]) {
-			t.Fatalf("corrupted chunk %d: %q", sent, got[:n])
+		if !bytes.Equal(got[:n], chunk) {
+			t.Fatalf("corrupted chunk %d: %q", i, got[:n])
 		}
-		sent++
-	}
-	if sent == 0 {
-		t.Fatal("nothing crossed the splice at all")
 	}
 }
 

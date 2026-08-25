@@ -242,15 +242,23 @@ func copyUntilIdle(dst, src net.Conn, idle time.Duration, seen *activity, done c
 	buf := spliceBuffers.Get().(*[]byte)
 	defer spliceBuffers.Put(buf)
 
+	// The deadline currently armed on the sockets. Re-arming allocates a
+	// runtime timer, and doing it on every read cost sixty allocations per
+	// megabyte for no benefit -- the deadline only has to be roughly right,
+	// because an early expiry is caught below and simply re-armed.
+	var armed time.Time
 	for {
 		// Armed from when the pair last moved, so a direction that is quiet
 		// because the other one is busy wakes up and goes back to waiting.
-		_ = src.SetReadDeadline(seen.last().Add(idle))
+		if want := seen.last().Add(idle); want.Sub(armed) > idle/2 {
+			armed = want
+			_ = src.SetReadDeadline(want)
+			_ = dst.SetWriteDeadline(want)
+		}
 
 		n, readErr := src.Read(*buf)
 		if n > 0 {
 			seen.mark()
-			_ = dst.SetWriteDeadline(time.Now().Add(idle))
 			if _, writeErr := dst.Write((*buf)[:n]); writeErr != nil {
 				return
 			}
