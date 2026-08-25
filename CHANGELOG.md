@@ -9,6 +9,29 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.6.1] — 2026-08-25
+
+### Fixed — the Windows updater could not work on the connections Relay is for
+
+2.6.0 connected the updater. Testing it on a real machine showed it still could
+not finish, for two reasons that only appear outside a CI runner.
+
+**It waited to be disconnected before downloading.** On the connection this was
+tested from, `api.github.com` answers in under a second and GitHub's release
+CDN returns zero bytes in five minutes. That is not an unlucky network — it is
+the network Relay exists for. Waiting for the tunnel to be down before
+downloading meant waiting for the one state in which the file cannot be
+reached, so the check found the new version every day and never got a byte of
+it. Relay now downloads whenever it can and waits only to *install*, which is
+the part that would cost you your connection. The download can use your phone's
+data; once per release, that is the better of the two mistakes.
+
+**It held the whole installer in memory, on one deadline.** Fifty megabytes
+buffered in RAM, and a single ten-minute timeout covering the entire transfer —
+so a slow link simply ran out of time and, because this path is deliberately
+silent, gave up until the next day. It streams to disk now, hashing as it goes,
+under a name nothing will run until the hash matches.
+
 ## [2.6.0] — 2026-08-25
 
 ### Fixed — Relay could not update itself, on either platform
