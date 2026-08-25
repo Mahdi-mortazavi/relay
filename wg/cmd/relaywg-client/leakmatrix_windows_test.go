@@ -45,6 +45,9 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 	// Any other resolver. This is the leak: on a shared Wi-Fi it is the router,
 	// answering alongside the tunnel.
 	const otherResolver = "9.9.9.9"
+	// A host that answers on 443 and ignores 51820, used only to ask whether
+	// the machine was *allowed* to try.
+	const vpnProbe = "1.1.1.1"
 
 	// Listeners of our own, so "this still works" is a real connection rather
 	// than an assumption about something on the internet.
@@ -63,6 +66,14 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 		{"DNS to the tunnel's resolver (UDP)", func() error { return resolve(tunnelResolver + ":53") }, true},
 		{"DNS to another resolver (UDP)", func() error { return resolve(otherResolver + ":53") }, false},
 		{"DNS to another resolver (TCP)", func() error { return dialTCP(otherResolver + ":53") }, false},
+		// VPN coexistence, as far as one machine can show it. Every VPN's
+		// transport is UDP or TCP on a port that is not 53 -- WireGuard on
+		// 51820, OpenVPN on 1194, anything tunnelling over 443. Relay's rules
+		// touch port 53 and IPv6 and nothing else, and this is what says so out
+		// loud: if a rule ever grows to block more, another VPN on this machine
+		// stops working and Relay gets the blame.
+		{"a VPN's UDP transport (non-53)", func() error { return sendUDP(vpnProbe + ":51820") }, true},
+		{"a VPN's TCP transport (443)", func() error { return dialTCP(vpnProbe + ":443") }, true},
 		{"IPv6 off the machine", func() error { return sendUDP("[2606:4700:4700::1111]:53") }, false},
 	}
 
