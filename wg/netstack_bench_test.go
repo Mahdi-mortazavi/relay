@@ -1,10 +1,14 @@
 package relaywg
 
 import (
+	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -125,5 +129,77 @@ func BenchmarkForward(b *testing.B) {
 			clientSide.Close()
 		}()
 		wg.Wait()
+	}
+}
+
+// BenchmarkEndToEndDownload is the whole thing: a real wireguard-go client, a
+// real Relay endpoint, and a destination that exists only outside the tunnel.
+//
+// Every other benchmark here isolates one stage. This one pays for all of them
+// at once -- the client's encryption, a UDP round trip, the endpoint's
+// decryption, gVisor's TCP reassembly, the forwarder's dial and the splice --
+// which is the number that corresponds to what a person actually sees.
+//
+// It runs on one machine, so it measures CPU rather than a link: the answer is
+// "how fast could the phone go if the radio were free", which is exactly the
+// question, because measurement has repeatedly found the phone's CPU to be the
+// limit rather than the air.
+func BenchmarkEndToEndDownload(b *testing.B) {
+	const payloadSize = 4 << 20
+
+	destination := httpServer(b, strings.Repeat("x", payloadSize))
+
+	serverPrivate, serverPublic := keyPair(b)
+	clientPrivate, clientPublic := keyPair(b)
+	port := freeUDPPort(b)
+
+	endpoint, err := Start(fmt.Sprintf(
+		"private_key=%s
+listen_port=%d
+public_key=%s
+allowed_ip=10.13.37.2/32
+",
+		serverPrivate, port, clientPublic))
+	if err != nil {
+		b.Fatalf("endpoint did not start: %v", err)
+	}
+	defer endpoint.Stop()
+
+	client, clientNet := wireguardClient(b, clientPrivate, serverPublic, port)
+	defer client.Close()
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{DialContext: clientNet.DialContext},
+		Timeout:   60 * time.Second,
+	}
+
+	// The handshake takes a moment, and timing it would measure the handshake.
+	warm := time.Now().Add(20 * time.Second)
+	for time.Now().Before(warm) {
+		response, err := httpClient.Get("http://" + destination + "/")
+		if err == nil {
+			_, _ = io.Copy(io.Discard, response.Body)
+			response.Body.Close()
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	b.ReportAllocs()
+	b.SetBytes(payloadSize)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		response, err := httpClient.Get("http://" + destination + "/")
+		if err != nil {
+			b.Fatalf("the tunnel stopped carrying traffic: %v", err)
+		}
+		n, err := io.Copy(io.Discard, response.Body)
+		response.Body.Close()
+		if err != nil {
+			b.Fatalf("reading through the tunnel: %v", err)
+		}
+		if n != payloadSize {
+			b.Fatalf("short read through the tunnel: %d of %d", n, payloadSize)
+		}
 	}
 }
