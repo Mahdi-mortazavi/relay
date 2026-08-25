@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -346,4 +348,142 @@ func nonLoopbackAddr(t *testing.T) string {
 	}
 	defer conn.Close()
 	return conn.LocalAddr().(*net.UDPAddr).IP.String()
+}
+
+// What leak protection costs, in numbers.
+//
+// The question that started this -- "why does it get slower when I turn leak
+// protection on?" -- has been answered with reasoning twice and measured never.
+// It is answerable here without a phone, because the filters are a property of
+// the machine rather than of the tunnel: they are installed whether or not any
+// traffic is flowing through WireGuard, so their cost can be measured against a
+// local server with nothing else in the way.
+//
+// The rules sit at ALE_AUTH_CONNECT, which Windows evaluates once per
+// connection and never per packet. So the shape of the answer should be: a
+// little more time to open a connection, and no difference at all to the
+// throughput of one already open. This measures both rather than asserting it.
+//
+// Bounds are deliberately loose. A shared runner cannot support a tight timing
+// assertion without flaking, and the failure worth catching is not "three
+// percent slower", it is "something here is per-packet after all".
+func TestWhatLeakProtectionCosts(t *testing.T) {
+	if os.Getenv("RELAYWG_CLIENT") == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+
+	destination := echoListener(t)
+
+	connectBefore := medianConnectTime(t, destination)
+	throughputBefore := localThroughput(t, destination)
+	t.Logf("leak protection OFF  connect %v   throughput %.0f MB/s",
+		connectBefore, throughputBefore)
+
+	stop := startProtectedTunnel(t, "RelayTestCost", "1.1.1.1")
+	defer stop()
+
+	connectAfter := medianConnectTime(t, destination)
+	throughputAfter := localThroughput(t, destination)
+	t.Logf("leak protection ON   connect %v   throughput %.0f MB/s",
+		connectAfter, throughputAfter)
+
+	// Per-connection cost. Generous, because the absolute numbers are tens of
+	// microseconds on a machine that is also running a CI job.
+	if connectBefore > 0 && connectAfter > 8*connectBefore {
+		t.Errorf("opening a connection went from %v to %v with leak protection on.\n"+
+			"These rules are evaluated once per connection; a jump this size means "+
+			"something is being evaluated far more often than that.",
+			connectBefore, connectAfter)
+	}
+
+	// Per-byte cost, which there should be none of at all.
+	if throughputBefore > 0 && throughputAfter < throughputBefore/3 {
+		t.Errorf("throughput on an established connection went from %.0f to %.0f MB/s "+
+			"with leak protection on.\nThe rules sit at connect time and must not "+
+			"touch a connection that is already open.",
+			throughputBefore, throughputAfter)
+	}
+}
+
+// echoListener is a local server that reads and echoes, on a real interface.
+func echoListener(t *testing.T) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp4", nonLoopbackAddr(t)+":0")
+	if err != nil {
+		t.Skipf("no routable interface to measure against: %v", err)
+	}
+	t.Cleanup(func() { listener.Close() })
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				_, _ = io.Copy(conn, conn)
+			}()
+		}
+	}()
+	return listener.Addr().String()
+}
+
+// medianConnectTime opens and closes a connection repeatedly and takes the
+// middle time, so one scheduling hiccup does not become the answer.
+func medianConnectTime(t *testing.T, address string) time.Duration {
+	t.Helper()
+
+	const samples = 25
+	times := make([]time.Duration, 0, samples)
+	for i := 0; i < samples; i++ {
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+		if err != nil {
+			t.Fatalf("connect %d failed: %v", i, err)
+		}
+		times = append(times, time.Since(start))
+		conn.Close()
+	}
+	sort.Slice(times, func(a, b int) bool { return times[a] < times[b] })
+	return times[len(times)/2]
+}
+
+// localThroughput measures one already-open connection, which is where a
+// per-packet cost would show up and a per-connection one would not.
+func localThroughput(t *testing.T, address string) float64 {
+	t.Helper()
+
+	const size = 8 << 20
+
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	if err != nil {
+		t.Fatalf("throughput connection: %v", err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(60 * time.Second))
+
+	payload := make([]byte, 64<<10)
+	start := time.Now()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.CopyN(io.Discard, conn, size)
+		done <- err
+	}()
+	for sent := 0; sent < size; sent += len(payload) {
+		if _, err := conn.Write(payload); err != nil {
+			t.Fatalf("throughput write: %v", err)
+		}
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("throughput read: %v", err)
+	}
+
+	elapsed := time.Since(start).Seconds()
+	if elapsed <= 0 {
+		return 0
+	}
+	return float64(size) / elapsed / (1 << 20)
 }
