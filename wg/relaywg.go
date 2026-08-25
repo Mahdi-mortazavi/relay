@@ -47,7 +47,7 @@ const (
 	//
 	// TCP says when it is done, so this is only the backstop for a peer that
 	// vanished without a FIN.
-	tcpIdleTimeout = 5 * time.Minute
+	defaultTCPIdleTimeout = 5 * time.Minute
 
 	// UDP never says it is done, so this is the only thing that reaps it -- and
 	// a browsing session opens one flow per DNS lookup, each holding two
@@ -56,7 +56,18 @@ const (
 	// for exchanges that ended in milliseconds. A minute is still generous for
 	// the flows that legitimately persist: QUIC and games keep themselves
 	// alive, and anything that does not is finished.
-	udpIdleTimeout = 60 * time.Second
+	defaultUDPIdleTimeout = 60 * time.Second
+)
+
+// The timeouts the forwarders actually use.
+//
+// Variables rather than constants for one reason: the reliability tests have to
+// watch a connection cross an idle timeout and come out the other side, and at
+// five minutes each that is a suite nobody runs. Nothing outside the tests ever
+// writes them, and the values are the constants above.
+var (
+	tcpIdleTimeout = defaultTCPIdleTimeout
+	udpIdleTimeout = defaultUDPIdleTimeout
 )
 
 // Endpoint is one running Full Mode session. It is safe to call Stop on an

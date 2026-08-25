@@ -184,6 +184,8 @@ jobs:
             'TestLeakProtectionLeavesLoopbackAlone',              # protecting the tunnel must not break localhost
             'TestLeakProtectionBlocksWhatItShouldAndNothingElse'  # and blocks exactly what it should, no more
           )
+          # The endpoint's own reliability shapes run in the CI workflow; these
+          # are the ones that need Windows.
           foreach ($name in $required) {
             if (-not ($output | Select-String -SimpleMatch "--- PASS: $name" -Quiet)) {
               Write-Error "$name did not run — this job proves nothing without it"
