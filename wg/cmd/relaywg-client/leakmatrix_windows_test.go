@@ -76,15 +76,21 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 		{"a VPN's UDP transport (non-53)", func() error { return sendUDP(vpnProbe + ":51820") }, true},
 		{"a VPN's TCP transport (443)", func() error { return dialTCP(vpnProbe + ":443") }, true},
 		{"IPv6 off the machine", func() error { return sendUDP("[2606:4700:4700::1111]:53") }, false},
-		// The IPv6 block, on a machine with no IPv6 route.
+		// IPv6 to this machine's own link-local address, which must keep
+		// working.
 		//
-		// A global address is unreachable on this runner, so probing one proves
-		// nothing -- "no route" and "blocked" look identical, and that line has
-		// read NOT MEASURED on every run so far. A link-local address is
-		// reachable, is not loopback, and goes through the same
-		// ALE_AUTH_CONNECT_V6 rule, so it is the one place the block can be
-		// shown to work rather than assumed to.
-		{"IPv6 on the local link", func() error { return dialTCP(linkLocal) }, false},
+		// This was added trying to measure the *block*, on the reasoning that a
+		// link-local address is reachable without an IPv6 route and is not
+		// loopback. Measurement said otherwise: it stays allowed, because WFP
+		// classifies traffic to any of the machine's own addresses as loopback,
+		// so the loopback permit covers it. Which makes the block to a remote
+		// IPv6 address unmeasurable from a single machine -- and that line is
+		// reported NOT MEASURED rather than quietly asserted.
+		//
+		// Kept, pointing the other way, because what it does measure is worth
+		// keeping: local IPv6 services must survive leak protection for the
+		// same reason localhost must.
+		{"IPv6 to this machine", func() error { return dialTCP(linkLocal) }, true},
 	}
 
 	before := make([]error, len(probes))
