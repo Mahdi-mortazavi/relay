@@ -180,7 +180,8 @@ jobs:
             'TestTheAdapterComesUpAndCarriesRoutedTraffic',       # the adapter comes up and carries routed traffic
             'TestReadyIsWithheldWhenThePeerNeverAnswers',         # READY means a handshake, not merely an adapter
             'TestPeerPublicKeyIsThePeersNotTheDevices',           # an endpoint update names the peer, not the device
-            'TestRoamRejectsWhatIsNotAnAddressAndPort'            # a beacon is untrusted input
+            'TestRoamRejectsWhatIsNotAnAddressAndPort',           # a beacon is untrusted input
+            'TestLeakProtectionLeavesLoopbackAlone'               # protecting the tunnel must not break localhost
           )
           foreach ($name in $required) {
             if (-not ($output | Select-String -SimpleMatch "--- PASS: $name" -Quiet)) {
