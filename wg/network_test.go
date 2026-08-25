@@ -78,14 +78,20 @@ func newUnreliableLink(t *testing.T, endpointPort int) *unreliableLink {
 
 func (l *unreliableLink) port() int { return l.fromClient.LocalAddr().(*net.UDPAddr).Port }
 
-// drop decides this datagram's fate. Deterministic enough to be reproducible
-// and spread out enough to be a loss pattern rather than a single gap.
+// drop decides this datagram's fate: one in every N, evenly spaced.
+//
+// Evenly spaced matters more than it looks. The first version of this dropped
+// the first twenty of every hundred, which is not twenty percent loss -- it is
+// a twenty-datagram burst, repeated. TCP treats a burst that long as a dead
+// path and backs off, so a transfer that would finish in seconds on a genuinely
+// lossy link did not finish at all. The test was measuring the harness.
 func (l *unreliableLink) drop() bool {
 	percent := l.dropPercent.Load()
 	if percent <= 0 {
 		return false
 	}
-	return int32(l.counter.Add(1)%100) < percent
+	every := uint64(100 / percent)
+	return l.counter.Add(1)%every == 0
 }
 
 func (l *unreliableLink) pumpClientToServer() {
@@ -215,8 +221,13 @@ func exchangeThrough(clientNet *netstack.Net, destination string, timeout time.D
 // the endpoint's gVisor stack. That stack has SACK turned on for exactly this
 // reason, and this is the test that says so: a fifth of the datagrams are
 // thrown away and the bytes still have to arrive exactly.
+//
+// Five percent, evenly spaced. That is already a bad link -- a Wi-Fi edge or a
+// congested mobile cell -- and it is chosen to be realistic rather than
+// theatrical: a rate high enough that no TCP finishes would prove nothing about
+// the tunnel.
 func TestATransferSurvivesPacketLoss(t *testing.T) {
-	const size = 512 << 10
+	const size = 256 << 10
 
 	payload := make([]byte, size)
 	if _, err := rand.Read(payload); err != nil {
@@ -227,7 +238,7 @@ func TestATransferSurvivesPacketLoss(t *testing.T) {
 	link, clientNet, destination, stop := tunnelOverLink(t)
 	defer stop()
 
-	link.dropPercent.Store(20)
+	link.dropPercent.Store(5)
 	defer link.dropPercent.Store(0)
 
 	conn := dialThroughTunnel(t, clientNet, destination)
@@ -242,7 +253,7 @@ func TestATransferSurvivesPacketLoss(t *testing.T) {
 
 	returned := make([]byte, size)
 	if _, err := io.ReadFull(conn, returned); err != nil {
-		t.Fatalf("the transfer did not survive 20%% packet loss: %v", err)
+		t.Fatalf("the transfer did not survive 5%% packet loss: %v", err)
 	}
 	if err := <-sent; err != nil {
 		t.Fatalf("upload failed under loss: %v", err)
