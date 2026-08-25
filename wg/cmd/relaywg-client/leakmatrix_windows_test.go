@@ -54,6 +54,7 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 	lan := listenOrSkip(t, "tcp4", nonLoopbackAddr(t)+":0")
 	loopback4 := listenOrSkip(t, "tcp4", "127.0.0.1:0")
 	loopback6 := listenOrSkip(t, "tcp6", "[::1]:0")
+	linkLocal := linkLocalListener(t)
 
 	probes := []struct {
 		what        string
@@ -75,6 +76,21 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 		{"a VPN's UDP transport (non-53)", func() error { return sendUDP(vpnProbe + ":51820") }, true},
 		{"a VPN's TCP transport (443)", func() error { return dialTCP(vpnProbe + ":443") }, true},
 		{"IPv6 off the machine", func() error { return sendUDP("[2606:4700:4700::1111]:53") }, false},
+		// IPv6 to this machine's own link-local address, which must keep
+		// working.
+		//
+		// This was added trying to measure the *block*, on the reasoning that a
+		// link-local address is reachable without an IPv6 route and is not
+		// loopback. Measurement said otherwise: it stays allowed, because WFP
+		// classifies traffic to any of the machine's own addresses as loopback,
+		// so the loopback permit covers it. Which makes the block to a remote
+		// IPv6 address unmeasurable from a single machine -- and that line is
+		// reported NOT MEASURED rather than quietly asserted.
+		//
+		// Kept, pointing the other way, because what it does measure is worth
+		// keeping: local IPv6 services must survive leak protection for the
+		// same reason localhost must.
+		{"IPv6 to this machine", func() error { return dialTCP(linkLocal) }, true},
 	}
 
 	before := make([]error, len(probes))
@@ -178,6 +194,55 @@ func startProtectedTunnel(t *testing.T, adapter, resolver string) func() {
 		t.Fatal("the client never said whether leak protection was installed")
 	}
 	return stop
+}
+
+// linkLocalListener listens on this machine's own link-local IPv6 address.
+//
+// Not loopback, so the loopback permit does not cover it, and reachable without
+// any IPv6 route to the internet -- which is what makes it the only address on
+// this runner that can tell a working IPv6 block from an absent one.
+func linkLocalListener(t *testing.T) string {
+	t.Helper()
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		t.Skipf("cannot enumerate interfaces: %v", err)
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ipNet, ok := address.(*net.IPNet)
+			if !ok || ipNet.IP.To4() != nil || !ipNet.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			// The zone is required: a link-local address is only meaningful
+			// alongside the interface it belongs to.
+			host := fmt.Sprintf("[%s%%%s]:0", ipNet.IP, iface.Name)
+			listener, err := net.Listen("tcp6", host)
+			if err != nil {
+				continue
+			}
+			t.Cleanup(func() { listener.Close() })
+			go func() {
+				for {
+					conn, err := listener.Accept()
+					if err != nil {
+						return
+					}
+					conn.Close()
+				}
+			}()
+			return listener.Addr().String()
+		}
+	}
+	t.Skip("this machine has no usable link-local IPv6 address")
+	return ""
 }
 
 func listenOrSkip(t *testing.T, network, address string) string {
