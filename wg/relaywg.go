@@ -23,11 +23,11 @@ package relaywg
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
@@ -43,10 +43,20 @@ const (
 	// Matches WireGuard's own default and leaves room under a 1500-byte path.
 	mtu = 1420
 
-	// How long a forwarded connection may sit with nothing crossing it. UDP has
-	// no close, so without this every DNS lookup would leak a goroutine and a
-	// socket for the life of the session.
-	idleTimeout = 5 * time.Minute
+	// How long a forwarded connection may sit with nothing crossing it.
+	//
+	// TCP says when it is done, so this is only the backstop for a peer that
+	// vanished without a FIN.
+	tcpIdleTimeout = 5 * time.Minute
+
+	// UDP never says it is done, so this is the only thing that reaps it -- and
+	// a browsing session opens one flow per DNS lookup, each holding two
+	// goroutines, a socket and a 64 KB buffer until it is reaped. Five minutes
+	// of that on a phone is hundreds of megabytes and thousands of goroutines
+	// for exchanges that ended in milliseconds. A minute is still generous for
+	// the flows that legitimately persist: QUIC and games keep themselves
+	// alive, and anything that does not is finished.
+	udpIdleTimeout = 60 * time.Second
 )
 
 // Endpoint is one running Full Mode session. It is safe to call Stop on an
@@ -184,27 +194,88 @@ var spliceBuffers = sync.Pool{
 // Both directions are needed and both must be able to end the pair: a download
 // finishes when the remote closes, an upload when the client does, and waiting
 // for the wrong one hangs the transfer.
-func forward(a, b net.Conn) {
+func forward(a, b net.Conn, idle time.Duration) {
 	defer a.Close()
 	defer b.Close()
 
+	// One clock for the pair, not one per direction. A download is silent
+	// upstream for its whole length and a upload is silent downstream, so a
+	// per-direction timeout reaps exactly the transfers it exists to protect.
+	var seen activity
+	seen.mark()
+
 	done := make(chan struct{}, 2)
-	copyOneWay := func(dst, src net.Conn) {
-		_ = extendDeadline(dst)
-		// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
-		// fresh buffer for every call, which is two allocations per connection
-		// on a device that is already the bottleneck; at 64 KB it also halves
-		// the number of round trips through the netstack per megabyte.
-		buf := spliceBuffers.Get().(*[]byte)
-		_, _ = io.CopyBuffer(dst, src, *buf)
-		spliceBuffers.Put(buf)
-		done <- struct{}{}
-	}
-	go copyOneWay(a, b)
-	go copyOneWay(b, a)
+	go copyUntilIdle(a, b, idle, &seen, done)
+	go copyUntilIdle(b, a, idle, &seen, done)
 	<-done
 }
 
-func extendDeadline(c net.Conn) error {
-	return c.SetDeadline(time.Now().Add(idleTimeout))
+// activity is when either direction of a pair last moved a byte.
+type activity struct {
+	nanos atomic.Int64
+}
+
+func (a *activity) mark() { a.nanos.Store(time.Now().UnixNano()) }
+
+func (a *activity) last() time.Time { return time.Unix(0, a.nanos.Load()) }
+
+func (a *activity) idleFor() time.Duration { return time.Since(a.last()) }
+
+// copyUntilIdle copies until the source ends, the destination fails, or nothing
+// crosses for [idle].
+//
+// The deadline moves forward as data flows, which is what an idle timeout is
+// and what this was documented to be. What it actually did was call SetDeadline
+// once, to five minutes from the moment the connection opened, and never touch
+// it again -- so every forwarded connection was torn down five minutes after it
+// started no matter how busy it was. A large download, a video call, an SSH
+// session and a websocket all died at the same mark, which from the outside is
+// indistinguishable from a flaky network, and is exactly what a user reported
+// as instability.
+func copyUntilIdle(dst, src net.Conn, idle time.Duration, seen *activity, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
+
+	// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
+	// fresh buffer for every call, which is two allocations per connection on a
+	// device that is already the bottleneck; at 64 KB it also halves the number
+	// of round trips through the netstack per megabyte.
+	buf := spliceBuffers.Get().(*[]byte)
+	defer spliceBuffers.Put(buf)
+
+	// The deadline currently armed on the sockets. Re-arming allocates a
+	// runtime timer, and doing it on every read cost sixty allocations per
+	// megabyte for no benefit -- the deadline only has to be roughly right,
+	// because an early expiry is caught below and simply re-armed.
+	var armed time.Time
+	for {
+		// Armed from when the pair last moved, so a direction that is quiet
+		// because the other one is busy wakes up and goes back to waiting.
+		if want := seen.last().Add(idle); want.Sub(armed) > idle/2 {
+			armed = want
+			_ = src.SetReadDeadline(want)
+			_ = dst.SetWriteDeadline(want)
+		}
+
+		n, readErr := src.Read(*buf)
+		if n > 0 {
+			seen.mark()
+			if _, writeErr := dst.Write((*buf)[:n]); writeErr != nil {
+				return
+			}
+			seen.mark()
+		}
+		if readErr != nil {
+			// A timeout only ends things if the whole pair has gone quiet. The
+			// first version of this checked only its own direction, and the
+			// test that caught it is the one worth keeping: a download is
+			// silent upstream from beginning to end, so that version killed
+			// every download at the timeout instead of at five minutes, which
+			// is a worse bug than the one it was fixing.
+			var timeout net.Error
+			if errors.As(readErr, &timeout) && timeout.Timeout() && seen.idleFor() < idle {
+				continue
+			}
+			return
+		}
+	}
 }

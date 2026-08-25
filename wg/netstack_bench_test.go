@@ -110,7 +110,7 @@ func BenchmarkForward(b *testing.B) {
 		clientSide, tunnelSide := net.Pipe()
 		remoteSide, originSide := net.Pipe()
 
-		go forward(tunnelSide, remoteSide)
+		go forward(tunnelSide, remoteSide, tcpIdleTimeout)
 
 		var wg sync.WaitGroup
 		wg.Add(2)

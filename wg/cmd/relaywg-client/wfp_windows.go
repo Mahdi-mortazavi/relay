@@ -22,6 +22,14 @@ package main
 // a phone that changes address still works, which a blanket block would have
 // killed.
 //
+// One exception is carved back out: loopback is permitted above both blocks.
+// "Block all of ALE_AUTH_CONNECT_V6" turned out to mean all of it, loopback
+// included, and on Windows "localhost" resolves to ::1 before 127.0.0.1 — so
+// the first version of this broke every localhost connection on the machine
+// for as long as Relay was connected. Permitting it cannot leak, because
+// loopback never reaches a network interface for anything to escape by.
+// TestLeakProtectionLeavesLoopbackAlone fails without it.
+//
 // Every filter is added inside a session opened with FWPM_SESSION_FLAG_DYNAMIC.
 // Windows destroys the whole session, and with it every filter, when this
 // process ends — including when it is killed or crashes. That is the same
@@ -134,10 +142,15 @@ const (
 	fwpActionPermit          = 0x00000002 | fwpActionFlagTerminating
 
 	fwpMatchEqual = 0
+	// FWP_MATCH_FLAGS_ALL_SET, the seventh member of FWP_MATCH_TYPE.
+	fwpMatchFlagsAllSet = 6
 
 	fwpUint8  = 1
 	fwpUint16 = 2
 	fwpUint32 = 3
+
+	// FWP_CONDITION_FLAG_IS_LOOPBACK: the packet never leaves the machine.
+	fwpConditionFlagIsLoopback = 0x00000001
 
 	fwpmSessionFlagDynamic = 0x00000001
 	rpcCAuthnWinNT         = 10
@@ -163,6 +176,11 @@ var (
 	conditionIPRemoteAddress = windows.GUID{
 		Data1: 0xb235ae9a, Data2: 0x1d64, Data3: 0x49b8,
 		Data4: [8]byte{0xa4, 0x4c, 0x5f, 0xf3, 0xd9, 0x09, 0x50, 0x45},
+	}
+	// FWPM_CONDITION_FLAGS, which carries FWP_CONDITION_FLAG_IS_LOOPBACK.
+	conditionFlags = windows.GUID{
+		Data1: 0x632ce23b, Data2: 0x5167, Data3: 0x435c,
+		Data4: [8]byte{0x86, 0xd7, 0xe9, 0x03, 0x68, 0x4a, 0xa8, 0x0c},
 	}
 	// FWPM_SUBLAYER_UNIVERSAL. Using the built-in sublayer means no provider and
 	// no sublayer registration, which is the entire code path that failed.
@@ -208,9 +226,38 @@ func enableLeakProtection(resolvers []netip.Addr) (func(), error) {
 	// Weights are compared within the sublayer; the permits must outrank the
 	// blocks or the tunnel's own resolver would be blocked along with the rest.
 	const (
-		weightBlock  = 8
-		weightPermit = 12
+		weightBlock    = 8
+		weightPermit   = 12
+		weightLoopback = 14
 	)
+
+	// Loopback first, and above everything else.
+	//
+	// The IPv6 block below is written as "all of ALE_AUTH_CONNECT_V6", and that
+	// is literally all of it: WFP classifies loopback at this layer too, so it
+	// took ::1 with it. On Windows "localhost" resolves to ::1 before
+	// 127.0.0.1, which means that while Relay was connected, every localhost
+	// connection on the machine -- a development server, a database client, a
+	// desktop app talking to its own helper -- either failed outright or sat
+	// out a connect attempt before falling back to IPv4. That is not a leak
+	// being closed; it is unrelated software being broken, and it made "turn
+	// leak protection off" the fix for a machine that had gone slow.
+	//
+	// Permitting it cannot leak anything. Loopback does not reach a network
+	// interface at all, so there is no adapter for it to escape by. This is the
+	// same exception wireguard-windows carves out, for the same reason.
+	for _, layer := range []windows.GUID{layerAleAuthConnectV4, layerAleAuthConnectV6} {
+		if err := addFilter(engine, filterSpec{
+			name:     "Relay: permit loopback, which never leaves the machine",
+			layer:    layer,
+			action:   fwpActionPermit,
+			weight:   weightLoopback,
+			loopback: true,
+		}); err != nil {
+			shutdown()
+			return nil, err
+		}
+	}
 
 	// IPv6, all of it. This client configures AF_INET only, so every v6
 	// connection was leaving by the physical adapter with the real address on
@@ -270,12 +317,25 @@ type filterSpec struct {
 	remotePort uint16
 	remoteIPv4 netip.Addr
 	hasRemote  bool
+	// Matches only traffic Windows has already decided is loopback, rather
+	// than trusting an address: ::1 is not the only way to reach yourself.
+	loopback bool
 }
 
 func addFilter(engine uintptr, spec filterSpec) error {
 	name, _ := windows.UTF16PtrFromString(spec.name)
 
-	conditions := make([]fwpmFilterCondition0, 0, 2)
+	conditions := make([]fwpmFilterCondition0, 0, 3)
+	if spec.loopback {
+		conditions = append(conditions, fwpmFilterCondition0{
+			fieldKey:  conditionFlags,
+			matchType: fwpMatchFlagsAllSet,
+			conditionValue: fwpConditionValue0{
+				kind:  fwpUint32,
+				value: uintptr(fwpConditionFlagIsLoopback),
+			},
+		})
+	}
 	if spec.remotePort != 0 {
 		conditions = append(conditions, fwpmFilterCondition0{
 			fieldKey:  conditionIPRemotePort,
