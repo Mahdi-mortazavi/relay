@@ -116,6 +116,23 @@ class SharingService : Service() {
             }
         }
 
+        // Ask about a waiting computer even when nobody is looking at the app.
+        //
+        // The dialog in MainActivity only reaches someone already watching the
+        // screen, which is the opposite of the normal case: you press Connect
+        // on the laptop, because that is where you are, and the phone is face
+        // down on the desk. Before this, that request simply timed out having
+        // shown nothing at all.
+        scope.launch {
+            ConnectionRepository.clientGate.pending.collect { waiting ->
+                if (waiting == null) {
+                    ApprovalNotice.clear(this@SharingService)
+                } else {
+                    ApprovalNotice.show(this@SharingService, waiting.address)
+                }
+            }
+        }
+
         // The only update check that reaches someone who never opens the app.
         //
         // Relay is designed to be started from the tile, the widget or a
@@ -159,6 +176,16 @@ class SharingService : Service() {
                 }
             }
             ACTION_STOP -> stopSharing()
+            ACTION_ALLOW_CLIENT, ACTION_DENY_CLIENT -> {
+                val address = intent.getStringExtra(EXTRA_CLIENT_ADDRESS)
+                if (address != null) {
+                    ConnectionRepository.clientGate.resolve(
+                        address,
+                        allowed = intent.action == ACTION_ALLOW_CLIENT,
+                    )
+                }
+                ApprovalNotice.clear(this)
+            }
         }
         return START_STICKY
     }
@@ -639,6 +666,11 @@ class SharingService : Service() {
     companion object {
         const val ACTION_START = "io.relay.app.action.START"
         const val ACTION_STOP = "io.relay.app.action.STOP"
+
+        /** Answers to the approval notification, carrying the address asked about. */
+        const val ACTION_ALLOW_CLIENT = "io.relay.app.action.ALLOW_CLIENT"
+        const val ACTION_DENY_CLIENT = "io.relay.app.action.DENY_CLIENT"
+        const val EXTRA_CLIENT_ADDRESS = "io.relay.app.extra.CLIENT_ADDRESS"
         const val CHANNEL_ID = "sharing"
         const val NOTIFICATION_ID = 1
         const val HOTSPOT_POLL_MS = 2000L

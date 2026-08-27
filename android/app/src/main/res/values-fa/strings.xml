@@ -126,4 +126,9 @@
     <string name="onboarding_shortcut_body">«شروع اشتراک‌گذاری» همان‌جا هست — چیزی برای تنظیم نیست.</string>
     <string name="update_channel">به‌روزرسانی‌ها</string>
     <string name="update_notice_body">برای باز کردن رله و نصب آن بزنید.</string>
+    <string name="approval_channel">درخواست‌های اتصال</string>
+    <string name="approval_title">به این کامپیوتر اجازه می‌دهید؟</string>
+    <string name="approval_body">%1$s می‌خواهد از اینترنت شما استفاده کند.</string>
+    <string name="approval_allow">اجازه بده</string>
+    <string name="approval_deny">رد کن</string>
 </resources>
