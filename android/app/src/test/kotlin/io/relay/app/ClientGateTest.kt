@@ -35,6 +35,29 @@ class ClientGateTest {
     }
 
     @Test
+    fun `a missed prompt does not silence every later attempt`() = runTest {
+        // The bug this pins, reproduced on a device before it was found here:
+        // press Connect on the laptop while the phone is face down, miss the
+        // prompt, and every attempt afterwards came back ERR_PAIRING_DENIED in
+        // milliseconds with no dialog at all. The one prompt that was missed
+        // was the only prompt there would ever be.
+        //
+        // Refusing on silence is correct and stays -- a phone in a pocket must
+        // fail closed. What was wrong was remembering it: nobody decided
+        // anything, so there is nothing to remember.
+        val gate = ClientGate(timeoutMs = 50)
+
+        assertFalse("silence must still refuse", gate.authorize("192.168.1.8"))
+
+        // The person picks the phone up and the laptop tries again. They must
+        // be asked, not refused on the strength of a question they never saw.
+        val second = async { gate.authorize("192.168.1.8") }
+        waitForPrompt(gate, "192.168.1.8")
+        gate.resolve("192.168.1.8", allowed = true)
+        assertTrue("a second attempt must ask again", second.await())
+    }
+
+    @Test
     fun `an approved address is not asked about twice`() = runTest {
         val gate = ClientGate()
         val first = async { gate.authorize("192.168.1.7") }

@@ -126,4 +126,9 @@
     <string name="onboarding_shortcut_body">Start Sharing is already there — nothing to set up.</string>
     <string name="update_channel">Updates</string>
     <string name="update_notice_body">Tap to open Relay and install it.</string>
+    <string name="approval_channel">Connection requests</string>
+    <string name="approval_title">Allow this computer?</string>
+    <string name="approval_body">%1$s wants to share your connection.</string>
+    <string name="approval_allow">Allow</string>
+    <string name="approval_deny">Deny</string>
 </resources>
