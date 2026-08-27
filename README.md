@@ -2,13 +2,13 @@
 
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/cover-mobile.svg">
-  <img src="docs/assets/cover.svg" alt="Relay — share your phone's internet with your PC. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار." width="100%">
+  <img src="docs/assets/cover.svg" alt="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار." width="100%">
 </picture>
 
-# Relay ⚡
+<br>
 
-### **Share your phone's internet with your PC.**
-### **Click one row. That's the entire setup.**
+### **Your laptop has no internet. Your phone does.**
+### **Relay moves it across — in about five seconds.**
 
 <br>
 
@@ -32,9 +32,67 @@
 
 ---
 
-Your laptop has no internet. Your phone does. **Relay moves it across** — over your own Wi-Fi or the phone's hotspot, through an encrypted WireGuard tunnel, with **no account, no server, and nothing leaving your two devices**.
+Hi, I'm **Mahdi**. I built Relay because I kept ending up with a laptop that had
+no internet and a phone that did, and every fix was worse than the problem —
+USB tethering that needed drivers, hotspots that ate the battery, apps that
+wanted an account for something that never has to leave my desk.
 
-It is a free, open-source **reverse tethering** and **internet sharing** tool for **Android → Windows**. Every application on the PC goes through the phone — TCP *and* UDP — and **no root is required**.
+**Relay is reverse tethering done properly.** Your phone shares its connection
+with your PC over an encrypted **WireGuard** tunnel — across your own Wi-Fi or
+the phone's hotspot. Every application on the PC goes through it, **TCP and
+UDP**, so games, video calls and installers work, not just the browser.
+
+**No root. No account. No server. Nothing leaves your two devices.**
+
+<br>
+
+<div align="center">
+
+<img src="docs/assets/android-sharing.png" alt="Relay on Android: one device connected, live transfer totals, and the two-digit pairing code" width="300">
+&nbsp;&nbsp;
+<img src="docs/assets/windows-idle.png" alt="Relay on Windows: a small window that lives in the system tray" width="330">
+
+<sub>**Left:** the phone, sharing. **Right:** the PC, ready to connect.</sub>
+
+</div>
+
+---
+
+## ⚡ Setup, in about five seconds
+
+<div align="center">
+
+| 1️⃣ | 2️⃣ | 3️⃣ |
+|:---:|:---:|:---:|
+| **Phone** | **PC** | **Done** |
+| Tap **Start Sharing** | Click the phone in the list<br><sub>or type the two digits</sub> | Approve it on the phone |
+
+</div>
+
+That is the whole thing. The PC finds phones that are already sharing, so there
+is usually nothing to type at all. No camera? Type the two digits. No list? Scan
+the QR.
+
+---
+
+## 🎬 See it working
+
+**[KASRA MAX](https://github.com/Mahdi-mortazavi/relay/issues)** made a full
+walkthrough — Persian narration with English subtitles, about four minutes, from
+install to browsing.
+
+<div align="center">
+
+<img src="docs/assets/video-kasra-thumb.jpg" alt="Relay setup walkthrough by KASRA MAX — Persian narration with English subtitles" width="640">
+
+</div>
+
+> 🙏 **Thank you, Kasra.** He also found three real bugs by using Relay properly
+> and reporting exactly what he saw — including [the one where the approval
+> prompt never appeared](https://github.com/Mahdi-mortazavi/relay/releases/tag/v2.7.1),
+> which turned out to be two separate faults hiding behind each other. Reports
+> like his are worth more than any test I can write, because they come from
+> somewhere I was not looking.
 
 ---
 
@@ -42,105 +100,96 @@ It is a free, open-source **reverse tethering** and **internet sharing** tool fo
 
 | | File | Who it's for |
 |---|---|---|
-| **Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10/11. Installs for you alone. |
+| **Windows** | [**Relay-Setup-x64.exe**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) | Windows 10/11. Installs for you alone — no admin. |
 | Windows 32-bit | [Relay-Setup-x86.exe](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x86.exe) | Only if you know you need it. |
-| **Android** | [**Relay-android-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8.0+. Almost every phone since 2017. |
-| Android (any) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Bigger, works everywhere. Use this if the one above says *"app not compatible"*. |
+| **Android** | [**Relay-android-arm64-v8a.apk**](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) | Android 8+. Almost every phone since 2017. |
+| Android (any) | [Relay-android-universal.apk](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-universal.apk) | Bigger, works everywhere. Take this if the one above says *App not installed*. |
 | Checksums | [SHA256SUMS.txt](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/SHA256SUMS.txt) | `sha256sum -c SHA256SUMS.txt` |
 
-The two Android files are the **same app** from the same build, differing only in which CPU architectures they carry. If one seems to behave differently, it is an older copy — uninstall and reinstall.
-
-> **Windows warns on first run** because the installer isn't code-signed yet — choose **More info → Run anyway**.
-> **Android says "App not installed"?** [Every cause I have seen is on this page](docs/install-troubleshooting.md).
-
----
-
-## 🚀 Setup, in about five seconds
-
-**On your phone**
-
-1. Turn on your hotspot — or put the phone and the PC on the same Wi-Fi.
-2. Open Relay and tap **Start Sharing**.
-3. The screen shows a QR code and a **two-digit number**.
-
-**On your PC**
-
-4. Open Relay. **Your phone is already in the list** — click it.
-5. Tap **Allow** on the phone.
-
-That is the whole thing. The PC is now on your phone's connection, and the window shows what it is carrying: live download and upload speed, totals, tunnel latency, and how long you have been connected.
-
-No camera on the laptop? The two digits work on their own. Prefer the QR? It is still there.
+> **Windows warns on first run** because the installer is not code-signed yet — **More info → Run anyway**.
+> **Android says "App not installed"?** [Every reason I have seen is here](docs/install-troubleshooting.md).
 
 ---
 
 ## ✨ Everything Relay does
 
-### Sharing
+### 🌐 Sharing
 
 | | |
 |---|---|
 | **One WireGuard tunnel** | TCP *and* UDP, so games, calls and installers are shared — not only the browser |
-| **Every application** | Nothing to configure per-app; the whole machine goes through the phone |
+| **Every application** | Nothing to configure per app; the whole machine goes through the phone |
 | **No root** | On either device |
 | **Live statistics** | Download and upload speed, totals, tunnel latency and connection duration, read from the adapter |
 | **Honest state** | "Connected" means a real WireGuard handshake completed, not that an adapter exists |
-| **Follows a moving phone** | When the phone's DHCP lease changes, the tunnel is re-pointed instead of dying |
+| **Follows a moving phone** | A changed address — DHCP renewal, Wi-Fi change, NAT rebinding — re-points the tunnel instead of killing it |
+| **Survives a bad network** | Tested against 5% packet loss, a full outage, and a mid-transfer path change |
 | **Reconnects** | Bounded automatic recovery when the hotspot drops ([ADR-0007](docs/adr/0007-bounded-auto-reconnect.md)) |
 
-### Pairing
+### 🔗 Pairing
 
 | | |
 |---|---|
 | **One click** | Phones already sharing appear on the PC's first screen |
 | **Two-digit code** | For a laptop with no camera |
 | **QR code** | Point the webcam at the phone |
-| **You approve it** | The phone asks before handing out keys, showing the requesting computer's address |
+| **You approve it** | The phone asks before handing out keys, showing the requesting computer's address — in the app **and in the notification shade**, so it reaches you even when you are looking at the laptop |
 
-### On the phone
+### 🛡️ Leak protection
+
+On by default, using Windows Filtering Platform rules the tunnel installs for itself.
+
+| Blocked | Left alone |
+|---|---|
+| DNS to any resolver but the tunnel's | `localhost` and loopback, v4 and v6 |
+| IPv6 leaving the machine | Ordinary IPv4 |
+| | **Other VPNs' traffic** — no port but 53 is touched |
+
+Measured cost: **22 µs per new connection, and nothing per byte.** The rules live
+in a session Windows tears down the instant the tunnel process ends — including
+if it is killed. A dead Relay cannot leave your machine unable to resolve names.
+
+### 📱 On the phone
 
 | | |
 |---|---|
-| **Quick Settings tile** | Start and stop from the notification shade, with the pairing code in the subtitle |
+| **Quick Settings tile** | Start and stop from the shade, with the pairing code in the subtitle |
 | **Home screen widget** | The code, big enough to read while you're looking at the laptop |
 | **Long-press shortcut** | *Start Sharing* straight from the launcher icon |
 | **First-run setup** | Walks through notifications, battery exemption, the tile and the widget — and adds them for you where Android allows it |
+| **Three separate notification channels** | Sharing, updates and approval requests, each silenced independently |
 | **Themed icon** | Follows your wallpaper palette on Android 13+ |
 
-### On the PC
+### 💻 On the PC
 
 | | |
 |---|---|
 | **Lives in the tray** | With minimise and close controls, and Alt-Tab as a way back |
 | **Start with Windows** | A switch in Advanced, using the per-user key — no elevation |
-| **Connect notification** | When the tunnel comes up |
+| **Connect notification** | When the tunnel comes up — and a warning instead if it came up unprotected |
 | **Diagnostic report** | One button, copies what a bug report needs — and nothing is uploaded |
 
-### Updates
+### 🔄 Updates
 
-Relay checks GitHub for a newer release on its own.
-
-**Windows** installs it for you. It checks shortly after launch and then once a
-day, tells you what it found, and waits for a moment when the tunnel is down —
+**Windows updates itself.** It checks shortly after launch and then daily, tells
+you what it found, and installs at the next moment the tunnel is down — because
 installing means stopping Relay, and doing that mid-call would drop the call. It
-closes, updates, and starts again.
+closes, updates, and comes back.
 
-**Android** checks when you open it and when sharing starts, so the tile and the
-widget reach you too, and then offers the update. Android does not let a
-sideloaded app install anything silently, so the last tap is always yours. That
-is a floor the platform sets, not a choice made here.
+**Android checks when you open it and when sharing starts**, so the tile and the
+widget reach you too, then offers the update. Android does not let a sideloaded
+app install anything silently; the last tap is always yours.
 
-Either way the download is checked against the **SHA256SUMS.txt published in
-that same release**, and nothing that fails is kept or installed — a rejected
-download is deleted rather than left on disk. That verification is what makes
-updating safe to automate at all: Relay carries your whole connection, so
-replacing itself has to mean replacing itself with exactly the bytes the release
-published.
+Either way the download is verified against the **`SHA256SUMS.txt` published in
+that same release**. Anything that fails is deleted, not kept. Relay carries your
+whole connection, so replacing itself has to mean replacing itself with exactly
+the bytes the release published.
 
-### Both
+### 🌍 Both
 
 English and Persian throughout, right-to-left correct, with every user-facing
-string enforced by tests.
+string enforced by tests. Twenty-one error codes, each with a human explanation
+in [`docs/errors.md`](docs/errors.md).
 
 ---
 
@@ -151,7 +200,7 @@ This is the part I care most about, so it is a rule rather than a preference:
 - **No accounts, no servers, no telemetry, no analytics.** There is nothing to sign up for, and nowhere for your data to go.
 - **The tunnel is WireGuard.** Its keys are minted per pairing and destroyed when sharing stops.
 - **Keys are never broadcast.** The phone announces only enough to be *found*. The keys travel over a short exchange that you approve on screen, with the requesting computer's address shown.
-- **Nothing outlives the process.** Relay 2.0 changes no system-wide setting, so a crash cannot strand your machine in a broken state.
+- **Nothing outlives the process.** Relay changes no system-wide setting, so a crash cannot strand your machine in a broken state.
 
 A change that adds a network call to anything but your own phone needs a very good reason and a written decision record. That rule is enforced in [`CLAUDE.md`](CLAUDE.md) and in the [ADRs](docs/adr/).
 

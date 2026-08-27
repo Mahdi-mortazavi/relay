@@ -1,241 +1,172 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="1200" height="440" role="img"
-     aria-label="Relay — Share your phone's internet with your PC. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img"
+     aria-label="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
 
   <title>Relay — share your phone's internet with your PC</title>
-  <desc>Relay moves your phone's internet to your computer over an encrypted WireGuard tunnel. No root, no account, no server.</desc>
+  <desc>Android to Windows reverse tethering over an encrypted WireGuard tunnel. No root, no account, no server.</desc>
+
+  <!--
+    Everything here is visible at rest.
+
+    The banner this replaces animated its text in with `animation: … both`, whose
+    start state is opacity 0. Any renderer that does not run those CSS
+    animations therefore held every word at zero opacity forever — and that is
+    not a hypothetical: rasterised here, the hero image of a project with 168
+    stars was a blurry gradient and nothing else.
+
+    So motion is decoration only. Strip every <animate> from this file and it
+    still reads correctly; that is the test it has to pass.
+  -->
 
   <defs>
-    <linearGradient id="ground" x1="0" y1="0" x2="0.35" y2="1">
-      <stop offset="0"    stop-color="#0A0E13"/>
-      <stop offset="0.55" stop-color="#070A0E"/>
-      <stop offset="1"    stop-color="#05070A"/>
+    <linearGradient id="ground" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0"    stop-color="#0B1017"/>
+      <stop offset="0.55" stop-color="#070B11"/>
+      <stop offset="1"    stop-color="#04060A"/>
     </linearGradient>
 
-    <radialGradient id="auroraMint" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#4ADFBF" stop-opacity="0.85"/>
+    <radialGradient id="glowMint" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4ADFBF" stop-opacity="0.55"/>
       <stop offset="1" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="auroraBlue" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#2E7DFF" stop-opacity="0.62"/>
+    <radialGradient id="glowBlue" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2E7DFF" stop-opacity="0.42"/>
       <stop offset="1" stop-color="#2E7DFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="auroraViolet" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#7C5CFF" stop-opacity="0.5"/>
-      <stop offset="1" stop-color="#7C5CFF" stop-opacity="0"/>
-    </radialGradient>
 
-    <filter id="soften" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">
-      <feGaussianBlur stdDeviation="56"/>
-    </filter>
+    <linearGradient id="wordGrad" x1="0" y1="0" x2="1" y2="0.6">
+      <stop offset="0"   stop-color="#FFFFFF"/>
+      <stop offset="0.6" stop-color="#EAF6F2"/>
+      <stop offset="1"   stop-color="#9FEBD8"/>
+    </linearGradient>
 
-    <filter id="lens" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
-      <feGaussianBlur stdDeviation="22" result="b">
-        <animate attributeName="stdDeviation" from="46" to="22" dur="0.9s"
-                 begin="0s" fill="freeze" calcMode="spline" keySplines="0.22 1 0.36 1"/>
-      </feGaussianBlur>
-      <feColorMatrix in="b" type="saturate" values="1.9"/>
-    </filter>
-
-    <linearGradient id="glassFill" x1="0.1" y1="0" x2="0.9" y2="1">
-      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.13"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.065"/>
-      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0.045"/>
-    </linearGradient>
-    <linearGradient id="specular" x1="0" y1="0" x2="0.75" y2="1">
-      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.55"/>
-      <stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.14"/>
-      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0.05"/>
-    </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.10"/>
-      <stop offset="0.5"  stop-color="#FFFFFF" stop-opacity="0.16"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.10"/>
-      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
     <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0"    stop-color="#4ADFBF" stop-opacity="0"/>
-      <stop offset="0.12" stop-color="#4ADFBF" stop-opacity="0.55"/>
-      <stop offset="0.5"  stop-color="#8FF0DA" stop-opacity="0.75"/>
-      <stop offset="0.88" stop-color="#4ADFBF" stop-opacity="0.55"/>
-      <stop offset="1"    stop-color="#4ADFBF" stop-opacity="0"/>
+      <stop offset="0"   stop-color="#4ADFBF" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#4ADFBF" stop-opacity="0.95"/>
+      <stop offset="1"   stop-color="#2E7DFF" stop-opacity="0"/>
     </linearGradient>
 
-    <filter id="packetGlow" x="-300%" y="-300%" width="700%" height="700%">
-      <feGaussianBlur stdDeviation="3.4"/>
-    </filter>
-    <filter id="dotGlow" x="-300%" y="-300%" width="700%" height="700%">
-      <feGaussianBlur stdDeviation="2.4"/>
+    <linearGradient id="glassEdge" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <linearGradient id="screenFill" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#12303A"/>
+      <stop offset="1" stop-color="#0A1A22"/>
+    </linearGradient>
+
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="60"/>
     </filter>
 
-    <clipPath id="cardClip">
-      <rect x="210" y="88" width="780" height="280" rx="44"/>
-    </clipPath>
+    <style>
+      .t { font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display",
+                        "Vazirmatn", "Noto Sans Arabic", Tahoma, Arial, sans-serif; }
+      /* No animation drives opacity or position of anything that carries meaning. */
+      @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+    </style>
   </defs>
 
-  <style>
-    :root {
-      --label-1: rgba(255,255,255,0.97);
-      --label-2: rgba(228,240,252,0.74);
-      --label-3: rgba(214,230,248,0.58);
-      --accent:  #4ADFBF;
-      --edge-dark: rgba(0,0,0,0.42);
-      --spring: cubic-bezier(0.22, 1.02, 0.36, 1);
-      --spring-soft: cubic-bezier(0.34, 1.28, 0.52, 1);
-      --drift: cubic-bezier(0.45, 0, 0.55, 1);
-    }
-    .t {
-      font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
-                   "Segoe UI", "Vazirmatn", "IRANSans", Tahoma, "Noto Sans Arabic",
-                   "Helvetica Neue", Arial, sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wordmark { font-size: 88px; font-weight: 700; letter-spacing: -3.2px; fill: var(--label-1); }
-    .tag-en   { font-size: 29px; font-weight: 500; letter-spacing: -0.4px;  fill: var(--label-2); }
-    .tag-fa   { font-size: 27px; font-weight: 500; letter-spacing: 0;       fill: var(--label-3); }
-    .pill-t   { font-size: 16px; font-weight: 600; letter-spacing: 0.15px;  fill: rgba(255,255,255,0.84); }
-    .foot     { font-size: 15px; font-weight: 500; letter-spacing: 0.3px;   fill: rgba(210,228,246,0.42); }
+  <rect width="1200" height="420" fill="url(#ground)"/>
 
-    @keyframes materialize { from { opacity: 0; transform: scale(0.965); } to { opacity: 1; transform: scale(1); } }
-    @keyframes rise    { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes rise-sm { from { opacity: 0; transform: translateY(9px);  } to { opacity: 1; transform: translateY(0); } }
-
-    #card-group { transform-box: fill-box; transform-origin: center; animation: materialize 0.9s var(--spring) both; }
-    #wordmark { animation: rise 0.62s var(--spring-soft) 0.30s both; }
-    #tagEn    { animation: rise 0.62s var(--spring-soft) 0.40s both; }
-    #tagFa    { animation: rise 0.62s var(--spring-soft) 0.48s both; }
-    #pills g  { animation: rise-sm 0.5s var(--spring-soft) both; }
-    #pills g:nth-child(1) { animation-delay: 0.58s; }
-    #pills g:nth-child(2) { animation-delay: 0.64s; }
-    #pills g:nth-child(3) { animation-delay: 0.70s; }
-    #pills g:nth-child(4) { animation-delay: 0.76s; }
-    #devices  { animation: rise-sm 0.7s var(--spring) 0.16s both; }
-    #footline { animation: rise-sm 0.6s var(--spring) 0.86s both; }
-
-    @keyframes drift-a { 0%,100% { transform: translate(0,0) scale(1); }    50% { transform: translate(70px,-34px) scale(1.14); } }
-    @keyframes drift-b { 0%,100% { transform: translate(0,0) scale(1.06); } 50% { transform: translate(-84px,26px) scale(0.92); } }
-    @keyframes drift-c { 0%,100% { transform: translate(0,0) scale(0.96); } 50% { transform: translate(46px,38px) scale(1.12); } }
-    #blobA { animation: drift-a 21s var(--drift) infinite; }
-    #blobB { animation: drift-b 27s var(--drift) infinite; }
-    #blobC { animation: drift-c 24s var(--drift) infinite; }
-
-    @keyframes sweep { 0% { transform: translateX(-820px); } 100% { transform: translateX(1200px); } }
-    #sheen { animation: sweep 7.5s var(--drift) 1.3s infinite; }
-
-    @keyframes flow {
-      0%   { transform: translateX(0);    opacity: 0; }
-      6%   { opacity: 1; }
-      42%  { opacity: 1; }
-      54%  { opacity: 0; }
-      86%  { opacity: 1; }
-      100% { transform: translateX(880px); opacity: 0; }
-    }
-    .packet { animation: flow 3.6s linear infinite; }
-    .packet:nth-of-type(2) { animation-delay: 1.2s; }
-    .packet:nth-of-type(3) { animation-delay: 2.4s; }
-
-    @keyframes breathe { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
-    .live { animation: breathe 2.6s var(--drift) infinite; }
-    @keyframes beam-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 0.95; } }
-    #beamline { animation: beam-pulse 4.2s var(--drift) infinite; }
-
-    @media (prefers-reduced-motion: reduce) {
-      #card-group, #wordmark, #tagEn, #tagFa, #pills g, #devices, #footline {
-        animation: none !important; opacity: 1 !important; transform: none !important;
-      }
-      #blobA, #blobB, #blobC, #sheen, .packet, .live, #beamline { animation: none !important; }
-      #sheen { opacity: 0; }
-      .packet { opacity: 1; }
-    }
-    @media (prefers-contrast: more) {
-      .tag-en { fill: rgba(255,255,255,0.94); }
-      .tag-fa { fill: rgba(255,255,255,0.88); }
-      .pill-t { fill: rgba(255,255,255,0.96); }
-    }
-  </style>
-
-  <rect width="1200" height="440" fill="url(#ground)"/>
-
-  <g id="aurora" filter="url(#soften)">
-    <ellipse id="blobA" cx="290" cy="130" rx="250" ry="175" fill="url(#auroraMint)"/>
-    <ellipse id="blobB" cx="940" cy="330" rx="285" ry="190" fill="url(#auroraBlue)"/>
-    <ellipse id="blobC" cx="640" cy="390" rx="230" ry="145" fill="url(#auroraViolet)"/>
+  <!-- Ambient light. Decorative, and low enough not to fight the type. -->
+  <g filter="url(#soft)" opacity="0.9">
+    <ellipse cx="215" cy="150" rx="240" ry="170" fill="url(#glowMint)"/>
+    <ellipse cx="1010" cy="300" rx="250" ry="175" fill="url(#glowBlue)"/>
   </g>
 
-  <g id="devices">
-    <rect id="beamline" x="158" y="219" width="880" height="2" fill="url(#beam)"/>
+  <!-- Hairline frame -->
+  <rect x="0.5" y="0.5" width="1199" height="419" fill="none" stroke="#FFFFFF" stroke-opacity="0.06"/>
 
-    <g transform="translate(158,220)">
-      <circle class="packet" r="3.6" fill="#4ADFBF" filter="url(#packetGlow)"/>
-      <circle class="packet" r="3.6" fill="#4ADFBF" filter="url(#packetGlow)"/>
-      <circle class="packet" r="3.6" fill="#4ADFBF" filter="url(#packetGlow)"/>
+  <!-- ================= Left: identity ================= -->
+  <g class="t">
+    <!-- Mark: the relay arc, echoing the app icon -->
+    <g transform="translate(96, 96)">
+      <rect x="0" y="0" width="72" height="72" rx="20"
+            fill="#0E1A20" stroke="url(#glassEdge)" stroke-width="1.5"/>
+      <path d="M20 46 C20 30, 32 22, 44 22 L52 22" fill="none"
+            stroke="#4ADFBF" stroke-width="5.5" stroke-linecap="round"/>
+      <path d="M45 14 L55 22 L45 30" fill="none"
+            stroke="#4ADFBF" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="21" cy="50" r="5.5" fill="#2E7DFF"/>
     </g>
 
-    <!-- phone: the source -->
-    <g transform="translate(70,156)">
-      <rect x="0" y="0" width="74" height="128" rx="17"
-            fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.34)" stroke-width="1.6"/>
-      <rect x="8" y="10" width="58" height="102" rx="9" fill="rgba(74,223,191,0.14)"/>
-      <rect x="27" y="5" width="20" height="3.4" rx="1.7" fill="rgba(255,255,255,0.38)"/>
-      <circle class="live" cx="37" cy="61" r="10" fill="#4ADFBF" filter="url(#dotGlow)"/>
-      <circle cx="37" cy="61" r="4" fill="#0A0E13"/>
+    <text x="192" y="150" font-size="76" font-weight="700" letter-spacing="-2.6"
+          fill="url(#wordGrad)">Relay</text>
+
+    <text x="196" y="196" font-size="25" font-weight="500" letter-spacing="-0.2"
+          fill="#DCEBF7" fill-opacity="0.82">Share your phone’s internet with your PC.</text>
+
+    <text x="196" y="234" font-size="23" font-weight="500"
+          fill="#CFE4F5" fill-opacity="0.62">اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.</text>
+
+    <!-- Capability pills -->
+    <g font-size="15" font-weight="600" letter-spacing="0.2">
+      <g>
+        <rect x="196" y="272" width="132" height="34" rx="17"
+              fill="#FFFFFF" fill-opacity="0.06" stroke="url(#glassEdge)"/>
+        <text x="262" y="294" text-anchor="middle" fill="#EAF4FF" fill-opacity="0.88">WireGuard</text>
+      </g>
+      <g>
+        <rect x="338" y="272" width="112" height="34" rx="17"
+              fill="#FFFFFF" fill-opacity="0.06" stroke="url(#glassEdge)"/>
+        <text x="394" y="294" text-anchor="middle" fill="#EAF4FF" fill-opacity="0.88">No root</text>
+      </g>
+      <g>
+        <rect x="460" y="272" width="122" height="34" rx="17"
+              fill="#FFFFFF" fill-opacity="0.06" stroke="url(#glassEdge)"/>
+        <text x="521" y="294" text-anchor="middle" fill="#EAF4FF" fill-opacity="0.88">No server</text>
+      </g>
+      <g>
+        <rect x="592" y="272" width="150" height="34" rx="17"
+              fill="#4ADFBF" fill-opacity="0.13" stroke="#4ADFBF" stroke-opacity="0.34"/>
+        <text x="667" y="294" text-anchor="middle" fill="#8FF0DA">TCP + UDP</text>
+      </g>
     </g>
 
-    <!-- laptop: the destination -->
-    <g transform="translate(1010,164)">
-      <rect x="9" y="0" width="142" height="91" rx="11"
-            fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.34)" stroke-width="1.6"/>
-      <rect x="17" y="8" width="126" height="75" rx="7" fill="rgba(46,125,255,0.14)"/>
-      <path d="M0 100 H160 A7 7 0 0 1 153 107 H7 A7 7 0 0 1 0 100 Z" fill="rgba(255,255,255,0.26)"/>
-      <circle class="live" cx="80" cy="45" r="9" fill="#4ADFBF" filter="url(#dotGlow)"/>
-    </g>
+    <text x="196" y="352" font-size="14.5" font-weight="500" letter-spacing="0.25"
+          fill="#BFD6EA" fill-opacity="0.42">Android → Windows · open source · nothing leaves your two devices</text>
   </g>
 
-  <g id="card-group">
-    <rect x="210" y="88" width="780" height="280" rx="44" fill="#000" opacity="0.34"
-          filter="url(#soften)" transform="translate(0,14)"/>
+  <!-- ================= Right: the actual story ================= -->
+  <g transform="translate(768, 116)">
 
-    <g clip-path="url(#cardClip)">
-      <use href="#aurora" filter="url(#lens)"/>
-      <use href="#devices" filter="url(#lens)" opacity="0.9"/>
-      <rect x="210" y="88" width="780" height="280" fill="url(#glassFill)"/>
-      <rect id="sheen" x="210" y="88" width="320" height="280" fill="url(#sheen)"/>
+    <!-- Phone -->
+    <g>
+      <rect x="0" y="0" width="86" height="164" rx="16"
+            fill="#0D1620" stroke="url(#glassEdge)" stroke-width="1.5"/>
+      <rect x="7" y="9" width="72" height="146" rx="10" fill="url(#screenFill)"/>
+      <circle cx="43" cy="26" r="3" fill="#4ADFBF"/>
+      <text class="t" x="43" y="88" text-anchor="middle" font-size="30" font-weight="700"
+            fill="#8FF0DA">11</text>
+      <rect x="24" y="104" width="38" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.16"/>
+      <rect x="18" y="118" width="50" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.10"/>
     </g>
 
-    <rect x="210" y="88" width="780" height="280" rx="44"
-          fill="none" stroke="var(--edge-dark)" stroke-width="1.6"/>
-    <rect x="210.75" y="88.75" width="778.5" height="278.5" rx="43.25"
-          fill="none" stroke="url(#specular)" stroke-width="1.5"/>
-  </g>
-
-  <g class="t" text-anchor="middle">
-    <g id="wordmark"><text class="wordmark" x="600" y="184">Relay</text></g>
-    <text id="tagEn" class="tag-en" x="600" y="236">Share your phone’s internet with your PC.</text>
-    <text id="tagFa" class="tag-fa" x="600" y="282" direction="rtl">اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار</text>
-
-    <g id="pills">
-      <g>
-        <rect x="335" y="310" width="130" height="38" rx="19"
-              fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text class="pill-t" x="400" y="335">WireGuard</text>
-      </g>
-      <g>
-        <rect x="481" y="310" width="100" height="38" rx="19"
-              fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text class="pill-t" x="531" y="335">No root</text>
-      </g>
-      <g>
-        <rect x="597" y="310" width="128" height="38" rx="19"
-              fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text class="pill-t" x="661" y="335">No account</text>
-      </g>
-      <g>
-        <rect x="741" y="310" width="124" height="38" rx="19"
-              fill="rgba(74,223,191,0.14)" stroke="rgba(74,223,191,0.34)" stroke-width="1"/>
-        <text class="pill-t" x="803" y="335" fill="#8FF0DA">Local-only</text>
-      </g>
+    <!-- Tunnel -->
+    <g>
+      <line x1="98" y1="82" x2="196" y2="82" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="2"/>
+      <line x1="98" y1="82" x2="196" y2="82" stroke="url(#beam)" stroke-width="2.5"/>
+      <!-- Decoration only: the line above is already drawn at rest. -->
+      <circle class="pulse" cx="112" cy="82" r="3.4" fill="#4ADFBF">
+        <animate attributeName="cx" values="106;190;106" dur="3.4s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0;1;1;0" dur="3.4s" repeatCount="indefinite"/>
+      </circle>
+      <text class="t" x="147" y="66" text-anchor="middle" font-size="12" font-weight="600"
+            letter-spacing="1.1" fill="#7FE6CE" fill-opacity="0.75">ENCRYPTED</text>
     </g>
 
-    <text id="footline" class="foot" x="600" y="410">Android → Windows · اندروید به ویندوز · open source, GPL-3.0</text>
+    <!-- Laptop -->
+    <g transform="translate(206, 22)">
+      <rect x="0" y="0" width="164" height="104" rx="12"
+            fill="#0D1620" stroke="url(#glassEdge)" stroke-width="1.5"/>
+      <rect x="9" y="9" width="146" height="86" rx="7" fill="url(#screenFill)"/>
+      <circle cx="30" cy="30" r="4" fill="#4ADFBF"/>
+      <rect x="42" y="26" width="68" height="7" rx="3.5" fill="#FFFFFF" fill-opacity="0.18"/>
+      <rect x="20" y="50" width="120" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.10"/>
+      <rect x="20" y="66" width="92" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.08"/>
+      <rect x="-16" y="110" width="196" height="9" rx="4.5"
+            fill="#101B24" stroke="url(#glassEdge)" stroke-width="1"/>
+    </g>
   </g>
 </svg>
