@@ -118,15 +118,24 @@ No camera on the laptop? The two digits work on their own. Prefer the QR? It is 
 
 ### Updates
 
-Relay checks GitHub for a newer release and offers it. The download is checked
-against the **SHA256SUMS.txt published in that same release**, and nothing that
-fails is kept or installed — a rejected download is deleted rather than left on
-disk. That verification is the reason updating is allowed to be this automatic:
-Relay carries your whole connection, so replacing itself has to mean replacing
-itself with exactly the bytes the release published.
+Relay checks GitHub for a newer release on its own.
 
-Android still shows its own install prompt. That is a floor the platform sets
-for any sideloaded app, not a choice made here.
+**Windows** installs it for you. It checks shortly after launch and then once a
+day, tells you what it found, and waits for a moment when the tunnel is down —
+installing means stopping Relay, and doing that mid-call would drop the call. It
+closes, updates, and starts again.
+
+**Android** checks when you open it and when sharing starts, so the tile and the
+widget reach you too, and then offers the update. Android does not let a
+sideloaded app install anything silently, so the last tap is always yours. That
+is a floor the platform sets, not a choice made here.
+
+Either way the download is checked against the **SHA256SUMS.txt published in
+that same release**, and nothing that fails is kept or installed — a rejected
+download is deleted rather than left on disk. That verification is what makes
+updating safe to automate at all: Relay carries your whole connection, so
+replacing itself has to mean replacing itself with exactly the bytes the release
+published.
 
 ### Both
 

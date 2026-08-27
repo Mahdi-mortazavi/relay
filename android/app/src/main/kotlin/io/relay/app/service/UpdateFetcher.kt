@@ -46,6 +46,27 @@ object UpdateFetcher {
     }
 
     /**
+     * The newest published release, or null for "nothing to say".
+     *
+     * Null covers offline, rate-limited, and a release that is a draft or a
+     * pre-release, all of which mean the same thing to someone who did not ask:
+     * say nothing. The comparison against the running build is
+     * [io.relay.app.core.UpdateCheck]'s job, not this one's.
+     *
+     * Lives here rather than in the caller so there is exactly one place that
+     * knows the release URL. It had drifted into two, and the copy in the view
+     * model was the one nothing ever called.
+     */
+    suspend fun latestVersion(): String? = withContext(Dispatchers.IO) {
+        val release = runCatching { JSONObject(get(LATEST)) }.getOrNull()
+            ?: return@withContext null
+        if (release.optBoolean("draft") || release.optBoolean("prerelease")) {
+            return@withContext null
+        }
+        release.optString("tag_name").takeIf { it.isNotEmpty() }
+    }
+
+    /**
      * Downloads, verifies and launches the installer.
      *
      * Runs entirely off the main thread. Returns as soon as the system installer

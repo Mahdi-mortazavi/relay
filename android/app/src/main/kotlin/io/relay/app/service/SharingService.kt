@@ -16,6 +16,7 @@ import androidx.core.app.ServiceCompat
 import io.relay.app.MainActivity
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
+import io.relay.app.core.UpdateCheck
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
@@ -88,16 +89,74 @@ class SharingService : Service() {
         super.onCreate()
         createChannel()
         scope.launch {
+            // Only when something these two actually show has changed.
+            //
+            // The byte counters update once a second while connected, and every
+            // one of those used to rebuild the notification and push a fresh
+            // RemoteViews across a binder to the launcher. Neither surface
+            // displays bytes -- the notification counts devices, the widget
+            // shows the code -- so that was a cross-process round trip every
+            // second to redraw the identical pixels, on the CPU that is already
+            // the bottleneck. A user reported 2.2 as slower than 2.0 at
+            // transferring data; the widget push is what 2.2 added.
+            var shown: String? = null
             ConnectionRepository.state.collectLatest { state ->
+                val signature = visibleSignature(state)
+                if (signature == shown) return@collectLatest
+                shown = signature
+
                 if (state !is ConnectionState.Idle) {
                     notificationManager.notify(NOTIFICATION_ID, buildNotification(state))
                 }
                 // The widget lives in the launcher's process and cannot watch a
-                // flow, so every state change has to be pushed to it. Idle is
-                // included deliberately: the transition a widget most needs to
-                // hear about is sharing stopping.
+                // flow, so it has to be pushed. Idle is included deliberately:
+                // the transition a widget most needs to hear about is sharing
+                // stopping.
                 SharingWidgetProvider.refresh(this@SharingService)
             }
+        }
+
+        // Ask about a waiting computer even when nobody is looking at the app.
+        //
+        // The dialog in MainActivity only reaches someone already watching the
+        // screen, which is the opposite of the normal case: you press Connect
+        // on the laptop, because that is where you are, and the phone is face
+        // down on the desk. Before this, that request simply timed out having
+        // shown nothing at all.
+        scope.launch {
+            ConnectionRepository.clientGate.pending.collect { waiting ->
+                if (waiting == null) {
+                    ApprovalNotice.clear(this@SharingService)
+                } else {
+                    ApprovalNotice.show(this@SharingService, waiting.address)
+                }
+            }
+        }
+
+        // The only update check that reaches someone who never opens the app.
+        //
+        // Relay is designed to be started from the tile, the widget or a
+        // long-press, and someone doing that goes months without seeing a
+        // screen -- which is exactly the person left behind on an old build.
+        // The check in MainActivity cannot reach them by definition.
+        //
+        // Cheap enough to sit on the start path: one conditional GET that
+        // fails silently, off the main thread, on a service that is about to
+        // enumerate interfaces and bind four sockets anyway.
+        scope.launch { announceUpdateIfAny() }
+    }
+
+    /**
+     * Raises the update notification if GitHub has something newer. Silent on
+     * failure and silent when current: this is a courtesy on a background path
+     * and must never be the reason sharing did not start.
+     */
+    private suspend fun announceUpdateIfAny() {
+        runCatching {
+            val installed = packageManager.getPackageInfo(packageName, 0).versionName
+            val latest = UpdateFetcher.latestVersion() ?: return
+            if (!UpdateCheck.isNewer(latest, installed)) return
+            UpdateNotice.show(this, latest.trimStart('v'))
         }
     }
 
@@ -117,6 +176,16 @@ class SharingService : Service() {
                 }
             }
             ACTION_STOP -> stopSharing()
+            ACTION_ALLOW_CLIENT, ACTION_DENY_CLIENT -> {
+                val address = intent.getStringExtra(EXTRA_CLIENT_ADDRESS)
+                if (address != null) {
+                    ConnectionRepository.clientGate.resolve(
+                        address,
+                        allowed = intent.action == ACTION_ALLOW_CLIENT,
+                    )
+                }
+                ApprovalNotice.clear(this)
+            }
         }
         return START_STICKY
     }
@@ -543,6 +612,23 @@ class SharingService : Service() {
         )
     }
 
+    /**
+     * Everything the notification and the widget can actually display, and
+     * nothing else. Two states with the same signature look identical on
+     * screen, so redrawing between them is work with no observer.
+     *
+     * Deliberately excludes bytesUp and bytesDown: they change every second and
+     * neither surface shows them.
+     */
+    private fun visibleSignature(state: ConnectionState): String = when (state) {
+        is ConnectionState.Idle -> "idle"
+        is ConnectionState.Preparing -> "preparing"
+        is ConnectionState.Advertising -> "advertising:${state.shortCode}:${state.reconnecting}"
+        is ConnectionState.Connected ->
+            "connected:${state.shortCode}:${state.clientCount}:${state.reconnecting}"
+        is ConnectionState.Error -> "error:${state.code}"
+    }
+
     private fun buildNotification(state: ConnectionState): Notification {
         val text = when (state) {
             is ConnectionState.Idle, ConnectionState.Preparing -> getString(R.string.notification_starting)
@@ -580,6 +666,11 @@ class SharingService : Service() {
     companion object {
         const val ACTION_START = "io.relay.app.action.START"
         const val ACTION_STOP = "io.relay.app.action.STOP"
+
+        /** Answers to the approval notification, carrying the address asked about. */
+        const val ACTION_ALLOW_CLIENT = "io.relay.app.action.ALLOW_CLIENT"
+        const val ACTION_DENY_CLIENT = "io.relay.app.action.DENY_CLIENT"
+        const val EXTRA_CLIENT_ADDRESS = "io.relay.app.extra.CLIENT_ADDRESS"
         const val CHANNEL_ID = "sharing"
         const val NOTIFICATION_ID = 1
         const val HOTSPOT_POLL_MS = 2000L

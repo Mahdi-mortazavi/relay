@@ -9,6 +9,248 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-08-27
+
+### Fixed — the approval prompt could not be answered, and then stopped appearing
+
+Reported as a VPN bug: with a VPN running on the phone, pressing Connect on the
+PC never brought up the "allow this computer?" prompt, and turning the VPN off
+made it work again. Reproduced on a phone, where the VPN turned out to be a red
+herring and two separate faults were hiding behind it.
+
+**The prompt only existed inside the app's own screen.** It reached someone
+already watching their phone and nobody else — which is the opposite of the
+normal case, because you press Connect on the laptop, where you are looking,
+while the phone lies face down on the desk. Measured with Relay in the
+background: the request timed out after twenty seconds having shown nothing at
+all — no dialog, no notification, no sound.
+
+The question is now asked in the notification shade too, with **Allow** and
+**Deny** on it, so it can be answered without opening the app.
+
+**And a missed prompt was remembered as a refusal.** Refusing when nobody
+answers is deliberate and has not changed — a phone in a pocket must fail
+closed. But recording it was wrong: nobody had decided anything, and yet every
+later attempt from that computer was turned away in milliseconds without anyone
+being asked. The one prompt that was missed was the only prompt there would ever
+be. The only way out was restarting sharing — and toggling a VPN happens to
+restart sharing, which is the whole of why this looked like a VPN problem.
+
+A person's answer is still remembered. Silence no longer is.
+
+
+## [2.7.0] — 2026-08-25
+
+Four defects on the path every byte takes, found by reading it end to end and
+then measuring it. Numbers below are from benchmarks that now run on every pull
+request, so the next regression here is visible rather than silent.
+
+### Fixed — every connection died after five minutes
+
+The forwarder set a deadline once, five minutes out, and called it an idle
+timeout. It was an absolute one: a connection carrying traffic the whole time
+was still torn down five minutes after it opened. Large downloads, video calls,
+SSH sessions and websockets all failed at the same mark — which from the outside
+is indistinguishable from a flaky network, and was reported as instability.
+
+The deadline now moves with the traffic, and it belongs to the pair rather than
+to each direction: a download is silent upstream from the first byte to the
+last, so a per-direction timeout would reap exactly the transfers it exists to
+protect.
+
+### Fixed — leak protection broke `localhost`
+
+The IPv6 rule was written as "all of `ALE_AUTH_CONNECT_V6`", and that is
+literally all of it — Windows classifies loopback at that layer too, so it took
+`::1` with it. Windows resolves `localhost` to `::1` before `127.0.0.1`, so
+while Relay was connected every localhost connection on the machine failed or
+stalled: development servers, database clients, apps talking to their own
+helpers. Unrelated software breaking, and the tunnel getting the blame.
+
+Loopback is now permitted above the blocks. This cannot leak — loopback never
+reaches a network interface, so there is no adapter for it to escape by.
+
+### Fixed — the phone leaked a pooled buffer for every packet
+
+The read path took a buffer from the network stack's own pool for each packet
+and never gave it back, so the pool never recycled and the garbage collector
+chased the difference — on the phone, on the one processor that measurement
+keeps finding to be the limit. Per packet, in both directions, for the life of
+every session.
+
+That path is now **3.3× faster and allocates 57% less**. A second queue and a
+thread hand-off per packet went with it, which also means the buffering that was
+deliberately cut to hold latency down is now the size it was meant to be
+(it had been quietly double).
+
+Honest note: this does **not** make downloads faster. End-to-end throughput is
+governed by encryption, and measured the same before and after. What it buys is
+lower latency under load, and less work and memory on the phone.
+
+### Fixed — UDP held its resources five times too long
+
+Every DNS lookup opens a flow, and each one held two threads, a socket and a
+64 KB buffer until it was reaped. UDP never says when it is finished, so that
+was five minutes per lookup; a browsing session accumulated hundreds. Now one
+minute, which is still generous for the flows that legitimately persist.
+
+### Changed — you are told when the tunnel comes up unprotected
+
+If the filters cannot be installed the tunnel still comes up, deliberately: a
+leak is bad and a Relay that refuses to connect is worse. But the only place
+that was said was a log nobody reads, while the switch still read "on" — so the
+person had been told they were protected and would act on it. It now says so on
+screen.
+
+
+## [2.6.1] — 2026-08-25
+
+### Fixed — the Windows updater could not work on the connections Relay is for
+
+2.6.0 connected the updater. Testing it on a real machine showed it still could
+not finish, for two reasons that only appear outside a CI runner.
+
+**It waited to be disconnected before downloading.** On the connection this was
+tested from, `api.github.com` answers in under a second and GitHub's release
+CDN returns zero bytes in five minutes. That is not an unlucky network — it is
+the network Relay exists for. Waiting for the tunnel to be down before
+downloading meant waiting for the one state in which the file cannot be
+reached, so the check found the new version every day and never got a byte of
+it. Relay now downloads whenever it can and waits only to *install*, which is
+the part that would cost you your connection. The download can use your phone's
+data; once per release, that is the better of the two mistakes.
+
+**It held the whole installer in memory, on one deadline.** Fifty megabytes
+buffered in RAM, and a single ten-minute timeout covering the entire transfer —
+so a slow link simply ran out of time and, because this path is deliberately
+silent, gave up until the next day. It streams to disk now, hashing as it goes,
+under a name nothing will run until the hash matches.
+
+## [2.6.0] — 2026-08-25
+
+### Fixed — Relay could not update itself, on either platform
+
+The check, the version comparison, the download, the checksum verification and
+the installer launch were all written, all tested, and called by nothing. On
+Windows, `UpdateCheck` and `UpdateInstaller` had sat unused for three releases.
+On Android, `checkForUpdate` had no callers at all, so the update banner in the
+app has never appeared for anybody. A Windows user stayed on whatever version
+they first installed, while the README said updates were offered.
+
+They are connected now:
+
+- **Windows** checks a couple of minutes after launch and then daily, tells you
+  what it found, and installs it at the next moment the tunnel is down. It never
+  interrupts a connection — the installer stops Relay to replace it, and doing
+  that mid-call would drop the call.
+- **Android** checks when you open the app *and* when sharing starts, so someone
+  who only ever uses the Quick Settings tile or the widget finds out too. Android
+  does not let a sideloaded app install silently, so it offers; the last tap is
+  always yours.
+
+Nothing is installed that was not verified against the checksums the release
+published.
+
+Windows also comes back after updating itself. It now closes before running the
+installer — otherwise Setup stops on a "please close Relay" dialog that a silent
+install does not suppress and nobody is there to answer — and Setup starts it
+again afterwards.
+
+
+## [2.5.0] — 2026-08-25
+
+Two things a user found, both fixed and both checked on the machines they were
+reported from.
+
+### Fixed — traffic was leaving around the tunnel
+
+Reported with the detail that made it findable: it happened on a Wi-Fi the
+laptop shared with the phone, and never on the hotspot the reporter normally
+uses. That asymmetry names the cause.
+
+**DNS.** The tunnel sets a resolver on its own adapter, but Windows resolves
+names on *every* interface at once. On a hotspot the only other resolver is the
+phone, so nothing shows. On a shared Wi-Fi the other resolver is the router —
+and a leak test then lists the local ISP beside the tunnel's exit.
+
+**IPv6.** The client configures IPv4 and nothing else. No v6 address, no v6
+route, no v6 block. On any network with working IPv6, every v6 connection left
+by the physical adapter carrying the real address, and the tunnel never saw it.
+
+Both are now closed with Windows Filtering Platform rules the tunnel installs
+for itself: block IPv6, block DNS, permit DNS only to the tunnel's resolver.
+The filters live in a session marked dynamic, so Windows destroys every one of
+them when the tunnel process ends — including when it is killed or crashes. A
+dead Relay cannot leave a machine that resolves no names, which is what makes
+failing closed safe rather than reckless.
+
+Deliberately narrower than a full kill switch. Relay's own discovery keeps
+working, so following a phone that changes address survives. There is a switch
+in Advanced for anyone who needs the filters off, and it says what it trades.
+
+The first attempt at this shipped and did nothing: the library Relay borrowed
+needs a Windows service account, and Relay's tunnel is an elevated user process
+by design. It reported success while installing no filters. That is why the
+tunnel now says `LEAK-PROTECTION-FAILED` out loud when it cannot protect you.
+
+### Fixed — 2.2 moved data more slowly than 2.0
+
+While connected, the byte counters update once a second. Each update rebuilt the
+foreground notification *and* pushed a fresh view across a process boundary into
+the launcher, on the phone CPU that is already the limit. Neither surface shows
+bytes — the notification counts devices, the widget shows the code — so that was
+a round trip every second to redraw identical pixels. Both are now skipped
+unless something visible changed.
+
+Measured on two machines on one Wi-Fi, before and after: **5.66 → 14.89 Mbps**
+down.
+
+### Changed — the phone does less work per packet
+
+The tunnel handed WireGuard one packet at a time where it is built to take up to
+128, so every packet paid the whole per-batch cost. TCP options gVisor leaves
+off are now on, including SACK, which matters because this traffic crosses Wi-Fi
+twice. The packet queue was over a second deep on a slow link and is now a
+quarter of that. Connection splicing reuses pooled buffers instead of allocating
+64 KB per direction per connection.
+
+Honest note: on the hotspot topology none of this is measurable, because the
+tunnel is not the bottleneck there. Latency through it is 10 ms against 11 ms
+for the bare hotspot.
+
+## [2.2.0] — 2026-08-20
+
+### Added
+
+- **A mark of its own.** A signal arcing from one point to another, white on a
+  saturated ground, drawn to survive 16 px. Android had been carrying a leftover
+  play triangle and Windows whatever .NET puts on an unbranded executable.
+- **Quick Settings tile**, with the pairing code in its subtitle, so the shade
+  answers "what do I type on the PC" without opening anything.
+- **Home screen widget** showing the code large enough to read while you are
+  looking at the laptop.
+- **Long-press the icon → Start Sharing**, available before the app has ever
+  been opened.
+- **First-run setup** that walks through notifications, battery exemption, the
+  tile and the widget — and adds them for you where Android allows it.
+- **Start with Windows**, using the per-user key so it needs no elevation.
+  Launched that way Relay comes up in the tray rather than over your work.
+- **Updates that install.** The download is checked against the SHA256SUMS the
+  release publishes, and nothing that fails verification is kept or run.
+
+### Fixed
+
+- **The window could not be closed.** It was created without a title bar, so
+  there was no close button, no minimise, nothing — and clicking away stops
+  working once a connection is up. It draws its own controls now. Close puts
+  Relay in the tray; Exit on the tray menu still quits.
+- **Minimise minimised to the wrong place**, because the tray auto-hide read the
+  deactivation as focus moving elsewhere.
+- **The update banner's button did nothing.** It had never been wired up.
+- **The tunnel now follows a phone that changes address** instead of dialling a
+  DHCP lease that has moved.
+
+
 ## [2.0.0] — 2026-08-18
 
 One transport instead of two, a two-digit code that works for it, and the

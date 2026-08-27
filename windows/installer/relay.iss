@@ -72,6 +72,11 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\Relay.App.exe"; Description: "{cm:LaunchProgram,Relay}"; Flags: nowait postinstall skipifsilent
+; An automatic update closes Relay itself (AppMutex above would otherwise stop
+; Setup with a dialog nobody is there to answer), so it has to be started again
+; -- the line above cannot do it, because skipifsilent is exactly what a silent
+; update is. Without this the app simply vanishes, which reads as a crash.
+Filename: "{app}\Relay.App.exe"; Flags: nowait; Check: RelaunchRequested
 
 [UninstallRun]
 ; If a session is active at uninstall time, stop the app and restore the system
@@ -90,3 +95,10 @@ Filename: "{app}\Relay.App.exe"; Parameters: "--restore-proxy"; Flags: runhidden
 ; left behind is the cheaper mistake. Relay deletes it itself the moment a
 ; rollback succeeds.
 Type: files; Name: "{localappdata}\Relay\startup-error.log"
+
+[Code]
+{ True when Relay's own updater ran us, rather than a person. }
+function RelaunchRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;

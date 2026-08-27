@@ -199,10 +199,16 @@ func TestReadyIsWithheldWhenThePeerNeverAnswers(t *testing.T) {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			text := strings.TrimSpace(scanner.Text())
-			if text != "" {
-				lines <- text
-				return
+			// Informational, and it arrives first. The app skips it for the same
+			// reason: it says something about the tunnel's protection, not about
+			// whether the tunnel came up, and treating it as the verdict is what
+			// this test did until it started failing on a line it had no opinion
+			// about.
+			if text == "" || text == leakProtectionFailedLine {
+				continue
 			}
+			lines <- text
+			return
 		}
 		lines <- ""
 	}()
@@ -232,6 +238,8 @@ func waitForReady(t *testing.T, stdout io.Reader, client *exec.Cmd) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
+			// Reads until READY, so any informational line before it -- such as
+			// leakProtectionFailedLine -- is skipped by construction.
 			if strings.TrimSpace(scanner.Text()) == "READY" {
 				ready <- "READY"
 				return
@@ -292,4 +300,56 @@ func freeUDPPort(t *testing.T) int {
 	}
 	defer c.Close()
 	return c.LocalAddr().(*net.UDPAddr).Port
+}
+
+// Leak protection must not take localhost down with IPv6.
+//
+// Kept as its own named test, separate from the matrix, because this is the one
+// the CI job lists as required: it is the regression that shipped, and a job
+// that silently stopped running it would still be green.
+//
+// The IPv6 rule is written as "all of ALE_AUTH_CONNECT_V6", and WFP classifies
+// loopback at that layer too -- so the first version of it blocked ::1 as well.
+// On Windows "localhost" resolves to ::1 before 127.0.0.1, which meant that
+// while Relay was connected, every localhost connection on the machine failed
+// or stalled: development servers, database clients, desktop apps talking to
+// their own helpers. Unrelated software breaking, blamed on the tunnel.
+func TestLeakProtectionLeavesLoopbackAlone(t *testing.T) {
+	if os.Getenv("RELAYWG_CLIENT") == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+	if !ipv6LoopbackWorks(t) {
+		t.Skip("this machine cannot reach ::1 even without the tunnel")
+	}
+
+	stop := startProtectedTunnel(t, "RelayTestLoopback", "1.1.1.1")
+	defer stop()
+
+	if !ipv6LoopbackWorks(t) {
+		t.Fatal("::1 stopped working while leak protection was on — " +
+			"this blocks localhost for every application on the machine")
+	}
+}
+
+// ipv6LoopbackWorks reports whether a TCP connection to ::1 completes.
+func ipv6LoopbackWorks(t *testing.T) bool {
+	t.Helper()
+
+	listener, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		return false
+	}
+	defer listener.Close()
+	go func() {
+		if conn, err := listener.Accept(); err == nil {
+			conn.Close()
+		}
+	}()
+
+	conn, err := net.DialTimeout("tcp6", listener.Addr().String(), 5*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }

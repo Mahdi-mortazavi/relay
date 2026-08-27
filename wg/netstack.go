@@ -64,12 +64,14 @@ const (
 type netTun struct {
 	stack    *stack.Stack
 	endpoint *channel.Endpoint
-	incoming chan *stack.PacketBuffer
 	events   chan tun.Event
 	mtu      int
 
+	// Cancelled by Close, so a Read blocked on an empty queue returns instead
+	// of waiting for a packet that is never coming.
+	ctx       context.Context
+	cancel    context.CancelFunc
 	closeOnce sync.Once
-	closed    chan struct{}
 }
 
 func newNetTun(mtu int) (*netTun, error) {
@@ -139,36 +141,45 @@ func newNetTun(mtu int) (*netTun, error) {
 		{Destination: header.IPv6EmptySubnet, NIC: nicID},
 	})
 
+	ctx, cancel := context.WithCancel(context.Background())
 	device := &netTun{
 		stack:    s,
 		endpoint: endpoint,
-		incoming: make(chan *stack.PacketBuffer, channelQueueDepth),
 		events:   make(chan tun.Event, 2),
 		mtu:      mtu,
-		closed:   make(chan struct{}),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 	device.events <- tun.EventUp
 
-	go device.pumpOutbound()
 	return device, nil
 }
 
-// pumpOutbound moves packets the stack wants to send into the queue wireguard-go
-// reads from. channel.Endpoint hands them over one at a time and blocks, so it
-// needs a goroutine of its own.
-func (d *netTun) pumpOutbound() {
-	for {
-		packet := d.endpoint.ReadContext(context.Background())
-		if packet == nil {
-			return // endpoint closed
+// copyPacket flattens one packet into [into] and always releases it.
+//
+// Deliberately not packet.ToView(), which is what this used to call. ToView
+// takes a *View and a chunk from gVisor's own pools and hands back a copy --
+// and nothing here ever called Release on it, so every packet the tunnel
+// carried in either direction leaked two pooled objects. The pools then never
+// recycled anything and the garbage collector chased the difference, on a phone,
+// on the single CPU that measurement keeps identifying as the limit.
+//
+// AsSlices borrows the packet's own storage instead: one copy into the caller's
+// buffer, nothing taken from a pool, nothing to give back.
+//
+// Reports false rather than truncating. A packet larger than the buffer cannot
+// happen at this MTU, and if it ever did, half a packet is worse than none.
+func copyPacket(packet *stack.PacketBuffer, into []byte) (int, bool) {
+	defer packet.DecRef()
+
+	written := 0
+	for _, slice := range packet.AsSlices() {
+		if written+len(slice) > len(into) {
+			return 0, false
 		}
-		select {
-		case d.incoming <- packet:
-		case <-d.closed:
-			packet.DecRef()
-			return
-		}
+		written += copy(into[written:], slice)
 	}
+	return written, true
 }
 
 // Read fills as many of [bufs] as there are packets waiting.
@@ -184,44 +195,45 @@ func (d *netTun) pumpOutbound() {
 // So: block for the first packet, then take everything else already queued
 // without blocking. Under load a call returns a full batch; when idle it
 // behaves exactly as before.
+//
+// It now reads the endpoint directly. There used to be a goroutine draining the
+// endpoint into a second channel of the same depth, which bought nothing and
+// cost two things: a scheduler hand-off for every packet on the hottest path in
+// the program, and a second queue -- so the buffering that was deliberately cut
+// to 256 packets to stop the tunnel bloating to 121 ms under load was in fact
+// still 512.
 func (d *netTun) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
 	if len(bufs) == 0 {
 		return 0, nil
 	}
 
-	read := func(packet *stack.PacketBuffer, into []byte) (int, error) {
-		defer packet.DecRef()
-		view := packet.ToView()
-		return view.Read(into)
-	}
-
+	count := 0
 	// The first one blocks: returning zero packets would spin the caller.
-	select {
-	case <-d.closed:
-		return 0, net.ErrClosed
-	case packet := <-d.incoming:
-		n, err := read(packet, bufs[0][offset:])
-		if err != nil {
-			return 0, err
+	for count == 0 {
+		packet := d.endpoint.ReadContext(d.ctx)
+		if packet == nil {
+			return 0, net.ErrClosed
+		}
+		n, ok := copyPacket(packet, bufs[0][offset:])
+		if !ok {
+			continue // oversized; drop it and wait for a real one
 		}
 		sizes[0] = n
+		count = 1
 	}
 
-	count := 1
+	// Then everything already queued, without blocking.
 	for count < len(bufs) {
-		select {
-		case packet := <-d.incoming:
-			n, err := read(packet, bufs[count][offset:])
-			if err != nil {
-				// The batch so far is still valid and already dequeued;
-				// dropping it to report this error would lose real packets.
-				return count, nil
-			}
-			sizes[count] = n
-			count++
-		default:
-			return count, nil
+		packet := d.endpoint.Read()
+		if packet == nil {
+			break
 		}
+		n, ok := copyPacket(packet, bufs[count][offset:])
+		if !ok {
+			continue
+		}
+		sizes[count] = n
+		count++
 	}
 	return count, nil
 }
@@ -268,7 +280,7 @@ func (d *netTun) BatchSize() int { return batchSize }
 
 func (d *netTun) Close() error {
 	d.closeOnce.Do(func() {
-		close(d.closed)
+		d.cancel()
 		d.endpoint.Close()
 		d.stack.Close()
 		close(d.events)
@@ -305,7 +317,7 @@ func (d *netTun) installForwarders() {
 		}
 		req.Complete(false)
 
-		go forward(gonet.NewTCPConn(&wq, ep), outbound)
+		go forward(gonet.NewTCPConn(&wq, ep), outbound, tcpIdleTimeout)
 	})
 	d.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
@@ -326,7 +338,7 @@ func (d *netTun) installForwarders() {
 			return
 		}
 
-		go forward(gonet.NewUDPConn(d.stack, &wq, ep), outbound)
+		go forward(gonet.NewUDPConn(d.stack, &wq, ep), outbound, udpIdleTimeout)
 	})
 	d.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 }

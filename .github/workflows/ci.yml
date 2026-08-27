@@ -53,6 +53,18 @@ jobs:
             exit 1
           fi
 
+      # Numbers, not opinions. The packet path and the splice both run on a
+      # phone's one bottleneck CPU, and a regression there is invisible to every
+      # other job in this file -- the suite stays green while the tunnel gets
+      # slower, which is how a read path that leaked a pooled buffer per packet
+      # survived several releases.
+      #
+      # No -race: it changes allocation behaviour and multiplies timings, so a
+      # benchmark run under it measures the detector. allocs/op is the number to
+      # watch; ns/op on a shared runner is noisy.
+      - name: Benchmark the packet path
+        run: go test -run '^$' -bench . -benchmem -count=3 .
+
       - name: Test the tunnel end to end
         # -race because the forwarders, the packet pump and teardown all touch
         # the same endpoint from different goroutines, and a data race there

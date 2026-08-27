@@ -68,6 +68,11 @@ const (
 	// Ends the configuration on stdin without closing it. See [readConfig].
 	configTerminator = "END-CONFIG"
 
+	// Printed when the tunnel is up but the filters that keep traffic inside it
+	// could not be installed. Not fatal -- see where it is used -- but the app
+	// must be able to tell the difference between protected and not.
+	leakProtectionFailedLine = "LEAK-PROTECTION-FAILED"
+
 	// Prefix of the line the app sends when the phone turns up at a new address,
 	// e.g. "ENDPOINT 192.168.1.14:51820". See [roam].
 	endpointPrefix = "ENDPOINT "
@@ -99,15 +104,17 @@ func main() {
 	routes := flag.String("routes", "0.0.0.0/0", "comma-separated prefixes to send through the tunnel")
 	pipe := flag.String("config-pipe", "",
 		"named pipe carrying the configuration and readiness; stdin/stdout when empty")
+	blockLeaks := flag.Bool("block-leaks", true,
+		"block traffic that would bypass the tunnel (other resolvers, IPv6, other adapters)")
 	flag.Parse()
 
-	if err := run(*name, *address, *dns, *routes, *pipe); err != nil {
+	if err := run(*name, *address, *dns, *routes, *pipe, *blockLeaks); err != nil {
 		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(name, address, dns, routes, pipe string) error {
+func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
 	// The app talks over a named pipe rather than stdin, because a process
 	// launched through the elevation prompt cannot have its streams redirected
 	// at all -- and the only other way to hand it a private key would be a temp
@@ -162,6 +169,39 @@ func run(name, address, dns, routes, pipe string) error {
 
 	if err := configureAdapter(luid, prefix, dns, tunnelRoutes); err != nil {
 		return err
+	}
+
+	// Close the two ways traffic was leaving around the tunnel.
+	//
+	// DNS   Windows resolves names on every interface at once, so on a Wi-Fi
+	//       shared with the phone the router answered alongside the tunnel and a
+	//       leak test listed the local ISP. A user reported exactly that, and
+	//       only ever on Wi-Fi -- on a hotspot the only other resolver is the
+	//       phone, so nothing showed.
+	// IPv6  This client configures AF_INET only, so every v6 connection left by
+	//       the physical adapter carrying the real address.
+	//
+	// wfp_windows.go says why this is written against WFP directly rather than
+	// using wireguard-windows' firewall package, which cannot work from a
+	// non-service process. Failure is reported and the tunnel still comes up: a
+	// leak is bad, but a Relay that refuses to connect is worse, and every
+	// release before this one ran without these filters anyway. What must not
+	// happen is silence, because the person now believes they are protected.
+	if blockLeaks {
+		var resolvers []netip.Addr
+		if server, err := netip.ParseAddr(dns); err == nil {
+			resolvers = append(resolvers, server)
+		}
+		stop, err := enableLeakProtection(resolvers)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "leak protection unavailable: %v", err)
+			if _, werr := fmt.Fprintln(channel, leakProtectionFailedLine); werr != nil {
+				return fmt.Errorf("reporting that leak protection is unavailable: %w", werr)
+			}
+		} else {
+			defer stop()
+			fmt.Fprintln(os.Stderr, "leak protection on: DNS is pinned to the tunnel and IPv6 is refused")
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)

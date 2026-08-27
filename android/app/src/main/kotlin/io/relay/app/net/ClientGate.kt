@@ -72,15 +72,31 @@ class ClientGate(
             val answer = CompletableDeferred<Decision>()
             waiters[address] = answer
             _pending.value = Pending(address)
+            var answered = true
             val decision = try {
                 withTimeout(timeoutMs) { answer.await() }
             } catch (_: TimeoutCancellationException) {
+                answered = false
                 Decision.DENIED
             } finally {
                 waiters.remove(address)
                 _pending.value = null
             }
-            decisions[address] = decision
+            // Only a person's answer is remembered.
+            //
+            // Refusing on silence is right and stays: a phone in a pocket must
+            // fail closed. Recording that refusal was not. Nobody decided
+            // anything, and yet every later attempt from that computer was
+            // turned away in milliseconds without anyone being asked -- so the
+            // one prompt that was missed was the only prompt there would ever
+            // be, and the person was left pressing Connect against a phone that
+            // had quietly stopped listening to them.
+            //
+            // Reproduced on hardware: one missed prompt, and the next request
+            // came back ERR_PAIRING_DENIED in 0.03s with no dialog. The only
+            // way out was restarting sharing, which is what toggling a VPN
+            // happens to do -- which is why this was reported as a VPN bug.
+            if (answered) decisions[address] = decision
             decision == Decision.ALLOWED
         }
     }

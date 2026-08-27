@@ -65,53 +65,91 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         Action<string>? run = null,
         CancellationToken token = default)
     {
-        if (string.IsNullOrWhiteSpace(update.ChecksumsUrl)) return Outcome.Unverifiable;
+        var (outcome, path) = await DownloadAsync(update, downloadDirectory, token)
+            .ConfigureAwait(false);
+        return path is null ? outcome : Run(path, run);
+    }
+
+    /// <summary>
+    /// Fetches and verifies the installer, and stops there.
+    ///
+    /// Separate from running it because the two have opposite constraints.
+    /// Running it stops Relay, so it has to wait for a moment when nothing is
+    /// connected. Downloading has to <em>not</em> wait for that — on the
+    /// networks Relay is built for, the tunnel is often the only route to
+    /// GitHub's release CDN in the first place, so "download only while
+    /// disconnected" means "download only while it is unreachable", and the
+    /// update never arrives at all. Verified on a connection that reaches
+    /// api.github.com fine and cannot reach the asset host at all.
+    ///
+    /// The cost is that the download can use the phone's data. Once per
+    /// release, for an app that has no other way to stay current, that is the
+    /// better of the two mistakes.
+    /// </summary>
+    /// <returns>
+    /// The verified installer's path, or null with the reason it is not there.
+    /// </returns>
+    public async Task<(Outcome Outcome, string? Path)> DownloadAsync(
+        UpdateCheck.Available update,
+        string? downloadDirectory = null,
+        CancellationToken token = default)
+    {
+        if (string.IsNullOrWhiteSpace(update.ChecksumsUrl)) return (Outcome.Unverifiable, null);
 
         var name = FileName(update.Url);
-        if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return Outcome.Unavailable;
+        if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return (Outcome.Unavailable, null);
 
         var directory = downloadDirectory ?? Path.Combine(Path.GetTempPath(), "Relay-update");
         var target = Path.Combine(directory, name);
+        // Downloaded under a name nothing will run, then renamed once the hash
+        // matches. A rejected or half-finished download must never be left on
+        // disk as something a person could double-click by mistake.
+        var partial = target + ".part";
 
         string expected;
-        byte[] payload;
+        string actual;
         try
         {
             Directory.CreateDirectory(directory);
             var sums = await _http.GetStringAsync(update.ChecksumsUrl, token).ConfigureAwait(false);
             var found = HashFor(sums, name);
-            if (found is null) return Outcome.Unverifiable;
+            if (found is null) return (Outcome.Unverifiable, null);
             expected = found;
 
-            payload = await _http.GetByteArrayAsync(update.Url, token).ConfigureAwait(false);
+            actual = await DownloadAndHashAsync(update.Url, partial, token).ConfigureAwait(false);
         }
         catch (Exception)
         {
-            return Outcome.Unavailable;
+            Discard(partial);
+            return (Outcome.Unavailable, null);
         }
 
-        var actual = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
         if (!CryptographicOperations.FixedTimeEquals(
                 Convert.FromHexString(actual), Convert.FromHexString(expected)))
         {
-            return Outcome.ChecksumMismatch;
+            Discard(partial);
+            return (Outcome.ChecksumMismatch, null);
         }
 
         try
         {
-            // Written only after the hash matches. A rejected download never
-            // reaches disk as something a person could later double-click by
-            // mistake.
-            await File.WriteAllBytesAsync(target, payload, token).ConfigureAwait(false);
+            File.Move(partial, target, overwrite: true);
         }
         catch (Exception)
         {
-            return Outcome.Unavailable;
+            Discard(partial);
+            return (Outcome.Unavailable, null);
         }
 
+        return (Outcome.Started, target);
+    }
+
+    /// <summary>Runs an installer that <see cref="DownloadAsync"/> already verified.</summary>
+    public Outcome Run(string path, Action<string>? run = null)
+    {
         try
         {
-            (run ?? Launch)(target);
+            (run ?? Launch)(path);
             return Outcome.Started;
         }
         catch (Exception)
@@ -121,9 +159,60 @@ public sealed class UpdateInstaller(HttpClient? http = null)
     }
 
     /// <summary>
+    /// Streams the installer to <paramref name="path"/>, returning its SHA-256.
+    ///
+    /// Streamed rather than fetched with GetByteArrayAsync, which is how this
+    /// was first written, for two reasons that only showed up on a real
+    /// machine. It held the whole installer -- around fifty megabytes -- in
+    /// memory. And <see cref="HttpClient.Timeout"/> covers a buffered request
+    /// end to end, so that one deadline had to cover the entire transfer: on a
+    /// slow link it simply expired, and because every failure on this path is
+    /// deliberately silent, the update was abandoned and not retried for
+    /// another day. Every day. Forever.
+    ///
+    /// ResponseHeadersRead scopes the client's timeout to getting the headers,
+    /// which is the part that should have a deadline. How long the body takes
+    /// is the network's business, and the caller's token is what stops it.
+    /// </summary>
+    private async Task<string> DownloadAndHashAsync(
+        string url, string path, CancellationToken token)
+    {
+        using var response = await _http.GetAsync(
+            url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        await using var body = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        await using var file = new FileStream(
+            path, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 128 * 1024, useAsync: true);
+
+        var buffer = new byte[128 * 1024];
+        int read;
+        while ((read = await body.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+            await file.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    /// <summary>Removes a download that must not survive. Never throws.</summary>
+    private static void Discard(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
+    }
+
+    /// <summary>
     /// Runs the installer in the same per-user, no-prompt way the first install
-    /// ran, and does not wait: it stops Relay (AppMutex in the .iss) and
-    /// replaces this executable underneath us.
+    /// ran, and does not wait.
+    ///
+    /// This does <em>not</em> stop Relay, which an earlier comment here claimed
+    /// it did. AppMutex makes Setup <em>ask</em> for the app to be closed — a
+    /// modal message box that /SILENT does not suppress — so an update left to
+    /// itself would have sat on a dialog nobody was there to answer. The caller
+    /// has to leave, and <see cref="Relaunch"/> is how it gets to come back.
     /// </summary>
     private static void Launch(string installer) =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer)
@@ -131,9 +220,21 @@ public sealed class UpdateInstaller(HttpClient? http = null)
             // Not /VERYSILENT: a person who did not press anything should still
             // see that something is installing. /SILENT shows progress and no
             // questions, which is the honest middle.
-            Arguments = "/SILENT /NORESTART",
+            Arguments = $"/SILENT /NORESTART {Relaunch}",
             UseShellExecute = true,
         });
+
+    /// <summary>
+    /// Asks Setup to start Relay again when it is done.
+    ///
+    /// The installer's ordinary post-install launch carries Inno's
+    /// <c>skipifsilent</c> flag, which is right for someone who chose a silent
+    /// install from a command line and wrong for an update that closed the app
+    /// on its own — that path would have left the tray empty and the app gone,
+    /// which reads as a crash, not an update. The .iss has a second entry
+    /// keyed on this parameter.
+    /// </summary>
+    public const string Relaunch = "/relaunch=1";
 
     /// <summary>
     /// Pulls one file's hash out of a sha256sum-format listing:

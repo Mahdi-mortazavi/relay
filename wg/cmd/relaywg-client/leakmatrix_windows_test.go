@@ -1,0 +1,489 @@
+package main
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+)
+
+// What leak protection actually blocks, measured rather than reasoned about.
+//
+// The rules are four lines of Go and it is easy to convince yourself you know
+// what they do. The loopback bug is what that costs: "block all of
+// ALE_AUTH_CONNECT_V6" was read as "block IPv6 leaving the machine" and it
+// meant "block IPv6", localhost included. Nobody noticed until it was measured.
+//
+// So this measures. Every probe runs twice -- once with no tunnel, once with
+// the filters live -- and the assertion is on the *transition*. That is what
+// isolates the filter's effect from whatever this machine could reach anyway,
+// which a single after-the-fact probe cannot do: a runner with no IPv6 route
+// looks exactly like a runner whose IPv6 has been blocked.
+//
+// The contract being pinned, in both directions:
+//
+//	must keep working   loopback v4 and v6, ordinary IPv4, DNS to the tunnel's
+//	                    own resolver
+//	must stop working   DNS to any other resolver, IPv6 off the machine
+//
+// The first half matters as much as the second. A rule that blocks more than it
+// needs to is not "extra safe" -- it is unrelated software breaking, and the
+// user turning the whole feature off to get their machine back.
+func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
+	if os.Getenv("RELAYWG_CLIENT") == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+
+	// The resolver the tunnel is told to use, and therefore the one address on
+	// port 53 that must survive.
+	const tunnelResolver = "1.1.1.1"
+	// Any other resolver. This is the leak: on a shared Wi-Fi it is the router,
+	// answering alongside the tunnel.
+	const otherResolver = "9.9.9.9"
+	// A host that answers on 443 and ignores 51820, used only to ask whether
+	// the machine was *allowed* to try.
+	const vpnProbe = "1.1.1.1"
+
+	// Listeners of our own, so "this still works" is a real connection rather
+	// than an assumption about something on the internet.
+	lan := listenOrSkip(t, "tcp4", nonLoopbackAddr(t)+":0")
+	loopback4 := listenOrSkip(t, "tcp4", "127.0.0.1:0")
+	loopback6 := listenOrSkip(t, "tcp6", "[::1]:0")
+	linkLocal := linkLocalListener(t)
+
+	probes := []struct {
+		what        string
+		run         func() error
+		mustSurvive bool // true: must still work; false: must be blocked
+	}{
+		{"loopback IPv4", func() error { return dialTCP(loopback4) }, true},
+		{"loopback IPv6", func() error { return dialTCP(loopback6) }, true},
+		{"ordinary IPv4", func() error { return dialTCP(lan) }, true},
+		{"DNS to the tunnel's resolver (UDP)", func() error { return resolve(tunnelResolver + ":53") }, true},
+		{"DNS to another resolver (UDP)", func() error { return resolve(otherResolver + ":53") }, false},
+		{"DNS to another resolver (TCP)", func() error { return dialTCP(otherResolver + ":53") }, false},
+		// VPN coexistence, as far as one machine can show it. Every VPN's
+		// transport is UDP or TCP on a port that is not 53 -- WireGuard on
+		// 51820, OpenVPN on 1194, anything tunnelling over 443. Relay's rules
+		// touch port 53 and IPv6 and nothing else, and this is what says so out
+		// loud: if a rule ever grows to block more, another VPN on this machine
+		// stops working and Relay gets the blame.
+		{"a VPN's UDP transport (non-53)", func() error { return sendUDP(vpnProbe + ":51820") }, true},
+		{"a VPN's TCP transport (443)", func() error { return dialTCP(vpnProbe + ":443") }, true},
+		{"IPv6 off the machine", func() error { return sendUDP("[2606:4700:4700::1111]:53") }, false},
+		// IPv6 to this machine's own link-local address, which must keep
+		// working.
+		//
+		// This was added trying to measure the *block*, on the reasoning that a
+		// link-local address is reachable without an IPv6 route and is not
+		// loopback. Measurement said otherwise: it stays allowed, because WFP
+		// classifies traffic to any of the machine's own addresses as loopback,
+		// so the loopback permit covers it. Which makes the block to a remote
+		// IPv6 address unmeasurable from a single machine -- and that line is
+		// reported NOT MEASURED rather than quietly asserted.
+		//
+		// Kept, pointing the other way, because what it does measure is worth
+		// keeping: local IPv6 services must survive leak protection for the
+		// same reason localhost must.
+		{"IPv6 to this machine", func() error { return dialTCP(linkLocal) }, true},
+	}
+
+	before := make([]error, len(probes))
+	for i, probe := range probes {
+		before[i] = probe.run()
+		t.Logf("baseline   %-34s %s", probe.what, outcome(before[i]))
+	}
+
+	stop := startProtectedTunnel(t, "RelayTestMatrix", tunnelResolver)
+	defer stop()
+
+	for i, probe := range probes {
+		after := probe.run()
+		t.Logf("protected  %-34s %s", probe.what, outcome(after))
+
+		if before[i] != nil {
+			// It did not work without the tunnel either, so this machine can say
+			// nothing about it. Logged rather than passed over in silence: a
+			// green run that skipped its own assertions has proven nothing.
+			t.Logf("           %-34s NOT MEASURED: unreachable at baseline", probe.what)
+			continue
+		}
+
+		switch {
+		case probe.mustSurvive && after != nil:
+			t.Errorf("%s worked before leak protection and not after (%v).\n"+
+				"A rule is blocking more than it needs to, which breaks unrelated "+
+				"software and makes turning leak protection off look like the fix.",
+				probe.what, after)
+		case !probe.mustSurvive && after == nil:
+			t.Errorf("%s still worked with leak protection on. "+
+				"This is the leak the feature exists to close.", probe.what)
+		}
+	}
+}
+
+// startProtectedTunnel brings the client up far enough that its filters are
+// live, and returns a function that tears it down.
+//
+// No peer answers, and none is needed: the filters go in before the handshake
+// is waited for, so they are live for the whole handshake timeout.
+func startProtectedTunnel(t *testing.T, adapter, resolver string) func() {
+	t.Helper()
+
+	_, serverPublic := keyPair(t)
+	clientPrivate, _ := keyPair(t)
+
+	client := exec.Command(os.Getenv("RELAYWG_CLIENT"),
+		"-name", adapter,
+		"-address", "10.13.37.2/32",
+		// A documentation prefix, so this never takes over the runner's default
+		// route: what is under test is the filters, not the routing table.
+		"-routes", "198.51.100.0/24",
+		"-dns", resolver,
+	)
+	stdin, err := client.StdinPipe()
+	if err != nil {
+		t.Fatalf("stdin: %v", err)
+	}
+	stderr, err := client.StderrPipe()
+	if err != nil {
+		t.Fatalf("stderr: %v", err)
+	}
+	if err := client.Start(); err != nil {
+		t.Fatalf("starting the client (Administrator required): %v", err)
+	}
+	stop := func() {
+		_ = client.Process.Kill()
+		_, _ = client.Process.Wait()
+	}
+
+	fmt.Fprintf(stdin,
+		"private_key=%s\npublic_key=%s\nendpoint=127.0.0.1:9\nallowed_ip=0.0.0.0/0\n%s\n",
+		clientPrivate, serverPublic, configTerminator)
+
+	installed := make(chan bool, 1)
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, "leak protection on") {
+				installed <- true
+				return
+			}
+			if strings.Contains(line, "leak protection unavailable") {
+				installed <- false
+				return
+			}
+		}
+		installed <- false
+	}()
+
+	select {
+	case on := <-installed:
+		if !on {
+			stop()
+			t.Skip("leak protection did not install here; nothing to measure")
+		}
+	case <-time.After(30 * time.Second):
+		stop()
+		t.Fatal("the client never said whether leak protection was installed")
+	}
+	return stop
+}
+
+// linkLocalListener listens on this machine's own link-local IPv6 address.
+//
+// Not loopback, so the loopback permit does not cover it, and reachable without
+// any IPv6 route to the internet -- which is what makes it the only address on
+// this runner that can tell a working IPv6 block from an absent one.
+func linkLocalListener(t *testing.T) string {
+	t.Helper()
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		t.Skipf("cannot enumerate interfaces: %v", err)
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ipNet, ok := address.(*net.IPNet)
+			if !ok || ipNet.IP.To4() != nil || !ipNet.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			// The zone is required: a link-local address is only meaningful
+			// alongside the interface it belongs to.
+			host := fmt.Sprintf("[%s%%%s]:0", ipNet.IP, iface.Name)
+			listener, err := net.Listen("tcp6", host)
+			if err != nil {
+				continue
+			}
+			t.Cleanup(func() { listener.Close() })
+			go func() {
+				for {
+					conn, err := listener.Accept()
+					if err != nil {
+						return
+					}
+					conn.Close()
+				}
+			}()
+			return listener.Addr().String()
+		}
+	}
+	t.Skip("this machine has no usable link-local IPv6 address")
+	return ""
+}
+
+func listenOrSkip(t *testing.T, network, address string) string {
+	t.Helper()
+	listener, err := net.Listen(network, address)
+	if err != nil {
+		t.Skipf("cannot listen on %s %s here: %v", network, address, err)
+	}
+	t.Cleanup(func() { listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	return listener.Addr().String()
+}
+
+func dialTCP(address string) error {
+	conn, err := net.DialTimeout("tcp", address, 4*time.Second)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}
+
+// resolve asks a resolver a question and waits for its answer.
+//
+// This is the measurement that matters, and sendUDP is not it. A WFP block does
+// not always fail the send on a UDP socket -- Windows can accept the datagram
+// and drop it -- so "the send returned no error" is not "the query left". What
+// the feature is about is whether the other resolver *answers*, which is
+// exactly how the leak was seen in the first place: a leak test listing the
+// local ISP beside the tunnel's exit.
+func resolve(address string) error {
+	conn, err := net.DialTimeout("udp", address, 4*time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write(dnsQuery); err != nil {
+		return err
+	}
+	reply := make([]byte, 512)
+	n, err := conn.Read(reply)
+	if err != nil {
+		return err
+	}
+	if n < 12 || reply[0] != dnsQuery[0] || reply[1] != dnsQuery[1] {
+		return errors.New("no matching answer")
+	}
+	return nil
+}
+
+// sendUDP reports whether the machine was allowed to send at all.
+//
+// Whether an answer comes back is the network's business; what a WFP block at
+// ALE_AUTH_CONNECT changes is whether the send is permitted, and that surfaces
+// as an error on the connect or on the first write.
+func sendUDP(address string) error {
+	conn, err := net.DialTimeout("udp", address, 4*time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
+	_, err = conn.Write(dnsQuery)
+	return err
+}
+
+// A well-formed A query for example.com, so nothing downstream is being asked
+// to make sense of garbage.
+var dnsQuery = []byte{
+	0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+	0x03, 0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01,
+}
+
+func outcome(err error) string {
+	if err == nil {
+		return "allowed"
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return "timed out (not a filter)"
+	}
+	return "refused: " + err.Error()
+}
+
+// nonLoopbackAddr is this machine's address as the routing table sees it.
+func nonLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	conn, err := net.Dial("udp4", "192.0.2.1:9")
+	if err != nil {
+		t.Skipf("no routable IPv4 address: %v", err)
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
+}
+
+// What leak protection costs, in numbers.
+//
+// The question that started this -- "why does it get slower when I turn leak
+// protection on?" -- has been answered with reasoning twice and measured never.
+// It is answerable here without a phone, because the filters are a property of
+// the machine rather than of the tunnel: they are installed whether or not any
+// traffic is flowing through WireGuard, so their cost can be measured against a
+// local server with nothing else in the way.
+//
+// The rules sit at ALE_AUTH_CONNECT, which Windows evaluates once per
+// connection and never per packet. So the shape of the answer should be: a
+// little more time to open a connection, and no difference at all to the
+// throughput of one already open. This measures both rather than asserting it.
+//
+// Bounds are deliberately loose. A shared runner cannot support a tight timing
+// assertion without flaking, and the failure worth catching is not "three
+// percent slower", it is "something here is per-packet after all".
+func TestWhatLeakProtectionCosts(t *testing.T) {
+	if os.Getenv("RELAYWG_CLIENT") == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+
+	destination := echoListener(t)
+
+	connectBefore := medianConnectTime(t, destination)
+	throughputBefore := localThroughput(t, destination)
+	t.Logf("leak protection OFF  connect %v   throughput %.0f MB/s",
+		connectBefore, throughputBefore)
+
+	stop := startProtectedTunnel(t, "RelayTestCost", "1.1.1.1")
+	defer stop()
+
+	connectAfter := medianConnectTime(t, destination)
+	throughputAfter := localThroughput(t, destination)
+	t.Logf("leak protection ON   connect %v   throughput %.0f MB/s",
+		connectAfter, throughputAfter)
+
+	// Per-connection cost. Generous, because the absolute numbers are tens of
+	// microseconds on a machine that is also running a CI job.
+	if connectBefore > 0 && connectAfter > 8*connectBefore {
+		t.Errorf("opening a connection went from %v to %v with leak protection on.\n"+
+			"These rules are evaluated once per connection; a jump this size means "+
+			"something is being evaluated far more often than that.",
+			connectBefore, connectAfter)
+	}
+
+	// Per-byte cost, which there should be none of at all.
+	if throughputBefore > 0 && throughputAfter < throughputBefore/3 {
+		t.Errorf("throughput on an established connection went from %.0f to %.0f MB/s "+
+			"with leak protection on.\nThe rules sit at connect time and must not "+
+			"touch a connection that is already open.",
+			throughputBefore, throughputAfter)
+	}
+}
+
+// echoListener is a local server that reads and echoes, on a real interface.
+func echoListener(t *testing.T) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp4", nonLoopbackAddr(t)+":0")
+	if err != nil {
+		t.Skipf("no routable interface to measure against: %v", err)
+	}
+	t.Cleanup(func() { listener.Close() })
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				_, _ = io.Copy(conn, conn)
+			}()
+		}
+	}()
+	return listener.Addr().String()
+}
+
+// medianConnectTime opens and closes a connection repeatedly and takes the
+// middle time, so one scheduling hiccup does not become the answer.
+func medianConnectTime(t *testing.T, address string) time.Duration {
+	t.Helper()
+
+	const samples = 25
+	times := make([]time.Duration, 0, samples)
+	for i := 0; i < samples; i++ {
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+		if err != nil {
+			t.Fatalf("connect %d failed: %v", i, err)
+		}
+		times = append(times, time.Since(start))
+		conn.Close()
+	}
+	sort.Slice(times, func(a, b int) bool { return times[a] < times[b] })
+	return times[len(times)/2]
+}
+
+// localThroughput measures one already-open connection, which is where a
+// per-packet cost would show up and a per-connection one would not.
+func localThroughput(t *testing.T, address string) float64 {
+	t.Helper()
+
+	const size = 8 << 20
+
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	if err != nil {
+		t.Fatalf("throughput connection: %v", err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(60 * time.Second))
+
+	payload := make([]byte, 64<<10)
+	start := time.Now()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.CopyN(io.Discard, conn, size)
+		done <- err
+	}()
+	for sent := 0; sent < size; sent += len(payload) {
+		if _, err := conn.Write(payload); err != nil {
+			t.Fatalf("throughput write: %v", err)
+		}
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("throughput read: %v", err)
+	}
+
+	elapsed := time.Since(start).Seconds()
+	if elapsed <= 0 {
+		return 0
+	}
+	return float64(size) / elapsed / (1 << 20)
+}

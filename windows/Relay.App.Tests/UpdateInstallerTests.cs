@@ -80,8 +80,10 @@ public class UpdateInstallerTests
 
         Assert.Equal(UpdateInstaller.Outcome.ChecksumMismatch, outcome);
         Assert.Empty(ran);
-        // And it must not be sitting on disk waiting to be double-clicked.
-        Assert.False(File.Exists(Path.Combine(dir, Installer)));
+        // And nothing must be sitting on disk waiting to be double-clicked --
+        // not under the installer's name and not under the part-file name the
+        // download streams into either.
+        Assert.Empty(Directory.GetFiles(dir));
     }
 
     [Fact]
