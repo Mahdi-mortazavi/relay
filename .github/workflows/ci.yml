@@ -189,6 +189,53 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+  # Tell GitHub what the Android app actually depends on.
+  #
+  # Dependabot has two halves and only one of them was working here. Version
+  # updates read the manifests directly, which is why the toolchain bumps have
+  # been arriving as pull requests all along. Security alerts read the
+  # *dependency graph* instead -- and GitHub does not build that from a Gradle
+  # version catalog, so all twenty-four Android dependencies were invisible to
+  # it. The graph held Go, NuGet and Actions packages and not one Gradle one,
+  # which meant a published CVE in anything the app ships could not have raised
+  # an alert.
+  #
+  # This resolves the real build and submits what it found. Push to main only:
+  # the submission needs write access to the graph, which a pull request from a
+  # fork does not have, and the graph should track what is shipping rather than
+  # what someone is proposing.
+  dependency-graph:
+    name: Android dependency graph
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: wireguard
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Take the Full Mode library
+        # The build does not configure without it, and a dependency graph
+        # submitted from a build that failed to configure is an empty one.
+        uses: actions/download-artifact@v8
+        with:
+          name: relaywg-aar
+          path: android/app/libs
+
+      - name: Resolve and submit
+        uses: gradle/actions/dependency-submission@v6
+        with:
+          build-root-directory: android
+
   windows:
     name: Windows (build + test)
     runs-on: windows-latest
