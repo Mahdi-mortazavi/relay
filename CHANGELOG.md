@@ -9,6 +9,36 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-08-27
+
+### Fixed — the approval prompt could not be answered, and then stopped appearing
+
+Reported as a VPN bug: with a VPN running on the phone, pressing Connect on the
+PC never brought up the "allow this computer?" prompt, and turning the VPN off
+made it work again. Reproduced on a phone, where the VPN turned out to be a red
+herring and two separate faults were hiding behind it.
+
+**The prompt only existed inside the app's own screen.** It reached someone
+already watching their phone and nobody else — which is the opposite of the
+normal case, because you press Connect on the laptop, where you are looking,
+while the phone lies face down on the desk. Measured with Relay in the
+background: the request timed out after twenty seconds having shown nothing at
+all — no dialog, no notification, no sound.
+
+The question is now asked in the notification shade too, with **Allow** and
+**Deny** on it, so it can be answered without opening the app.
+
+**And a missed prompt was remembered as a refusal.** Refusing when nobody
+answers is deliberate and has not changed — a phone in a pocket must fail
+closed. But recording it was wrong: nobody had decided anything, and yet every
+later attempt from that computer was turned away in milliseconds without anyone
+being asked. The one prompt that was missed was the only prompt there would ever
+be. The only way out was restarting sharing — and toggling a VPN happens to
+restart sharing, which is the whole of why this looked like a VPN problem.
+
+A person's answer is still remembered. Silence no longer is.
+
+
 ## [2.7.0] — 2026-08-25
 
 Four defects on the path every byte takes, found by reading it end to end and
