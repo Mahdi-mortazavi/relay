@@ -52,9 +52,11 @@
 
 <div align="center">
 
-<img src="docs/assets/android-sharing.png" alt="ریلی روی اندروید: یک دستگاه متصل، آمار زنده‌ی انتقال، و کد دو رقمی" width="300">
+<img src="docs/assets/android-sharing.png" alt="ریلی روی اندروید: یک دستگاه متصل، آمار زنده‌ی انتقال، و کد دو رقمی" width="290">
 &nbsp;&nbsp;
-<img src="docs/assets/windows-idle.png" alt="ریلی روی ویندوز: پنجره‌ای کوچک که در سینی سیستم زندگی می‌کند" width="330">
+<img src="docs/assets/windows-idle.png" alt="ریلی روی ویندوز: پنجره‌ای کوچک که در سینی سیستم زندگی می‌کند" width="320">
+&nbsp;&nbsp;
+<img src="docs/assets/windows-connected.png" alt="ریلی روی ویندوز در حالت متصل: نام گوشی، آدرس تونل و سرعت زنده" width="320">
 
 <sub>**راست:** کامپیوتر، آماده‌ی اتصال. **چپ:** گوشی، در حال اشتراک‌گذاری.</sub>
 
@@ -98,7 +100,9 @@
 
 <div align="center">
 
-<img src="docs/assets/video-kasra-thumb.jpg" alt="آموزش راه‌اندازی ریلی توسط KASRA MAX — روایت فارسی با زیرنویس انگلیسی" width="640">
+<video src="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4" poster="docs/assets/video-kasra-thumb.jpg" controls muted playsinline width="720"></video>
+
+<sub>▶︎ چهار دقیقه، روایت فارسی با زیرنویس انگلیسی. اگر اینجا پخش نشد <a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4">مستقیم بازش کن</a>.</sub>
 
 </div>
 
@@ -118,6 +122,13 @@
 <div dir="rtl">
 
 ## 📥 دانلود
+
+<img src="docs/assets/icon.svg" alt="آیکون برنامه‌ی ریلی" width="76" align="right" hspace="18" vspace="4">
+
+**همین برنامه است.** برای هر دستگاه یک فایل، هر دو از همان بیلدی که تست‌های این صفحه
+را اجرا می‌کند. چیز دیگری برای نصب نیست و حسابی هم نباید بسازی.
+
+<br clear="right">
 
 | | فایل | برای چه کسی |
 |---|---|---|

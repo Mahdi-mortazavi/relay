@@ -17,3 +17,10 @@ gradlew text eol=lf
 *.ico binary
 *.keystore binary
 *.jks binary
+
+# Media is binary. `* text=auto` detects that on its own, but a video is the one
+# file in here where a wrong guess is unrecoverable rather than merely noisy.
+*.mp4 binary
+*.jpg binary
+*.png binary
+*.ico binary

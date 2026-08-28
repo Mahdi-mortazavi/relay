@@ -48,11 +48,13 @@ UDP**, so games, video calls and installers work, not just the browser.
 
 <div align="center">
 
-<img src="docs/assets/android-sharing.png" alt="Relay on Android: one device connected, live transfer totals, and the two-digit pairing code" width="300">
+<img src="docs/assets/android-sharing.png" alt="Relay on Android: one device connected, live transfer totals, and the two-digit pairing code" width="290">
 &nbsp;&nbsp;
-<img src="docs/assets/windows-idle.png" alt="Relay on Windows: a small window that lives in the system tray" width="330">
+<img src="docs/assets/windows-idle.png" alt="Relay on Windows: a small window that lives in the system tray, ready to connect" width="320">
+&nbsp;&nbsp;
+<img src="docs/assets/windows-connected.png" alt="Relay on Windows while connected: the phone's name, the tunnel endpoint, and live speed" width="320">
 
-<sub>**Left:** the phone, sharing. **Right:** the PC, ready to connect.</sub>
+<sub>**Left:** the phone, sharing. **Middle:** the PC, ready. **Right:** connected — a real session, 6 ms through the tunnel.</sub>
 
 </div>
 
@@ -83,7 +85,9 @@ install to browsing.
 
 <div align="center">
 
-<img src="docs/assets/video-kasra-thumb.jpg" alt="Relay setup walkthrough by KASRA MAX — Persian narration with English subtitles" width="640">
+<video src="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4" poster="docs/assets/video-kasra-thumb.jpg" controls muted playsinline width="720"></video>
+
+<sub>▶︎ Four minutes, Persian narration, English subtitles. <a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4">Open the video directly</a> if it does not play here.</sub>
 
 </div>
 
@@ -97,6 +101,13 @@ install to browsing.
 ---
 
 ## 📥 Download
+
+<img src="docs/assets/icon.svg" alt="The Relay app icon" width="76" align="left" hspace="18" vspace="4">
+
+**This is the app.** One file per device, both signed by the same build that runs the
+tests on this page. Nothing else to install, and no account to make.
+
+<br clear="left">
 
 | | File | Who it's for |
 |---|---|---|
