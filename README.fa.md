@@ -5,10 +5,12 @@
   <img src="docs/assets/cover.svg" alt="ریلی — اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار. Relay — share your phone's internet with your PC." width="100%">
 </picture>
 
-<br>
+<br><br>
 
-### **لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد.**
-### **ریلی آن را جابه‌جا می‌کند — در حدود پنج ثانیه.**
+**لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد. ریلی آن را جابه‌جا می‌کند.**
+
+اشتراک اینترنت گوشی با کامپیوتر، از اندروید به ویندوز، روی یک تونل رمزنگاری‌شده‌ی WireGuard.
+بدون روت، بدون حساب کاربری، بدون سرور.
 
 <br>
 
@@ -16,17 +18,17 @@
 &nbsp;
 [![دانلود برای اندروید](https://img.shields.io/badge/دانلود-اندروید-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 
-<sub>همیشه آخرین نسخه · [همه‌ی فایل‌ها و توضیحات](https://github.com/Mahdi-mortazavi/relay/releases/latest)</sub>
+<sub>
+  <a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">آخرین نسخه</a> ·
+  <a href="README.md">English</a> ·
+  <a href="LICENSE">GPL-3.0</a>
+</sub>
 
 <br>
 
 [![CI](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/ci.yml)
-[![E2E device lab](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml)
+[![Device lab](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml/badge.svg)](https://github.com/Mahdi-mortazavi/relay/actions/workflows/e2e.yml)
 [![Release](https://img.shields.io/github/v/release/Mahdi-mortazavi/relay?sort=semver&color=4ADFBF&label=release)](https://github.com/Mahdi-mortazavi/relay/releases/latest)
-[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/Mahdi-mortazavi/relay?style=flat&color=FFD700)](https://github.com/Mahdi-mortazavi/relay/stargazers)
-
-**🌍 [English](README.md) · [فارسی](README.fa.md)**
 
 </div>
 
@@ -52,11 +54,9 @@
 
 <div align="center">
 
-<img src="docs/assets/android-sharing.png" alt="ریلی روی اندروید: یک دستگاه متصل، آمار زنده‌ی انتقال، و کد دو رقمی" width="290">
-&nbsp;&nbsp;
-<img src="docs/assets/windows-idle.png" alt="ریلی روی ویندوز: پنجره‌ای کوچک که در سینی سیستم زندگی می‌کند" width="320">
-&nbsp;&nbsp;
-<img src="docs/assets/windows-connected.png" alt="ریلی روی ویندوز در حالت متصل: نام گوشی، آدرس تونل و سرعت زنده" width="320">
+<img src="docs/assets/android-sharing.png" alt="ریلی روی اندروید: یک دستگاه متصل، ۴.۲ گیگ ارسال و ۳.۰ گیگ دریافت، کد دو رقمی و کد QR" width="300">
+&nbsp;&nbsp;&nbsp;
+<img src="docs/assets/windows-idle.png" alt="ریلی روی ویندوز: پنجره‌ای جمع‌وجور که در سینی سیستم زندگی می‌کند" width="300">
 
 <sub>**راست:** کامپیوتر، آماده‌ی اتصال. **چپ:** گوشی، در حال اشتراک‌گذاری.</sub>
 
@@ -66,7 +66,7 @@
 
 <div dir="rtl">
 
-## ⚡ راه‌اندازی، در حدود پنج ثانیه
+## راه‌اندازی، در حدود پنج ثانیه
 
 </div>
 
@@ -91,7 +91,7 @@
 
 <div dir="rtl">
 
-## 🎬 ببین چطور کار می‌کند
+## ببین چطور کار می‌کند
 
 **KASRA MAX** یک آموزش کامل ساخته — روایت فارسی با زیرنویس انگلیسی، حدود چهار
 دقیقه، از نصب تا گشت‌وگذار.
@@ -100,9 +100,9 @@
 
 <div align="center">
 
-<video src="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4" poster="docs/assets/video-kasra-thumb.jpg" controls muted playsinline width="720"></video>
+<a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4"><img src="docs/assets/video-kasra-thumb.jpg" alt="پخش آموزش ریلی از کسری — روایت فارسی با زیرنویس انگلیسی" width="720"></a>
 
-<sub>▶︎ چهار دقیقه، روایت فارسی با زیرنویس انگلیسی. اگر اینجا پخش نشد <a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4">مستقیم بازش کن</a>.</sub>
+<sub><b>▶︎ پخش آموزش</b> — ۴ دقیقه · روایت فارسی · زیرنویس انگلیسی</sub>
 
 </div>
 
@@ -121,7 +121,7 @@
 
 <div dir="rtl">
 
-## 📥 دانلود
+## دانلود
 
 <img src="docs/assets/icon.svg" alt="آیکون برنامه‌ی ریلی" width="76" align="right" hspace="18" vspace="4">
 
@@ -147,9 +147,9 @@
 
 <div dir="rtl">
 
-## ✨ همه‌ی امکانات ریلی
+## همه‌ی امکانات ریلی
 
-### 🌐 اشتراک‌گذاری
+### اشتراک‌گذاری
 
 | | |
 |---|---|
@@ -162,7 +162,10 @@
 | **مقاوم در برابر شبکه‌ی بد** | تست‌شده با ۵٪ packet loss، قطعی کامل، و تغییر مسیر وسط انتقال |
 | **اتصال مجدد** | بازیابی خودکار با سقف مشخص، وقتی هات‌اسپات قطع می‌شود ([ADR-0007](docs/adr/0007-bounded-auto-reconnect.md)) |
 
-### 🔗 جفت‌شدن
+<details>
+<summary><b>جفت‌شدن</b></summary>
+
+<br>
 
 | | |
 |---|---|
@@ -171,7 +174,12 @@
 | **کد QR** | وب‌کم را جلوی گوشی بگیر |
 | **تأیید با خودت** | گوشی قبل از تحویل کلیدها می‌پرسد و آدرس همان کامپیوتر را نشان می‌دهد — هم داخل برنامه و هم **در نوار نوتیفیکیشن**، تا وقتی به لپ‌تاپ نگاه می‌کنی هم به تو برسد |
 
-### 🛡️ محافظت از نشت
+</details>
+
+<details>
+<summary><b>محافظت از نشت</b></summary>
+
+<br>
 
 پیش‌فرض روشن، با قوانین Windows Filtering Platform که خود تونل نصبشان می‌کند.
 
@@ -186,7 +194,12 @@
 پاکشان می‌کند — حتی اگر kill شود. یک ریلیِ مرده نمی‌تواند ماشینت را بدون
 نام‌گشایی رها کند.
 
-### 📱 روی گوشی
+</details>
+
+<details>
+<summary><b>روی گوشی</b></summary>
+
+<br>
 
 | | |
 |---|---|
@@ -197,7 +210,12 @@
 | **سه کانال نوتیفیکیشن جدا** | اشتراک‌گذاری، به‌روزرسانی و درخواست تأیید، هرکدام مستقل قابل خاموش‌کردن |
 | **آیکون Themed** | روی اندروید ۱۳ به بالا با پالت والپیپرت هماهنگ می‌شود |
 
-### 💻 روی کامپیوتر
+</details>
+
+<details>
+<summary><b>روی کامپیوتر</b></summary>
+
+<br>
 
 | | |
 |---|---|
@@ -206,7 +224,12 @@
 | **نوتیفیکیشن اتصال** | وقتی تونل بالا می‌آید — و اگر بدون محافظت بالا آمده باشد، به‌جایش هشدار |
 | **گزارش تشخیصی** | یک دکمه، هرچه یک گزارش باگ لازم دارد را کپی می‌کند — و هیچ‌چیز آپلود نمی‌شود |
 
-### 🔄 به‌روزرسانی
+</details>
+
+<details>
+<summary><b>به‌روزرسانی</b></summary>
+
+<br>
 
 **ویندوز خودش را به‌روز می‌کند.** کمی بعد از اجرا و بعد روزی یک‌بار بررسی می‌کند،
 می‌گوید چه پیدا کرده، و در اولین لحظه‌ای که تونل پایین باشد نصب می‌کند — چون نصب
@@ -222,11 +245,17 @@
 تو را حمل می‌کند، پس «خودش را جایگزین کند» باید یعنی «دقیقاً با همان بایت‌هایی که
 ریلیز منتشر کرده».
 
-### 🌍 هر دو
+</details>
+
+<details>
+<summary><b>هر دو</b></summary>
+
+<br>
 
 فارسی و انگلیسی در سراسر برنامه، با راست‌به‌چپ درست، و هر متنی که کاربر می‌بیند با
 تست اجباری شده. بیست‌ویک کد خطا، هرکدام با توضیح انسانی در
 [`docs/errors.md`](docs/errors.md).
+</details>
 
 </div>
 
@@ -234,7 +263,7 @@
 
 <div dir="rtl">
 
-## 🔒 هیچ چیزی از دستگاه‌های تو بیرون نمی‌رود
+## هیچ چیزی از دستگاه‌های تو بیرون نمی‌رود
 
 این بخشی است که بیشتر از همه برایم مهم است، پس یک قانون است نه یک ترجیح:
 
@@ -251,7 +280,7 @@
 
 <div dir="rtl">
 
-## 🧪 چطور تست می‌شود
+## چطور تست می‌شود
 
 هر کامیت، برنامه‌ی واقعی را روی ایمیج‌های واقعی اندروید (API ۳۰ تا ۳۶) نصب می‌کند و از طریق رابط کاربری خودش پیش می‌برد: شروع اشتراک‌گذاری، نمایش QR، جفت‌شدن یک لپ‌تاپ با کد، پاسخ به درخواست، توقف. کلاینت ویندوز در برابر یک **گوشی زنده** از طریق `adb` اجرا می‌شود. نصب‌کننده‌ی واقعی نصب، اجرا و حذف می‌شود. تونل روی یک آداپتور واقعی WinTun بالا می‌آید و یک هند‌شیک واقعی WireGuard روی آن تأیید می‌شود.
 
@@ -265,7 +294,7 @@
 
 <div dir="rtl">
 
-## 🗺️ کارهای بعدی
+## کارهای بعدی
 
 | | |
 |:---|:---|
@@ -293,7 +322,7 @@
 
 <div dir="rtl">
 
-## 🛠️ برای توسعه‌دهنده‌ها
+## برای توسعه‌دهنده‌ها
 
 دو اپلیکیشن و یک قرارداد مشترک.
 
@@ -334,7 +363,7 @@ git switch -c my-change
 
 <div align="center">
 
-## 👋 سازنده
+## سازنده
 
 <img src="https://avatars.githubusercontent.com/u/127998145?v=4" width="120" style="border-radius:50%" alt="مهدی مرتضوی">
 
@@ -358,7 +387,7 @@ git switch -c my-change
 
 <br>
 
-### 💬 در ارتباط باشیم
+### در ارتباط باشیم
 
 [![کامیونیتی تلگرام](https://img.shields.io/badge/Community-Startup_Legend-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/Startup_legend)
 
