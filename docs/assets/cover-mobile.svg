@@ -61,10 +61,15 @@
      font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
     <text y="0"  font-size="36" font-weight="600" fill="#EAF2F8">Your laptop has no internet.</text>
     <text y="46" font-size="36" font-weight="600" fill="#EAF2F8">Your phone does.</text>
-    <text y="90" font-size="20" fill="#8FA6B8">Scan once. Everything on the PC goes through it.</text>
-    <text y="126" direction="rtl"
+    <!--
+      The Persian line is a headline, not a footnote: most of the people who
+      use Relay read it first. Centred, so text-anchor="middle" keeps it on
+      canvas whichever direction it is laid out in.
+    -->
+    <text y="94" direction="rtl"
           font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
-          font-size="20" fill="#8FA6B8">اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار</text>
+          font-size="27" font-weight="600" fill="#9FE9D6">اینترنت گوشی‌ات را با کامپیوترت شریک شو</text>
+    <text y="132" font-size="19" fill="#8FA6B8">Scan once. Everything on the PC goes through it.</text>
   </g>
 
   <!-- Phone → tunnel → laptop, stacked into the width available -->

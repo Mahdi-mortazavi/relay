@@ -5,24 +5,27 @@
   <img src="docs/assets/cover.svg" alt="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار." width="100%">
 </picture>
 
-<br><br>
+<br>
 
-**Your laptop has no internet. Your phone does. Relay moves it across.**
+### Your laptop has no internet. Your phone does.
 
-Reverse tethering for Android → Windows, over an encrypted WireGuard tunnel.
-No root, no account, no server.
+<div dir="rtl">
+
+### لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد.
+
+</div>
+
+**Android → Windows** · encrypted WireGuard tunnel · no root, no account, no server
 
 <br>
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+[![Download for Windows](https://img.shields.io/badge/Download_for-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
 &nbsp;
-[![Download for Android](https://img.shields.io/badge/Download-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+[![Download for Android](https://img.shields.io/badge/Download_for-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+&nbsp;
+[![راهنمای فارسی](https://img.shields.io/badge/راهنمای-فارسی-4ADFBF?style=for-the-badge)](README.fa.md)
 
-<sub>
-  <a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">Latest release</a> ·
-  <a href="README.fa.md">فارسی</a> ·
-  <a href="LICENSE">GPL-3.0</a>
-</sub>
+<sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">All files &amp; release notes</a> · <a href="LICENSE">GPL-3.0</a></sub>
 
 <br>
 
@@ -31,6 +34,38 @@ No root, no account, no server.
 [![Release](https://img.shields.io/github/v/release/Mahdi-mortazavi/relay?sort=semver&color=4ADFBF&label=release)](https://github.com/Mahdi-mortazavi/relay/releases/latest)
 
 </div>
+
+<br>
+
+---
+
+<br>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**I just want it working**
+
+1. [Download for Android](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) → tap **Start Sharing**
+2. [Download for Windows](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) → click your phone in the list
+3. Approve it on the phone
+
+That is the whole setup. [Watch someone do it →](#watch-it-work)
+
+</td>
+<td width="50%" valign="top">
+
+**I want to look under the hood**
+
+A userspace WireGuard endpoint on the phone (Go + gVisor), a WinTun client on
+the PC, and one shared contract both are tested against.
+
+[Architecture](docs/architecture.md) · [ADRs](docs/adr/) · [Contributing](CONTRIBUTING.md) · [For developers →](#for-developers)
+
+</td>
+</tr>
+</table>
 
 <br>
 

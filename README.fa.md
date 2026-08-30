@@ -5,24 +5,25 @@
   <img src="docs/assets/cover.svg" alt="ریلی — اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار. Relay — share your phone's internet with your PC." width="100%">
 </picture>
 
-<br><br>
+<br>
 
-**لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد. ریلی آن را جابه‌جا می‌کند.**
+<div dir="rtl">
 
-اشتراک اینترنت گوشی با کامپیوتر، از اندروید به ویندوز، روی یک تونل رمزنگاری‌شده‌ی WireGuard.
-بدون روت، بدون حساب کاربری، بدون سرور.
+### لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد.
+
+</div>
+
+**اندروید ← ویندوز** · تونل رمزنگاری‌شده‌ی WireGuard · بدون روت، بدون حساب، بدون سرور
 
 <br>
 
-[![دانلود برای ویندوز](https://img.shields.io/badge/دانلود-ویندوز-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+[![دانلود برای ویندوز](https://img.shields.io/badge/دانلود_برای-ویندوز-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
 &nbsp;
-[![دانلود برای اندروید](https://img.shields.io/badge/دانلود-اندروید-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+[![دانلود برای اندروید](https://img.shields.io/badge/دانلود_برای-اندروید-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+&nbsp;
+[![English](https://img.shields.io/badge/Read_in-English-4ADFBF?style=for-the-badge)](README.md)
 
-<sub>
-  <a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">آخرین نسخه</a> ·
-  <a href="README.md">English</a> ·
-  <a href="LICENSE">GPL-3.0</a>
-</sub>
+<sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">همه‌ی فایل‌ها و توضیحات نسخه</a> · <a href="LICENSE">GPL-3.0</a></sub>
 
 <br>
 
@@ -31,6 +32,42 @@
 [![Release](https://img.shields.io/github/v/release/Mahdi-mortazavi/relay?sort=semver&color=4ADFBF&label=release)](https://github.com/Mahdi-mortazavi/relay/releases/latest)
 
 </div>
+
+---
+
+<div dir="rtl">
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**فقط می‌خواهم کار کند**
+
+۱. [دانلود برای اندروید](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk) ← روی **شروع اشتراک‌گذاری** بزن
+
+۲. [دانلود برای ویندوز](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe) ← گوشی‌ات را از لیست انتخاب کن
+
+۳. روی گوشی تأیید کن
+
+همین. تمام راه‌اندازی همین است.
+
+</td>
+<td width="50%" valign="top">
+
+**می‌خواهم زیر کاپوت را ببینم**
+
+یک اندپوینت WireGuard در فضای کاربر روی گوشی (Go + gVisor)، یک کلاینت WinTun روی
+کامپیوتر، و یک قرارداد مشترک که هر دو در برابرش تست می‌شوند.
+
+[معماری](docs/architecture.md) · [ADRها](docs/adr/) · [مشارکت](CONTRIBUTING.md)
+
+</td>
+</tr>
+</table>
+
+</div>
+
+<br>
 
 ---
 

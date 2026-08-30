@@ -1,18 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img"
-     aria-label="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="1200" height="440" role="img"
+     aria-label="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. ریلی — اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
 
   <title>Relay — share your phone's internet with your PC</title>
   <desc>Android to Windows reverse tethering over an encrypted WireGuard tunnel.
         No root, no account, no server.</desc>
 
   <!--
-    Everything here is visible at rest.
+    Two rules this file has to keep, both learned by getting them wrong.
 
-    An earlier banner animated its text in with `animation: … both`, whose start
-    state is opacity 0. Any renderer that does not run CSS animations therefore
-    held every word at zero opacity forever — and that is not hypothetical:
-    rasterised, the hero image of this project was a blurry gradient and nothing
-    else. Motion here only ever *adds* to something already drawn.
+    Everything is visible at rest. An earlier banner animated its text in with
+    `animation: … both`, whose start state is opacity 0, so any renderer that
+    does not run CSS animations held every word at zero forever — and the hero
+    image of this project was a blurry gradient and nothing else. Motion here
+    only ever *adds* to something already drawn.
+
+    Nothing may sit outside the viewBox. The Persian line was written as
+    `x="0" direction="rtl"`, and with an RTL direction the anchor is the text's
+    *right* edge — so the sentence ran leftwards off the canvas and only its
+    tail was visible. The pills below it were cut in half by the bottom edge for
+    the same lack of checking. Every coordinate here is inside 1200x440 on
+    purpose, and the render is checked rather than assumed.
   -->
 
   <defs>
@@ -33,125 +40,112 @@
       <stop offset="100%" stop-color="#C8D6E5"/>
     </linearGradient>
 
-    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.30"/>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.22"/>
       <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
 
-    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="10"/>
-    </filter>
-
-    <!-- A faint grid: structure without noise. -->
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M40 0H0V40" fill="none" stroke="#4ADFBF" stroke-opacity="0.045" stroke-width="1"/>
-    </pattern>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.03"/>
+    </linearGradient>
   </defs>
 
-  <rect width="1200" height="400" fill="url(#ground)"/>
-  <rect width="1200" height="400" fill="url(#grid)"/>
-  <ellipse cx="880" cy="200" rx="330" ry="230" fill="url(#glow)"/>
+  <rect width="1200" height="440" fill="url(#ground)"/>
+  <circle cx="960" cy="200" r="300" fill="url(#halo)"/>
 
-  <!-- ================================================================
-       LEFT: what it is, in the fewest words that still mean something.
-       ================================================================ -->
-  <g transform="translate(88, 96)">
+  <!-- ── Left column ─────────────────────────────────────────────── -->
 
-    <!-- Mark: one arc carried between two points. Same idea as the app icon. -->
-    <g transform="translate(0, -4)">
-      <rect x="0" y="0" width="52" height="52" rx="15" fill="url(#accent)"/>
-      <path d="M14 34 C 14 18, 38 18, 38 34" fill="none" stroke="#08131C"
-            stroke-width="5" stroke-linecap="round"/>
-      <circle cx="14" cy="34" r="4.5" fill="#08131C"/>
-      <circle cx="38" cy="34" r="4.5" fill="#08131C"/>
+  <!-- Mark -->
+  <g transform="translate(72, 56)">
+    <rect width="60" height="60" rx="17" fill="url(#accent)"/>
+    <path d="M18 40 A 12 12 0 0 1 42 40" fill="none" stroke="#0B1220"
+          stroke-width="5.5" stroke-linecap="round"/>
+    <circle cx="30" cy="24" r="4.5" fill="#0B1220"/>
+  </g>
+
+  <text x="150" y="102" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="46" font-weight="700" fill="url(#wordmark)" letter-spacing="-1">Relay</text>
+  <text x="152" y="126" font-family="'Cascadia Code', Consolas, monospace"
+        font-size="12" fill="#4ADFBF" letter-spacing="3.2">ANDROID → WINDOWS</text>
+
+  <!-- English headline -->
+  <text x="72" y="196" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="35" font-weight="700" fill="#F2F7FC">Your laptop has no internet.</text>
+  <text x="72" y="240" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="35" font-weight="700" fill="#F2F7FC">Your phone does.</text>
+
+  <!--
+    The Persian headline, at the same weight as the English one.
+
+    Most of the people who use Relay read this line first, so it is a headline
+    rather than a footnote — it used to be 19px grey, below the fold, and cut
+    off. direction="ltr" is deliberate: it makes the anchor the left edge, so
+    the box grows rightwards from x, while the bidi algorithm still lays the
+    Persian glyphs out right-to-left inside it. That is what keeps it on canvas.
+  -->
+  <text x="72" y="290" direction="ltr" text-anchor="start"
+        font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
+        font-size="27" font-weight="600" fill="#9FE9D6">اینترنت گوشی‌ات را با کامپیوترت شریک شو</text>
+
+  <text x="72" y="326" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="16" fill="#8FA6B8">One tap on the phone, one click on the PC. Every app goes through it.</text>
+
+  <!-- Pills, entirely inside the canvas. -->
+  <g font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="13" fill="#C8D6E5">
+    <g transform="translate(72, 356)">
+      <rect width="108" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
+      <text x="54" y="21" text-anchor="middle">WireGuard</text>
     </g>
-
-    <text x="70" y="34" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          font-size="46" font-weight="700" fill="url(#wordmark)" letter-spacing="-1">Relay</text>
-
-    <text x="70" y="58" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
-          font-size="13" fill="#4ADFBF" letter-spacing="3.4">ANDROID → WINDOWS</text>
-
-    <text x="0" y="122" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          font-size="34" font-weight="600" fill="#EAF2F8">Your laptop has no internet.</text>
-    <text x="0" y="164" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          font-size="34" font-weight="600" fill="#EAF2F8">Your phone does.</text>
-
-    <text x="0" y="206" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          font-size="19" fill="#8FA6B8">Scan once. Every app on the PC goes through the phone.</text>
-
-    <!-- The Persian line is not decoration: half the people who use this read it first. -->
-    <text x="0" y="242" direction="rtl"
-          font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
-          font-size="19" fill="#8FA6B8">اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار</text>
-
-    <!-- Claims, each one a thing the README can defend. -->
-    <g transform="translate(0, 284)" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13">
-      <g>
-        <rect x="0" y="0" width="118" height="30" rx="15" fill="#4ADFBF" fill-opacity="0.10" stroke="#4ADFBF" stroke-opacity="0.30"/>
-        <text x="59" y="20" text-anchor="middle" fill="#4ADFBF">WireGuard</text>
-      </g>
-      <g transform="translate(130,0)">
-        <rect x="0" y="0" width="96" height="30" rx="15" fill="#4ADFBF" fill-opacity="0.10" stroke="#4ADFBF" stroke-opacity="0.30"/>
-        <text x="48" y="20" text-anchor="middle" fill="#4ADFBF">No root</text>
-      </g>
-      <g transform="translate(238,0)">
-        <rect x="0" y="0" width="110" height="30" rx="15" fill="#4ADFBF" fill-opacity="0.10" stroke="#4ADFBF" stroke-opacity="0.30"/>
-        <text x="55" y="20" text-anchor="middle" fill="#4ADFBF">No server</text>
-      </g>
-      <g transform="translate(360,0)">
-        <rect x="0" y="0" width="128" height="30" rx="15" fill="#4ADFBF" fill-opacity="0.10" stroke="#4ADFBF" stroke-opacity="0.30"/>
-        <text x="64" y="20" text-anchor="middle" fill="#4ADFBF">Open source</text>
-      </g>
+    <g transform="translate(190, 356)">
+      <rect width="88" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
+      <text x="44" y="21" text-anchor="middle">No root</text>
+    </g>
+    <g transform="translate(288, 356)">
+      <rect width="98" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
+      <text x="49" y="21" text-anchor="middle">No server</text>
+    </g>
+    <g transform="translate(396, 356)">
+      <rect width="112" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
+      <text x="56" y="21" text-anchor="middle">Open source</text>
     </g>
   </g>
 
-  <!-- ================================================================
-       RIGHT: the whole product in one picture — phone, tunnel, laptop.
-       ================================================================ -->
-  <g transform="translate(742, 92)">
+  <!-- ── Right: the thing it actually does ───────────────────────── -->
 
-    <!-- Phone -->
-    <g>
-      <rect x="0" y="0" width="104" height="200" rx="18" fill="#111E2E" stroke="#22384F" stroke-width="1.5"/>
-      <rect x="8" y="9" width="88" height="182" rx="12" fill="#0A1622"/>
-      <rect x="40" y="15" width="24" height="4" rx="2" fill="#22384F"/>
-      <!-- the two-digit code, which is the entire pairing story -->
-      <text x="52" y="96" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="42" font-weight="700" fill="#4ADFBF">65</text>
-      <text x="52" y="118" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="10" fill="#6C8399">SHARING</text>
-      <circle cx="52" cy="150" r="5" fill="#4ADFBF"/>
-    </g>
-
-    <!-- Tunnel -->
-    <g transform="translate(104, 100)">
-      <path d="M6 0 H 152" stroke="#22384F" stroke-width="2" stroke-linecap="round"/>
-      <path d="M6 0 H 152" stroke="url(#accent)" stroke-width="2" stroke-linecap="round"
-            stroke-dasharray="10 12" opacity="0.95">
-        <animate attributeName="stroke-dashoffset" from="44" to="0" dur="1.6s" repeatCount="indefinite"/>
-      </path>
-      <g transform="translate(79, 0)">
-        <circle r="17" fill="#0E1A2B" stroke="#4ADFBF" stroke-opacity="0.45"/>
-        <path d="M0 -8 a 6 6 0 0 1 6 6 v 2 h -12 v -2 a 6 6 0 0 1 6 -6 z" fill="none" stroke="#4ADFBF" stroke-width="1.6"/>
-        <rect x="-6" y="0" width="12" height="9" rx="2" fill="#4ADFBF"/>
-      </g>
-      <text x="79" y="36" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
-            font-size="10" fill="#4ADFBF" letter-spacing="1.6">ENCRYPTED</text>
-    </g>
-
-    <!-- Laptop -->
-    <g transform="translate(262, 44)">
-      <rect x="0" y="0" width="186" height="118" rx="10" fill="#111E2E" stroke="#22384F" stroke-width="1.5"/>
-      <rect x="9" y="9" width="168" height="100" rx="6" fill="#0A1622"/>
-      <circle cx="93" cy="52" r="20" fill="none" stroke="#4ADFBF" stroke-opacity="0.28" stroke-width="2"/>
-      <circle cx="93" cy="52" r="8" fill="#4ADFBF"/>
-      <text x="93" y="88" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="11" fill="#8FA6B8">Connected</text>
-      <path d="M-16 118 H 202 l -12 12 H -4 Z" fill="#0E1A2B" stroke="#22384F" stroke-width="1.5"/>
-    </g>
+  <!-- Phone -->
+  <g transform="translate(742, 108)">
+    <rect width="112" height="204" rx="20" fill="#0E1726" stroke="#243449" stroke-width="1.6"/>
+    <rect x="42" y="12" width="28" height="4" rx="2" fill="#243449"/>
+    <text x="56" y="96" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+          font-size="40" font-weight="700" fill="#4ADFBF">65</text>
+    <text x="56" y="120" text-anchor="middle" font-family="'Cascadia Code', Consolas, monospace"
+          font-size="9.5" fill="#7C93A8" letter-spacing="1.6">SHARING</text>
+    <circle cx="56" cy="160" r="6" fill="#4ADFBF">
+      <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite"/>
+    </circle>
   </g>
 
-  <!-- A single hairline to sit the whole thing on. -->
-  <rect x="0" y="396" width="1200" height="4" fill="url(#accent)" opacity="0.55"/>
+  <!-- Encrypted link -->
+  <g>
+    <line x1="866" y1="210" x2="1000" y2="210" stroke="#2B4256" stroke-width="2"
+          stroke-dasharray="5 6"/>
+    <circle cx="933" cy="210" r="18" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
+    <path d="M927 210 v-5 a6 6 0 0 1 12 0 v5" fill="none" stroke="#4ADFBF" stroke-width="2"
+          stroke-linecap="round"/>
+    <rect x="926" y="209" width="14" height="11" rx="2.5" fill="#4ADFBF"/>
+    <text x="933" y="248" text-anchor="middle" font-family="'Cascadia Code', Consolas, monospace"
+          font-size="9.5" fill="#4ADFBF" letter-spacing="1.6">ENCRYPTED</text>
+  </g>
+
+  <!-- Laptop -->
+  <g transform="translate(1000, 138)">
+    <rect width="150" height="104" rx="10" fill="#0E1726" stroke="#243449" stroke-width="1.6"/>
+    <circle cx="75" cy="46" r="15" fill="none" stroke="#4ADFBF" stroke-opacity="0.35" stroke-width="2"/>
+    <circle cx="75" cy="46" r="6" fill="#4ADFBF"/>
+    <text x="75" y="80" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+          font-size="11" fill="#8FA6B8">Connected</text>
+    <rect x="-14" y="108" width="178" height="7" rx="3.5" fill="#16233A"/>
+  </g>
+
 </svg>
