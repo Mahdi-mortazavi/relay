@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 52" width="236" height="52" role="img"
+     aria-label="دانلود برای ویندوز">
+  <!--
+    A download button drawn here rather than fetched from shields.io.
+
+    shields.io does not shape Arabic script: it renders each letter in its
+    isolated form, spaced and left-to-right, so "دانلود برای ویندوز" arrived as
+    "د ا ن ل و د  ب ر ا ی" and was unreadable — on the page whose readers are
+    the reason it exists. An SVG shapes it correctly, and the render is checked.
+  -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B8FE3"/>
+      <stop offset="100%" stop-color="#0067C0"/>
+    </linearGradient>
+  </defs>
+  <rect width="236" height="52" rx="11" fill="url(#g)"/>
+  <text x="118" y="32" text-anchor="middle" direction="rtl"
+        font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
+        font-size="17" font-weight="600" fill="#FFFFFF">دانلود برای ویندوز</text>
+</svg>
