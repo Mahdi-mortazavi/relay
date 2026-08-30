@@ -23,7 +23,7 @@
 &nbsp;
 [![Download for Android](https://img.shields.io/badge/Download_for-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
-[![راهنمای فارسی](https://img.shields.io/badge/راهنمای-فارسی-4ADFBF?style=for-the-badge)](README.fa.md)
+[<img src="docs/assets/btn-guide-fa.svg" alt="راهنمای فارسی" height="40">](README.fa.md)
 
 <sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">All files &amp; release notes</a> · <a href="LICENSE">GPL-3.0</a></sub>
 

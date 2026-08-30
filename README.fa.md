@@ -17,9 +17,9 @@
 
 <br>
 
-[![دانلود برای ویندوز](https://img.shields.io/badge/دانلود_برای-ویندوز-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+[<img src="docs/assets/btn-windows-fa.svg" alt="دانلود برای ویندوز" height="44">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
 &nbsp;
-[![دانلود برای اندروید](https://img.shields.io/badge/دانلود_برای-اندروید-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+[<img src="docs/assets/btn-android-fa.svg" alt="دانلود برای اندروید" height="44">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
 [![English](https://img.shields.io/badge/Read_in-English-4ADFBF?style=for-the-badge)](README.md)
 
