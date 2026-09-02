@@ -7,23 +7,13 @@
 
 <br>
 
-<div dir="rtl">
-
-### لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد.
-
-</div>
-
-**اندروید ← ویندوز** · تونل رمزنگاری‌شده‌ی WireGuard · بدون روت، بدون حساب، بدون سرور
-
-<br>
-
-[<img src="docs/assets/btn-windows-fa.svg" alt="دانلود برای ویندوز" height="44">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+[<img src="docs/assets/btn-windows-fa.svg" alt="دانلود برای ویندوز" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
 &nbsp;
-[<img src="docs/assets/btn-android-fa.svg" alt="دانلود برای اندروید" height="44">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+[<img src="docs/assets/btn-android-fa.svg" alt="دانلود برای اندروید" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
-[![English](https://img.shields.io/badge/Read_in-English-4ADFBF?style=for-the-badge)](README.md)
+[<img src="docs/assets/btn-english.svg" alt="Read in English" height="46">](README.md)
 
-<sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">همه‌ی فایل‌ها و توضیحات نسخه</a> · <a href="LICENSE">GPL-3.0</a></sub>
+<sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">همه‌ی فایل‌ها و توضیحات نسخه</a> · <a href="LICENSE">GPL-3.0</a> · <a href="README.md">English</a></sub>
 
 <br>
 
