@@ -6,15 +6,20 @@
         No root, no account, no server.</desc>
 
   <!--
-    The narrow cover. Same three rules as cover.svg, which is the wide one:
-    everything visible at rest, nothing outside the viewBox, and it says one
-    thing rather than summarising the README.
+    The narrow cover, shown below 640px. cover.svg is the wide one; the two
+    share a motion language — the mark relays, the link carries a packet, the
+    laptop answers — restaged for a taller frame where the devices sit under
+    the words rather than beside them.
 
-    The Persian line carries no direction="rtl" on purpose. With an RTL base
-    direction the anchor becomes the text's *right* edge, so anchoring at the
-    left margin runs the sentence off the canvas and leaves only its tail —
-    which is what happened here twice before anyone rendered it. Pure Persian
-    is shaped right-to-left by the renderer's own bidi pass anyway.
+    Same three rules as the wide one, and the first is the one that matters:
+    every element is drawn in its final state and animation only ever adds to
+    it. Strip every <animate> tag and this still looks finished. An earlier
+    banner faded its text in from opacity 0 and any renderer that skipped the
+    animation showed an empty gradient.
+
+    The Persian line is centred with text-anchor and carries no direction
+    attribute: an RTL base direction moves the anchor to the text's right edge,
+    which is how it previously ended up half off the canvas.
   -->
 
   <defs>
@@ -35,57 +40,85 @@
     </linearGradient>
 
     <radialGradient id="halo" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.14"/>
-      <stop offset="70%"  stop-color="#4ADFBF" stop-opacity="0.03"/>
+      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.16"/>
+      <stop offset="70%"  stop-color="#4ADFBF" stop-opacity="0.035"/>
       <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
+
+    <filter id="soften" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
   </defs>
 
   <rect width="720" height="560" fill="url(#ground)"/>
-  <circle cx="360" cy="420" r="260" fill="url(#halo)"/>
 
-  <!-- Name -->
-  <g transform="translate(258, 56)">
-    <rect width="54" height="54" rx="15" fill="url(#accent)"/>
-    <path d="M17 37 L27 16 L37 37 Z" fill="#0B1220" opacity="0.92"/>
-    <circle cx="27" cy="22" r="4" fill="#0B1220"/>
+  <circle cx="360" cy="430" r="250" fill="url(#halo)">
+    <animate attributeName="r" values="250;266;250" dur="9s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- The mark, relaying -->
+  <g transform="translate(285, 78)">
+    <circle r="27" fill="none" stroke="#4ADFBF" stroke-width="1.4" opacity="0">
+      <animate attributeName="r" values="27;52" dur="3.4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.45;0" dur="3.4s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="27" fill="none" stroke="#4ADFBF" stroke-width="1.4" opacity="0">
+      <animate attributeName="r" values="27;52" dur="3.4s" begin="1.7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.45;0" dur="3.4s" begin="1.7s" repeatCount="indefinite"/>
+    </circle>
+
+    <rect x="-27" y="-27" width="54" height="54" rx="15" fill="url(#accent)"/>
+    <path d="M-10 10 L0 -11 L10 10 Z" fill="#0B1220" opacity="0.92"/>
+    <circle cx="0" cy="-5" r="4" fill="#0B1220"/>
   </g>
+
   <text x="330" y="95" font-family="'Segoe UI', Inter, system-ui, sans-serif"
         font-size="40" font-weight="700" fill="url(#wordmark)" letter-spacing="-0.5">Relay</text>
 
   <!-- The promise, in both languages -->
-  <text x="360" y="176" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+  <text x="360" y="182" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
         font-size="33" font-weight="600" fill="#F2F7FC">Your phone's internet,</text>
-  <text x="360" y="218" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+  <text x="360" y="224" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
         font-size="33" font-weight="600" fill="#F2F7FC">on your PC.</text>
 
-  <text x="360" y="268" text-anchor="middle"
+  <text x="360" y="274" text-anchor="middle"
         font-family="'Segoe UI', Tahoma, 'Iranian Sans', sans-serif"
         font-size="25" font-weight="600" fill="#4ADFBF">اینترنت گوشی‌ات، روی کامپیوترت</text>
 
-  <text x="360" y="306" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+  <text x="360" y="312" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
         font-size="15" fill="#8FA3B8">Android → Windows · WireGuard · no root, no server</text>
 
   <!-- The promise, happening -->
-  <g transform="translate(196, 356)">
+  <g transform="translate(190, 360)">
     <rect width="104" height="172" rx="20" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
     <rect x="38" y="12" width="28" height="4" rx="2" fill="#26384E"/>
-    <circle cx="52" cy="86" r="23" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="1.6"/>
+    <circle cx="52" cy="86" r="23" fill="none" stroke="#4ADFBF" stroke-opacity="0.28" stroke-width="1.6"/>
     <circle cx="52" cy="86" r="8" fill="#4ADFBF">
-      <animate attributeName="opacity" values="1;0.45;1" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="8;9.5;8" dur="2.6s" repeatCount="indefinite"/>
     </circle>
   </g>
 
-  <line x1="316" y1="442" x2="396" y2="442" stroke="#4ADFBF" stroke-opacity="0.30"
-        stroke-width="2" stroke-dasharray="5 7"/>
-  <circle cx="356" cy="442" r="18" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
-  <path d="M350 440 v-4 a6 6 0 0 1 12 0 v4" fill="none" stroke="#4ADFBF" stroke-width="1.8"/>
-  <rect x="348.5" y="440" width="15" height="12" rx="2.5" fill="#4ADFBF"/>
+  <line x1="310" y1="446" x2="402" y2="446" stroke="#4ADFBF" stroke-opacity="0.28"
+        stroke-width="2" stroke-dasharray="5 7">
+    <animate attributeName="stroke-dashoffset" values="24;0" dur="1.6s" repeatCount="indefinite"/>
+  </line>
 
-  <g transform="translate(412, 392)">
+  <circle cy="446" r="3.2" fill="#7CF5DC" filter="url(#soften)" opacity="0">
+    <animate attributeName="cx" values="310;402" dur="2.1s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.8;1" dur="2.1s" repeatCount="indefinite"/>
+  </circle>
+
+  <circle cx="356" cy="446" r="18" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
+  <path d="M350 444 v-4 a6 6 0 0 1 12 0 v4" fill="none" stroke="#4ADFBF" stroke-width="1.8"/>
+  <rect x="348.5" y="444" width="15" height="12" rx="2.5" fill="#4ADFBF"/>
+
+  <g transform="translate(414, 396)">
     <rect width="124" height="86" rx="10" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
-    <circle cx="62" cy="38" r="14" fill="none" stroke="#4ADFBF" stroke-opacity="0.32" stroke-width="2"/>
-    <circle cx="62" cy="38" r="5" fill="#4ADFBF" opacity="0.85"/>
+    <circle cx="62" cy="38" r="14" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="2"/>
+    <circle cx="62" cy="38" r="5" fill="#4ADFBF" opacity="0.85">
+      <animate attributeName="opacity" values="0.85;1;0.85" dur="2.1s" begin="0.55s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="5;6.4;5" dur="2.1s" begin="0.55s" repeatCount="indefinite"/>
+    </circle>
     <rect x="-12" y="90" width="148" height="7" rx="3.5" fill="#0E1726" stroke="#26384E" stroke-width="1.4"/>
   </g>
 
