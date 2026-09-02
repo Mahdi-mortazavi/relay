@@ -6,26 +6,29 @@
         No root, no account, no server.</desc>
 
   <!--
-    Three rules this file keeps, each learned by getting it wrong.
+    The wide cover. cover-mobile.svg is the narrow one and carries the same
+    motion language, retimed for a taller frame.
 
-    Everything is visible at rest. An earlier banner animated its text in with
-    `animation: … both`, whose start state is opacity 0, so any renderer that
-    does not run CSS animations held every word at zero forever — and the hero
-    image of this project was a blurry gradient and nothing else. Motion here
-    only ever *adds* to something already drawn.
+    Three rules, each learned by getting it wrong.
 
-    Nothing sits outside the viewBox. The Persian line was once written as
-    `x="0" direction="rtl"`, and with an RTL direction the anchor is the text's
-    *right* edge — so the sentence ran leftwards off the canvas and only its
-    tail survived. Every coordinate here is inside 1200x420 on purpose.
+    1. Everything is visible at rest. An earlier banner animated its text in
+       with `animation: … both`, whose start state is opacity 0, so any
+       renderer that does not run animations held every word at zero forever —
+       and the hero image of this project was a blurry gradient and nothing
+       else. Every element below is drawn in its final state; animation only
+       ever *adds* to something already on screen. Delete every <animate> tag
+       and this file still looks finished.
 
-    And it says one thing. The version before this carried a wordmark, two
-    headlines, a subtitle, four feature pills, a phone, a padlock and a laptop —
-    and the README then repeated the headline in text directly underneath, so
-    the first thing anyone read, they read twice. A cover is a first
-    impression, not a summary: the features moved into the README where they
-    can be read properly, and what is left is the name, the promise, and one
-    picture of the promise happening.
+    2. Nothing sits outside the viewBox, and the Persian line carries no
+       direction="rtl". With an RTL base direction the anchor becomes the
+       text's *right* edge, so anchoring at the left margin runs the sentence
+       leftwards off the canvas and leaves only its tail. That happened twice.
+
+    3. It says one thing. A cover is a first impression, not a summary: the
+       name, the promise, and one picture of the promise happening.
+
+    The motion is all SMIL rather than CSS, because GitHub renders this through
+    an <img> tag, where SMIL runs and external stylesheets and scripts do not.
   -->
 
   <defs>
@@ -47,21 +50,41 @@
     </linearGradient>
 
     <radialGradient id="halo" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.13"/>
-      <stop offset="70%"  stop-color="#4ADFBF" stop-opacity="0.03"/>
+      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.15"/>
+      <stop offset="70%"  stop-color="#4ADFBF" stop-opacity="0.035"/>
       <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
+
+    <filter id="soften" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
   </defs>
 
   <rect width="1200" height="420" fill="url(#ground)"/>
-  <circle cx="900" cy="210" r="290" fill="url(#halo)"/>
 
-  <!-- ── Left: name, promise, nothing else ───────────────────────── -->
+  <!-- Breathing halo behind the devices. Drawn at full strength; the animation
+       only varies it. -->
+  <circle cx="915" cy="210" r="290" fill="url(#halo)">
+    <animate attributeName="r" values="290;308;290" dur="9s" repeatCount="indefinite"/>
+  </circle>
 
-  <g transform="translate(80, 92)">
-    <rect width="56" height="56" rx="16" fill="url(#accent)"/>
-    <path d="M18 38 L28 17 L38 38 Z" fill="#0B1220" opacity="0.92"/>
-    <circle cx="28" cy="23" r="4.2" fill="#0B1220"/>
+  <!-- ── Left: name and promise ──────────────────────────────────── -->
+
+  <!-- The mark, relaying. Two rings leave it on a stagger, which is the
+       product in one gesture: something received here, sent onward. -->
+  <g transform="translate(108, 120)">
+    <circle r="28" fill="none" stroke="#4ADFBF" stroke-width="1.4" opacity="0">
+      <animate attributeName="r" values="28;54" dur="3.4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.45;0" dur="3.4s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="28" fill="none" stroke="#4ADFBF" stroke-width="1.4" opacity="0">
+      <animate attributeName="r" values="28;54" dur="3.4s" begin="1.7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.45;0" dur="3.4s" begin="1.7s" repeatCount="indefinite"/>
+    </circle>
+
+    <rect x="-28" y="-28" width="56" height="56" rx="16" fill="url(#accent)"/>
+    <path d="M-10 10 L0 -11 L10 10 Z" fill="#0B1220" opacity="0.92"/>
+    <circle cx="0" cy="-5" r="4.2" fill="#0B1220"/>
   </g>
 
   <text x="152" y="133" font-family="'Segoe UI', Inter, system-ui, sans-serif"
@@ -73,12 +96,6 @@
   <text x="80" y="258" font-family="'Segoe UI', Inter, system-ui, sans-serif"
         font-size="34" font-weight="600" fill="#F2F7FC">on your PC.</text>
 
-  <!-- No direction="rtl" here, deliberately. With an RTL base direction the
-       anchor becomes the text's *right* edge, so text-anchor="start" at x=80
-       runs the sentence leftwards off the canvas and leaves only its tail —
-       which is exactly what happened, twice. Pure Persian is shaped
-       right-to-left by the renderer's bidi pass regardless; all this attribute
-       would change is where the box is pinned. -->
   <text x="80" y="308" text-anchor="start"
         font-family="'Segoe UI', Tahoma, 'Iranian Sans', sans-serif"
         font-size="25" font-weight="600" fill="#4ADFBF">اینترنت گوشی‌ات، روی کامپیوترت</text>
@@ -89,27 +106,41 @@
   <!-- ── Right: the promise, happening ───────────────────────────── -->
 
   <!-- Phone -->
-  <g transform="translate(770, 112)">
+  <g transform="translate(768, 112)">
     <rect width="118" height="196" rx="22" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
     <rect x="44" y="13" width="30" height="4" rx="2" fill="#26384E"/>
-    <circle cx="59" cy="98" r="26" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="1.6"/>
+    <circle cx="59" cy="98" r="26" fill="none" stroke="#4ADFBF" stroke-opacity="0.28" stroke-width="1.6"/>
     <circle cx="59" cy="98" r="9" fill="#4ADFBF">
-      <animate attributeName="opacity" values="1;0.45;1" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="9;10.5;9" dur="2.6s" repeatCount="indefinite"/>
     </circle>
   </g>
 
-  <!-- The encrypted link between them -->
-  <line x1="906" y1="210" x2="1000" y2="210" stroke="#4ADFBF" stroke-opacity="0.30"
-        stroke-width="2" stroke-dasharray="5 7"/>
+  <!-- The encrypted link. The dashes drift towards the laptop, and one bright
+       packet crosses on top of them — the traffic, going the way the product
+       sends it. -->
+  <line x1="904" y1="210" x2="1002" y2="210" stroke="#4ADFBF" stroke-opacity="0.28"
+        stroke-width="2" stroke-dasharray="5 7">
+    <animate attributeName="stroke-dashoffset" values="24;0" dur="1.6s" repeatCount="indefinite"/>
+  </line>
+
+  <circle cy="210" r="3.4" fill="#7CF5DC" filter="url(#soften)" opacity="0">
+    <animate attributeName="cx" values="904;1002" dur="2.1s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.8;1" dur="2.1s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- The lock sits over the link, because that is what the link is. -->
   <circle cx="953" cy="210" r="19" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
   <path d="M947 208 v-4 a6 6 0 0 1 12 0 v4" fill="none" stroke="#4ADFBF" stroke-width="1.8"/>
   <rect x="945.5" y="208" width="15" height="12" rx="2.5" fill="#4ADFBF"/>
 
-  <!-- Laptop -->
+  <!-- Laptop. Its light answers the packet a moment after it lands. -->
   <g transform="translate(1018, 152)">
     <rect width="140" height="96" rx="10" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
-    <circle cx="70" cy="42" r="15" fill="none" stroke="#4ADFBF" stroke-opacity="0.32" stroke-width="2"/>
-    <circle cx="70" cy="42" r="5.5" fill="#4ADFBF" opacity="0.85"/>
+    <circle cx="70" cy="42" r="15" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="2"/>
+    <circle cx="70" cy="42" r="5.5" fill="#4ADFBF" opacity="0.85">
+      <animate attributeName="opacity" values="0.85;1;0.85" dur="2.1s" begin="0.55s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="5.5;7;5.5" dur="2.1s" begin="0.55s" repeatCount="indefinite"/>
+    </circle>
     <rect x="-14" y="100" width="168" height="7" rx="3.5" fill="#0E1726" stroke="#26384E" stroke-width="1.4"/>
   </g>
 
