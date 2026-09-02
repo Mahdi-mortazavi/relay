@@ -1,18 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 620" width="720" height="620" role="img"
-     aria-label="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 560" width="720" height="560" role="img"
+     aria-label="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. ریلی — اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
 
   <title>Relay — share your phone's internet with your PC</title>
   <desc>Android to Windows reverse tethering over an encrypted WireGuard tunnel.
         No root, no account, no server.</desc>
 
   <!--
-    The narrow cover, stacked rather than side by side.
+    The narrow cover. Same three rules as cover.svg, which is the wide one:
+    everything visible at rest, nothing outside the viewBox, and it says one
+    thing rather than summarising the README.
 
-    It exists because the wide one, scaled to a phone's width, rendered its
-    34px headline at about nine — legible on a monitor and a smear in a hand.
-    Same words, same palette, laid out for the shape it is actually read in.
-    Everything is visible at rest; the one animation only adds motion to a line
-    that is already drawn.
+    The Persian line carries no direction="rtl" on purpose. With an RTL base
+    direction the anchor becomes the text's *right* edge, so anchoring at the
+    left margin runs the sentence off the canvas and leaves only its tail —
+    which is what happened here twice before anyone rendered it. Pure Persian
+    is shaped right-to-left by the renderer's own bidi pass anyway.
   -->
 
   <defs>
@@ -21,92 +23,70 @@
       <stop offset="55%"  stop-color="#0E1A2B"/>
       <stop offset="100%" stop-color="#0A1520"/>
     </linearGradient>
+
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%"   stop-color="#4ADFBF"/>
       <stop offset="100%" stop-color="#37C6E0"/>
     </linearGradient>
+
     <linearGradient id="wordmark" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#C8D6E5"/>
+      <stop offset="100%" stop-color="#CBD9E8"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.26"/>
+
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.14"/>
+      <stop offset="70%"  stop-color="#4ADFBF" stop-opacity="0.03"/>
       <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-      <path d="M40 0H0V40" fill="none" stroke="#4ADFBF" stroke-opacity="0.045" stroke-width="1"/>
-    </pattern>
   </defs>
 
-  <rect width="720" height="620" fill="url(#ground)"/>
-  <rect width="720" height="620" fill="url(#grid)"/>
-  <ellipse cx="360" cy="470" rx="330" ry="200" fill="url(#glow)"/>
+  <rect width="720" height="560" fill="url(#ground)"/>
+  <circle cx="360" cy="420" r="260" fill="url(#halo)"/>
 
-  <!-- Wordmark -->
-  <g transform="translate(360, 74)" text-anchor="middle">
-    <g transform="translate(-30, -46)">
-      <rect x="0" y="0" width="60" height="60" rx="17" fill="url(#accent)"/>
-      <path d="M16 39 C 16 21, 44 21, 44 39" fill="none" stroke="#08131C" stroke-width="5.5" stroke-linecap="round"/>
-      <circle cx="16" cy="39" r="5" fill="#08131C"/>
-      <circle cx="44" cy="39" r="5" fill="#08131C"/>
-    </g>
-    <text y="52" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          font-size="54" font-weight="700" fill="url(#wordmark)" letter-spacing="-1.2">Relay</text>
-    <text y="80" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
-          font-size="14" fill="#4ADFBF" letter-spacing="3.6">ANDROID → WINDOWS</text>
+  <!-- Name -->
+  <g transform="translate(258, 56)">
+    <rect width="54" height="54" rx="15" fill="url(#accent)"/>
+    <path d="M17 37 L27 16 L37 37 Z" fill="#0B1220" opacity="0.92"/>
+    <circle cx="27" cy="22" r="4" fill="#0B1220"/>
+  </g>
+  <text x="330" y="95" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="40" font-weight="700" fill="url(#wordmark)" letter-spacing="-0.5">Relay</text>
+
+  <!-- The promise, in both languages -->
+  <text x="360" y="176" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="33" font-weight="600" fill="#F2F7FC">Your phone's internet,</text>
+  <text x="360" y="218" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="33" font-weight="600" fill="#F2F7FC">on your PC.</text>
+
+  <text x="360" y="268" text-anchor="middle"
+        font-family="'Segoe UI', Tahoma, 'Iranian Sans', sans-serif"
+        font-size="25" font-weight="600" fill="#4ADFBF">اینترنت گوشی‌ات، روی کامپیوترت</text>
+
+  <text x="360" y="306" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="15" fill="#8FA3B8">Android → Windows · WireGuard · no root, no server</text>
+
+  <!-- The promise, happening -->
+  <g transform="translate(196, 356)">
+    <rect width="104" height="172" rx="20" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <rect x="38" y="12" width="28" height="4" rx="2" fill="#26384E"/>
+    <circle cx="52" cy="86" r="23" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="1.6"/>
+    <circle cx="52" cy="86" r="8" fill="#4ADFBF">
+      <animate attributeName="opacity" values="1;0.45;1" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
   </g>
 
-  <!-- The promise, big enough to read on a phone -->
-  <g transform="translate(360, 232)" text-anchor="middle"
-     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
-    <text y="0"  font-size="36" font-weight="600" fill="#EAF2F8">Your laptop has no internet.</text>
-    <text y="46" font-size="36" font-weight="600" fill="#EAF2F8">Your phone does.</text>
-    <!--
-      The Persian line is a headline, not a footnote: most of the people who
-      use Relay read it first. Centred, so text-anchor="middle" keeps it on
-      canvas whichever direction it is laid out in.
-    -->
-    <text y="94" direction="rtl"
-          font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
-          font-size="27" font-weight="600" fill="#9FE9D6">اینترنت گوشی‌ات را با کامپیوترت شریک شو</text>
-    <text y="132" font-size="19" fill="#8FA6B8">Scan once. Everything on the PC goes through it.</text>
+  <line x1="316" y1="442" x2="396" y2="442" stroke="#4ADFBF" stroke-opacity="0.30"
+        stroke-width="2" stroke-dasharray="5 7"/>
+  <circle cx="356" cy="442" r="18" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
+  <path d="M350 440 v-4 a6 6 0 0 1 12 0 v4" fill="none" stroke="#4ADFBF" stroke-width="1.8"/>
+  <rect x="348.5" y="440" width="15" height="12" rx="2.5" fill="#4ADFBF"/>
+
+  <g transform="translate(412, 392)">
+    <rect width="124" height="86" rx="10" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <circle cx="62" cy="38" r="14" fill="none" stroke="#4ADFBF" stroke-opacity="0.32" stroke-width="2"/>
+    <circle cx="62" cy="38" r="5" fill="#4ADFBF" opacity="0.85"/>
+    <rect x="-12" y="90" width="148" height="7" rx="3.5" fill="#0E1726" stroke="#26384E" stroke-width="1.4"/>
   </g>
 
-  <!-- Phone → tunnel → laptop, stacked into the width available -->
-  <g transform="translate(126, 410)">
-    <g>
-      <rect x="0" y="0" width="82" height="158" rx="15" fill="#111E2E" stroke="#22384F" stroke-width="1.5"/>
-      <rect x="6" y="7" width="70" height="144" rx="10" fill="#0A1622"/>
-      <text x="41" y="76" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="34" font-weight="700" fill="#4ADFBF">65</text>
-      <text x="41" y="94" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="9" fill="#6C8399">SHARING</text>
-      <circle cx="41" cy="120" r="4.5" fill="#4ADFBF"/>
-    </g>
-
-    <g transform="translate(82, 79)">
-      <path d="M6 0 H 118" stroke="#22384F" stroke-width="2" stroke-linecap="round"/>
-      <path d="M6 0 H 118" stroke="url(#accent)" stroke-width="2" stroke-linecap="round" stroke-dasharray="9 11">
-        <animate attributeName="stroke-dashoffset" from="40" to="0" dur="1.6s" repeatCount="indefinite"/>
-      </path>
-      <g transform="translate(62, 0)">
-        <circle r="15" fill="#0E1A2B" stroke="#4ADFBF" stroke-opacity="0.45"/>
-        <path d="M0 -7 a 5.2 5.2 0 0 1 5.2 5.2 v 1.8 h -10.4 v -1.8 a 5.2 5.2 0 0 1 5.2 -5.2 z"
-              fill="none" stroke="#4ADFBF" stroke-width="1.5"/>
-        <rect x="-5" y="0" width="10" height="8" rx="2" fill="#4ADFBF"/>
-      </g>
-    </g>
-
-    <g transform="translate(206, 32)">
-      <rect x="0" y="0" width="156" height="96" rx="9" fill="#111E2E" stroke="#22384F" stroke-width="1.5"/>
-      <rect x="8" y="8" width="140" height="80" rx="5" fill="#0A1622"/>
-      <circle cx="78" cy="42" r="16" fill="none" stroke="#4ADFBF" stroke-opacity="0.28" stroke-width="2"/>
-      <circle cx="78" cy="42" r="6.5" fill="#4ADFBF"/>
-      <text x="78" y="72" text-anchor="middle" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="10" fill="#8FA6B8">Connected</text>
-      <path d="M-13 96 H 169 l -10 10 H -3 Z" fill="#0E1A2B" stroke="#22384F" stroke-width="1.5"/>
-    </g>
-  </g>
-
-  <rect x="0" y="616" width="720" height="4" fill="url(#accent)" opacity="0.55"/>
 </svg>

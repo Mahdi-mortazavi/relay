@@ -7,25 +7,13 @@
 
 <br>
 
-### Your laptop has no internet. Your phone does.
-
-<div dir="rtl">
-
-### لپ‌تاپت اینترنت ندارد. گوشی‌ات دارد.
-
-</div>
-
-**Android → Windows** · encrypted WireGuard tunnel · no root, no account, no server
-
-<br>
-
-[![Download for Windows](https://img.shields.io/badge/Download_for-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+[<img src="docs/assets/btn-windows.svg" alt="Download for Windows" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
 &nbsp;
-[![Download for Android](https://img.shields.io/badge/Download_for-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+[<img src="docs/assets/btn-android.svg" alt="Download for Android" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
-[<img src="docs/assets/btn-guide-fa.svg" alt="راهنمای فارسی" height="40">](README.fa.md)
+[<img src="docs/assets/btn-guide-fa.svg" alt="راهنمای فارسی" height="46">](README.fa.md)
 
-<sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">All files &amp; release notes</a> · <a href="LICENSE">GPL-3.0</a></sub>
+<sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">All files &amp; release notes</a> · <a href="LICENSE">GPL-3.0</a> · <a href="README.fa.md">فارسی</a></sub>
 
 <br>
 

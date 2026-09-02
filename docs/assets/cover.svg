@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" width="1200" height="440" role="img"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img"
      aria-label="Relay — share your phone's internet with your PC over an encrypted WireGuard tunnel. ریلی — اینترنت گوشی‌ات را با کامپیوترت به اشتراک بگذار.">
 
   <title>Relay — share your phone's internet with your PC</title>
@@ -6,7 +6,7 @@
         No root, no account, no server.</desc>
 
   <!--
-    Two rules this file has to keep, both learned by getting them wrong.
+    Three rules this file keeps, each learned by getting it wrong.
 
     Everything is visible at rest. An earlier banner animated its text in with
     `animation: … both`, whose start state is opacity 0, so any renderer that
@@ -14,12 +14,18 @@
     image of this project was a blurry gradient and nothing else. Motion here
     only ever *adds* to something already drawn.
 
-    Nothing may sit outside the viewBox. The Persian line was written as
+    Nothing sits outside the viewBox. The Persian line was once written as
     `x="0" direction="rtl"`, and with an RTL direction the anchor is the text's
     *right* edge — so the sentence ran leftwards off the canvas and only its
-    tail was visible. The pills below it were cut in half by the bottom edge for
-    the same lack of checking. Every coordinate here is inside 1200x440 on
-    purpose, and the render is checked rather than assumed.
+    tail survived. Every coordinate here is inside 1200x420 on purpose.
+
+    And it says one thing. The version before this carried a wordmark, two
+    headlines, a subtitle, four feature pills, a phone, a padlock and a laptop —
+    and the README then repeated the headline in text directly underneath, so
+    the first thing anyone read, they read twice. A cover is a first
+    impression, not a summary: the features moved into the README where they
+    can be read properly, and what is left is the name, the promise, and one
+    picture of the promise happening.
   -->
 
   <defs>
@@ -37,115 +43,74 @@
 
     <linearGradient id="wordmark" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"   stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#C8D6E5"/>
+      <stop offset="100%" stop-color="#CBD9E8"/>
     </linearGradient>
 
     <radialGradient id="halo" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.22"/>
+      <stop offset="0%"   stop-color="#4ADFBF" stop-opacity="0.13"/>
+      <stop offset="70%"  stop-color="#4ADFBF" stop-opacity="0.03"/>
       <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
     </radialGradient>
-
-    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.10"/>
-      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.03"/>
-    </linearGradient>
   </defs>
 
-  <rect width="1200" height="440" fill="url(#ground)"/>
-  <circle cx="960" cy="200" r="300" fill="url(#halo)"/>
+  <rect width="1200" height="420" fill="url(#ground)"/>
+  <circle cx="900" cy="210" r="290" fill="url(#halo)"/>
 
-  <!-- ── Left column ─────────────────────────────────────────────── -->
+  <!-- ── Left: name, promise, nothing else ───────────────────────── -->
 
-  <!-- Mark -->
-  <g transform="translate(72, 56)">
-    <rect width="60" height="60" rx="17" fill="url(#accent)"/>
-    <path d="M18 40 A 12 12 0 0 1 42 40" fill="none" stroke="#0B1220"
-          stroke-width="5.5" stroke-linecap="round"/>
-    <circle cx="30" cy="24" r="4.5" fill="#0B1220"/>
+  <g transform="translate(80, 92)">
+    <rect width="56" height="56" rx="16" fill="url(#accent)"/>
+    <path d="M18 38 L28 17 L38 38 Z" fill="#0B1220" opacity="0.92"/>
+    <circle cx="28" cy="23" r="4.2" fill="#0B1220"/>
   </g>
 
-  <text x="150" y="102" font-family="'Segoe UI', Inter, system-ui, sans-serif"
-        font-size="46" font-weight="700" fill="url(#wordmark)" letter-spacing="-1">Relay</text>
-  <text x="152" y="126" font-family="'Cascadia Code', Consolas, monospace"
-        font-size="12" fill="#4ADFBF" letter-spacing="3.2">ANDROID → WINDOWS</text>
+  <text x="152" y="133" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="42" font-weight="700" fill="url(#wordmark)" letter-spacing="-0.5">Relay</text>
 
-  <!-- English headline -->
-  <text x="72" y="196" font-family="'Segoe UI', Inter, system-ui, sans-serif"
-        font-size="35" font-weight="700" fill="#F2F7FC">Your laptop has no internet.</text>
-  <text x="72" y="240" font-family="'Segoe UI', Inter, system-ui, sans-serif"
-        font-size="35" font-weight="700" fill="#F2F7FC">Your phone does.</text>
+  <!-- The promise, in both languages, neither one an afterthought. -->
+  <text x="80" y="216" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="34" font-weight="600" fill="#F2F7FC">Your phone's internet,</text>
+  <text x="80" y="258" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="34" font-weight="600" fill="#F2F7FC">on your PC.</text>
 
-  <!--
-    The Persian headline, at the same weight as the English one.
+  <!-- No direction="rtl" here, deliberately. With an RTL base direction the
+       anchor becomes the text's *right* edge, so text-anchor="start" at x=80
+       runs the sentence leftwards off the canvas and leaves only its tail —
+       which is exactly what happened, twice. Pure Persian is shaped
+       right-to-left by the renderer's bidi pass regardless; all this attribute
+       would change is where the box is pinned. -->
+  <text x="80" y="308" text-anchor="start"
+        font-family="'Segoe UI', Tahoma, 'Iranian Sans', sans-serif"
+        font-size="25" font-weight="600" fill="#4ADFBF">اینترنت گوشی‌ات، روی کامپیوترت</text>
 
-    Most of the people who use Relay read this line first, so it is a headline
-    rather than a footnote — it used to be 19px grey, below the fold, and cut
-    off. direction="ltr" is deliberate: it makes the anchor the left edge, so
-    the box grows rightwards from x, while the bidi algorithm still lays the
-    Persian glyphs out right-to-left inside it. That is what keeps it on canvas.
-  -->
-  <text x="72" y="290" direction="ltr" text-anchor="start"
-        font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
-        font-size="27" font-weight="600" fill="#9FE9D6">اینترنت گوشی‌ات را با کامپیوترت شریک شو</text>
+  <text x="80" y="346" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="15" fill="#8FA3B8" letter-spacing="0.3">Android → Windows · WireGuard · no root, no server</text>
 
-  <text x="72" y="326" font-family="'Segoe UI', Inter, system-ui, sans-serif"
-        font-size="16" fill="#8FA6B8">One tap on the phone, one click on the PC. Every app goes through it.</text>
-
-  <!-- Pills, entirely inside the canvas. -->
-  <g font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="13" fill="#C8D6E5">
-    <g transform="translate(72, 356)">
-      <rect width="108" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
-      <text x="54" y="21" text-anchor="middle">WireGuard</text>
-    </g>
-    <g transform="translate(190, 356)">
-      <rect width="88" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
-      <text x="44" y="21" text-anchor="middle">No root</text>
-    </g>
-    <g transform="translate(288, 356)">
-      <rect width="98" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
-      <text x="49" y="21" text-anchor="middle">No server</text>
-    </g>
-    <g transform="translate(396, 356)">
-      <rect width="112" height="32" rx="16" fill="url(#glass)" stroke="#4ADFBF" stroke-opacity="0.28"/>
-      <text x="56" y="21" text-anchor="middle">Open source</text>
-    </g>
-  </g>
-
-  <!-- ── Right: the thing it actually does ───────────────────────── -->
+  <!-- ── Right: the promise, happening ───────────────────────────── -->
 
   <!-- Phone -->
-  <g transform="translate(742, 108)">
-    <rect width="112" height="204" rx="20" fill="#0E1726" stroke="#243449" stroke-width="1.6"/>
-    <rect x="42" y="12" width="28" height="4" rx="2" fill="#243449"/>
-    <text x="56" y="96" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
-          font-size="40" font-weight="700" fill="#4ADFBF">65</text>
-    <text x="56" y="120" text-anchor="middle" font-family="'Cascadia Code', Consolas, monospace"
-          font-size="9.5" fill="#7C93A8" letter-spacing="1.6">SHARING</text>
-    <circle cx="56" cy="160" r="6" fill="#4ADFBF">
-      <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite"/>
+  <g transform="translate(770, 112)">
+    <rect width="118" height="196" rx="22" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <rect x="44" y="13" width="30" height="4" rx="2" fill="#26384E"/>
+    <circle cx="59" cy="98" r="26" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="1.6"/>
+    <circle cx="59" cy="98" r="9" fill="#4ADFBF">
+      <animate attributeName="opacity" values="1;0.45;1" dur="2.6s" repeatCount="indefinite"/>
     </circle>
   </g>
 
-  <!-- Encrypted link -->
-  <g>
-    <line x1="866" y1="210" x2="1000" y2="210" stroke="#2B4256" stroke-width="2"
-          stroke-dasharray="5 6"/>
-    <circle cx="933" cy="210" r="18" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
-    <path d="M927 210 v-5 a6 6 0 0 1 12 0 v5" fill="none" stroke="#4ADFBF" stroke-width="2"
-          stroke-linecap="round"/>
-    <rect x="926" y="209" width="14" height="11" rx="2.5" fill="#4ADFBF"/>
-    <text x="933" y="248" text-anchor="middle" font-family="'Cascadia Code', Consolas, monospace"
-          font-size="9.5" fill="#4ADFBF" letter-spacing="1.6">ENCRYPTED</text>
-  </g>
+  <!-- The encrypted link between them -->
+  <line x1="906" y1="210" x2="1000" y2="210" stroke="#4ADFBF" stroke-opacity="0.30"
+        stroke-width="2" stroke-dasharray="5 7"/>
+  <circle cx="953" cy="210" r="19" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.45"/>
+  <path d="M947 208 v-4 a6 6 0 0 1 12 0 v4" fill="none" stroke="#4ADFBF" stroke-width="1.8"/>
+  <rect x="945.5" y="208" width="15" height="12" rx="2.5" fill="#4ADFBF"/>
 
   <!-- Laptop -->
-  <g transform="translate(1000, 138)">
-    <rect width="150" height="104" rx="10" fill="#0E1726" stroke="#243449" stroke-width="1.6"/>
-    <circle cx="75" cy="46" r="15" fill="none" stroke="#4ADFBF" stroke-opacity="0.35" stroke-width="2"/>
-    <circle cx="75" cy="46" r="6" fill="#4ADFBF"/>
-    <text x="75" y="80" text-anchor="middle" font-family="'Segoe UI', Inter, system-ui, sans-serif"
-          font-size="11" fill="#8FA6B8">Connected</text>
-    <rect x="-14" y="108" width="178" height="7" rx="3.5" fill="#16233A"/>
+  <g transform="translate(1018, 152)">
+    <rect width="140" height="96" rx="10" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <circle cx="70" cy="42" r="15" fill="none" stroke="#4ADFBF" stroke-opacity="0.32" stroke-width="2"/>
+    <circle cx="70" cy="42" r="5.5" fill="#4ADFBF" opacity="0.85"/>
+    <rect x="-14" y="100" width="168" height="7" rx="3.5" fill="#0E1726" stroke="#26384E" stroke-width="1.4"/>
   </g>
 
 </svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 52" width="236" height="52" role="img"
+     aria-label="Download for Windows">
+  <!--
+    Drawn here rather than fetched from shields.io, for two reasons.
+
+    The Persian button had to be drawn: shields.io does not shape Arabic
+    script, so "راهنمای فارسی" arrived as isolated letters spaced
+    left-to-right. Once one button was a 236x52 SVG and the others were
+    shields at roughly 28 pixels tall, the row had two different shapes and
+    two different heights sitting side by side, which is what made the header
+    look unfinished. Matching them is the whole point of this file.
+
+    It also removes three network fetches from the first thing anyone sees.
+  -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B8FE3"/>
+      <stop offset="100%" stop-color="#0067C0"/>
+    </linearGradient>
+  </defs>
+  <rect width="236" height="52" rx="11" fill="url(#g)"/>
+  <text x="118" y="32" text-anchor="middle"
+        font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="16" font-weight="600" fill="#FFFFFF">Download for Windows</text>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 52" width="236" height="52" role="img"
+     aria-label="Read in English">
+  <!--
+    Matches btn-windows-fa.svg and btn-android-fa.svg exactly, because it sits
+    beside them. It used to be a shields.io badge at roughly 28 pixels tall
+    next to two 52-pixel buttons, so the row had two heights and two corner
+    radii in it.
+  -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5AE7C8"/>
+      <stop offset="100%" stop-color="#2FBFA3"/>
+    </linearGradient>
+  </defs>
+  <rect width="236" height="52" rx="11" fill="url(#g)"/>
+  <text x="118" y="32" text-anchor="middle"
+        font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="16" font-weight="600" fill="#062018">Read in English</text>
+</svg>
