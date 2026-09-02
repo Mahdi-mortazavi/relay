@@ -127,9 +127,9 @@
 
 <div align="center">
 
-<a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4"><img src="docs/assets/video-kasra-thumb.jpg" alt="پخش آموزش ریلی از کسری — روایت فارسی با زیرنویس انگلیسی" width="720"></a>
+<img src="docs/assets/relay-demo.gif" alt="جفت‌شدن ریلی در دوازده ثانیه: کامپیوتر گوشی و کد دو رقمی‌اش را می‌شناسد، یک کلیک وصل می‌کند، و گوشی می‌گوید یک دستگاه متصل است" width="760">
 
-<sub><b>▶︎ پخش آموزش</b> — ۴ دقیقه · روایت فارسی · زیرنویس انگلیسی</sub>
+<sub>دوازده ثانیه از کار واقعی، روی تکرار. <b><a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4">▶︎ تماشای کامل چهار دقیقه</a></b> — روایت فارسی، زیرنویس انگلیسی.</sub>
 
 </div>
 

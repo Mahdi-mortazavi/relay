@@ -121,9 +121,9 @@ install to browsing.
 
 <div align="center">
 
-<a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4"><img src="docs/assets/video-kasra-thumb.jpg" alt="Play the Relay walkthrough by KASRA MAX — Persian narration with English subtitles" width="720"></a>
+<img src="docs/assets/relay-demo.gif" alt="Relay pairing in twelve seconds: the PC recognises the phone and its two-digit code, one click connects, and the phone shows one device connected" width="760">
 
-<sub><b>▶︎ Play the walkthrough</b> — 4 minutes · Persian narration · English subtitles</sub>
+<sub>Twelve seconds of the real thing, on loop. <b><a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-demo-kasra.mp4">▶︎ Watch the full four minutes</a></b> — Persian narration, English subtitles.</sub>
 
 </div>
 
