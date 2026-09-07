@@ -584,34 +584,51 @@ private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Un
 @Composable
 private fun UsbOffer(onTurnOn: () -> Unit, onDismiss: () -> Unit) {
     val glass = LocalGlass.current
-    Row(
+    // The actions sit under the words rather than beside them, which the other
+    // banners get away with because they have one action each. A dot, two lines
+    // of copy, a button *and* a dismiss on one row leaves the copy about 96dp on
+    // a 360dp phone — three words a line, and the sentence that explains the
+    // whole feature turns into a column of fragments.
+    Column(
         modifier = Modifier.fillMaxWidth().glassPanel(radius = 16.dp).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(8.dp).background(glass.accent, CircleShape))
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(8.dp).background(glass.accent, CircleShape))
             Text(
                 stringResource(R.string.usb_offer_title),
                 style = MaterialTheme.typography.bodyMedium,
                 color = glass.textPrimary,
             )
-            Text(
-                stringResource(R.string.usb_offer_body),
-                style = MaterialTheme.typography.labelSmall,
-                color = glass.textSecondary,
-            )
         }
-        SubtleButton(text = stringResource(R.string.usb_offer_action), onClick = onTurnOn)
+        Spacer(Modifier.height(4.dp))
         Text(
-            text = stringResource(R.string.action_dismiss),
+            stringResource(R.string.usb_offer_body),
             style = MaterialTheme.typography.labelSmall,
-            color = glass.textTertiary,
-            modifier = Modifier
-                .clickable(role = Role.Button) { onDismiss() }
-                .minimumInteractiveComponentSize()
-                .padding(4.dp),
+            color = glass.textSecondary,
         )
+        Spacer(Modifier.height(14.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // "Not now", not "Dismiss": nothing is wrong, and the offer is
+            // meant to come back the next time the cable turns up.
+            Text(
+                text = stringResource(R.string.usb_offer_dismiss),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textTertiary,
+                modifier = Modifier
+                    .clickable(role = Role.Button) { onDismiss() }
+                    .minimumInteractiveComponentSize()
+                    .padding(horizontal = 4.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            SubtleButton(text = stringResource(R.string.usb_offer_action), onClick = onTurnOn)
+        }
     }
 }
 

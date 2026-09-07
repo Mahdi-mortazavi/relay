@@ -65,6 +65,7 @@
     <string name="usb_offer_title">کابل به کامپیوتر وصل است؟</string>
     <string name="usb_offer_body">اشتراک اینترنت با USB را روشن کنید — اتصالی پایدار که باتری مصرف نمی‌کند و به وای‌فای نیاز ندارد.</string>
     <string name="usb_offer_action">روشن کردن</string>
+    <string name="usb_offer_dismiss">الان نه</string>
     <string name="usb_carrying">از طریق USB</string>
 
     <!-- Foreground-service notification -->

@@ -68,6 +68,7 @@
     <string name="usb_offer_title">Cable to your PC?</string>
     <string name="usb_offer_body">Turn on USB tethering — a steady link that costs no battery and needs no Wi‑Fi.</string>
     <string name="usb_offer_action">Turn on</string>
+    <string name="usb_offer_dismiss">Not now</string>
     <string name="usb_carrying">Over USB</string>
 
     <!-- Foreground-service notification -->
