@@ -316,6 +316,12 @@ A client MUST reject a version it does not know rather than guessing. Accepting
 `v: 3` on the strength of "2 worked" is how a field that changes meaning gets
 read with the old meaning.
 
+This bump is the **beacon's alone**. The probe (`{"v":1,"probe":1}`) and the
+pairing request each carry their own `v`, neither of which has moved, and a
+phone still answers only a v1 probe. They are separate messages that happen to
+share a field name; widening the wrong one would let a stranger's datagram
+through a door this one never opened.
+
 ## The pairing exchange
 
 Two digits select a phone. This is how the PC then gets a configuration it can

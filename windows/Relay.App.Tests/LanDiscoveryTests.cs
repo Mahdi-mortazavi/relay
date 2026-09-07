@@ -43,7 +43,12 @@ public class LanDiscoveryTests
     [InlineData("not json at all")]
     [InlineData("")]
     [InlineData("[]")]
-    [InlineData("""{"v":2,"code":"42","mode":"socks5","host":"192.168.1.1","port":1080}""")]
+    // v3, not v2: v2 is now a version this build speaks — it is what a phone
+    // puts on every path but its best, so that a client predating paths sees
+    // one address instead of the same phone twice. The case being made here is
+    // still "a version we cannot interpret is refused, not guessed at", so it
+    // moves up to the next one nobody speaks.
+    [InlineData("""{"v":3,"code":"42","mode":"socks5","host":"192.168.1.1","port":1080}""")]
     [InlineData("""{"code":"42","mode":"socks5","host":"192.168.1.1","port":1080}""")]
     [InlineData("""{"v":1,"code":"4","mode":"socks5","host":"192.168.1.1","port":1080}""")]
     [InlineData("""{"v":1,"code":"420","mode":"socks5","host":"192.168.1.1","port":1080}""")]
