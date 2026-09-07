@@ -19,10 +19,10 @@ namespace Relay.App.Tests;
 /// </summary>
 public class BeaconPathTests
 {
-    private static byte[] Beacon(string code, string host, int port, string? link, string name = "SM-A307FN") =>
+    private static byte[] Beacon(string code, string host, int port, string? link, string name = "SM-A307FN", int version = 1) =>
         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new Dictionary<string, object?>
         {
-            ["v"] = 1,
+            ["v"] = version,
             ["code"] = code,
             ["mode"] = "wireguard",
             ["host"] = host,
@@ -166,5 +166,77 @@ public class BeaconPathTests
         discovery.Observe(device!, now - LanDiscovery.Stale - TimeSpan.FromMilliseconds(1));
 
         Assert.Null(discovery.LinkStringKeyFor("192.168.42.129"));
+    }
+
+    [Fact]
+    public void EveryVersionInTheSharedVectors()
+    {
+        // Found on hardware, not in review: Relay 2.7.1 keys a phone by its
+        // address, so this branch's phone — announcing on a cable and Wi-Fi at
+        // once — was listed twice by the released client, which then refused to
+        // connect and told the person to "stop sharing on the one you don't
+        // want", naming the same phone twice. v2 on the additional paths is what
+        // keeps that client working.
+        using var vectors = SharedContracts.Json("test-vectors.json");
+        var section = vectors.RootElement.GetProperty("beaconVersions");
+
+        foreach (var accepted in section.GetProperty("accepted").EnumerateArray())
+        {
+            Assert.Contains(accepted.GetInt32(), new[] { LanDiscovery.Version, LanDiscovery.VersionExtraPath });
+        }
+
+        foreach (var testCase in section.GetProperty("cases").EnumerateArray())
+        {
+            var name = testCase.GetProperty("name").GetString()!;
+            var parsed = LanDiscovery.TryParseBeacon(
+                Beacon("42", "192.168.1.14", 51820, "wifi", version: testCase.GetProperty("version").GetInt32()),
+                DateTimeOffset.UnixEpoch, out _, out _);
+
+            Assert.Equal(testCase.GetProperty("accept").GetBoolean(), parsed);
+        }
+    }
+
+    [Fact]
+    public void AVersionedSecondPathIsStillTheSamePhone()
+    {
+        // The other half of it: dropping v2 must not be the only thing keeping
+        // this client sane. It accepts both versions, and the two still collapse
+        // to one phone on its best path.
+        var now = DateTimeOffset.UnixEpoch.AddHours(1);
+        var discovery = new LanDiscovery(() => now);
+
+        Assert.True(LanDiscovery.TryParseBeacon(
+            Beacon("42", "192.168.99.48", 51820, "usb", version: LanDiscovery.Version),
+            now, out var cable, out _));
+        Assert.True(LanDiscovery.TryParseBeacon(
+            Beacon("42", "192.168.1.14", 51820, "wifi", version: LanDiscovery.VersionExtraPath),
+            now, out var wifi, out _));
+
+        discovery.Observe(cable!, now);
+        discovery.Observe(wifi!, now);
+
+        Assert.Single(discovery.MatchPhones("42"));
+        Assert.Equal("192.168.99.48", discovery.BestPath("42")!.Host);
+    }
+
+    [Fact]
+    public void TheVersionsTheContractSaysThePhoneSendsAreTheOnesWeAccept()
+    {
+        // The `sends` half of the vectors: whatever version the phone puts on a
+        // link, this client has to be able to read it. A contract that says the
+        // phone sends v2 on Wi-Fi, against a client that only accepts v1, is a
+        // path that exists on the wire and nowhere else.
+        using var vectors = SharedContracts.Json("test-vectors.json");
+        foreach (var link in vectors.RootElement
+                     .GetProperty("beaconVersions").GetProperty("sends")
+                     .GetProperty("links").EnumerateArray())
+        {
+            var version = link.GetProperty("version").GetInt32();
+            Assert.True(
+                LanDiscovery.TryParseBeacon(
+                    Beacon("42", "192.168.1.14", 51820, link.GetProperty("link").GetString(), version: version),
+                    DateTimeOffset.UnixEpoch, out _, out _),
+                $"the phone sends v{version} on {link.GetProperty("link").GetString()} and this client rejects it");
+        }
     }
 }

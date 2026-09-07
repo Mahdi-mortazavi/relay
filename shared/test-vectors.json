@@ -449,5 +449,51 @@
         "expectRoamed": false
       }
     ]
+  },
+  "beaconVersions": {
+    "$comment": "Which beacon versions a client accepts, and which the phone sends on which link. A phone announces v1 on its best path and v2 on every additional one, so a client that predates paths (Relay 2.7.1 requires v==1) is left with exactly one address instead of listing the same phone twice and refusing to connect. See pairing-beacon.md, 'What an older client does with a second path'.",
+    "accepted": [
+      1,
+      2
+    ],
+    "cases": [
+      {
+        "name": "v1 is the version every client has always spoken",
+        "version": 1,
+        "accept": true
+      },
+      {
+        "name": "v2 carries an additional path and is accepted by clients that know paths",
+        "version": 2,
+        "accept": true
+      },
+      {
+        "name": "an unknown future version is rejected rather than guessed at",
+        "version": 3,
+        "accept": false
+      },
+      {
+        "name": "zero is not a version",
+        "version": 0,
+        "accept": false
+      }
+    ],
+    "sends": {
+      "$comment": "Given these links up at once, the version the phone puts on each, best first. This is the *phone's* ranking (LocalAddress.score), which puts its own hotspot above station Wi-Fi because someone reading a code off the phone is almost certainly on that hotspot. The listener's ranking is the other way round below the cable, and beaconPaths covers that one. Only the best path keeps v1.",
+      "links": [
+        {
+          "link": "usb",
+          "version": 1
+        },
+        {
+          "link": "hotspot",
+          "version": 2
+        },
+        {
+          "link": "wifi",
+          "version": 2
+        }
+      ]
+    }
   }
 }

@@ -16,6 +16,17 @@ public sealed class LanDiscovery : IDisposable
     public const int Port = 47654;
     public const int Version = 1;
 
+    /// <summary>
+    /// The version a phone puts on every path except its best one.
+    ///
+    /// A client that predates paths requires <c>v == 1</c> and drops these, so a
+    /// phone on a cable and Wi-Fi at once shows up in Relay 2.7.1 as one device
+    /// rather than as the same phone listed twice with no way to connect to
+    /// either. This client understands both. See
+    /// /shared/pairing-beacon.md → "What an older client does with a second path".
+    /// </summary>
+    public const int VersionExtraPath = 2;
+
     /// <summary>Digits in a pairing code (/shared/pairing-beacon.md).</summary>
     public const int CodeLength = 2;
 
@@ -291,7 +302,11 @@ public sealed class LanDiscovery : IDisposable
             using var json = JsonDocument.Parse(Encoding.UTF8.GetString(bytes));
             var root = json.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return false;
-            if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number || v.GetInt32() != Version)
+            // A version outside the known set is refused rather than guessed at.
+            // Accepting v3 on the strength of "v2 worked" is how a field that
+            // changed meaning gets read with the old meaning.
+            if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number ||
+                v.GetInt32() is not (Version or VersionExtraPath))
                 return false;
 
             var code = root.TryGetProperty("code", out var c) ? c.GetString() : null;

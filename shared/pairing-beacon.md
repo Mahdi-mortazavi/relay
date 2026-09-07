@@ -275,6 +275,47 @@ Having chosen, a client SHOULD stay on that path until it stops working, rather
 than switching the moment a nominally better one appears: a tunnel that survives
 is worth more than a tunnel on the theoretically fastest link.
 
+### What an older client does with a second path
+
+Measured, not reasoned about: Relay 2.7.1 — the released Windows client — keys a
+phone by its address, so two addresses for one code are two phones to it. On a
+laptop that is on the cable *and* Wi-Fi, which is the ordinary way to plug a
+cable in, it lists the same phone twice and refuses to connect:
+
+> Two phones are showing that code (SM-A307FN, SM-A307FN). Stop sharing on the
+> one you don't want.
+
+Advice nobody can act on, about a phone that is one phone. And it is not enough
+to broadcast a single address instead: that client probes on *every* interface,
+so a dual-homed laptop gets one unicast answer per link and collides just the
+same.
+
+So the version field does the job it exists for. A phone announces:
+
+| | |
+|---|---|
+| `"v": 1` | on its **best** path — the one address it would have advertised before paths existed, chosen by the same ranking |
+| `"v": 2` | on every **additional** path |
+
+A v1 client requires `v == 1` and drops the rest, so it is left with exactly one
+address: the best of the phone's links, rather than an arbitrary one. That is no
+worse than it is today, and usually better. A v2 client accepts both and sees
+every path.
+
+The same rule governs a probe answer — v1 when the asker is on the phone's best
+path, v2 otherwise. Answering every probe with v1 would put two v1 addresses in
+front of a dual-homed old client, which is the whole case this rule exists to
+prevent.
+
+What an old client still cannot do is find a phone when it is on a link that is
+*not* that phone's best path and hears nothing else. That is not new: a phone has
+always advertised one best address, and a client on another link has always been
+handed something it could not route to.
+
+A client MUST reject a version it does not know rather than guessing. Accepting
+`v: 3` on the strength of "2 worked" is how a field that changes meaning gets
+read with the old meaning.
+
 ## The pairing exchange
 
 Two digits select a phone. This is how the PC then gets a configuration it can

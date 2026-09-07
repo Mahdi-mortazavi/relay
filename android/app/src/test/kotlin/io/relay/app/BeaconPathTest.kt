@@ -180,4 +180,70 @@ class BeaconPathTest {
         // not a laptop on that link.
         assertFalse(Beacon.inSameNetwork(phone, InetAddress.getByName("::1"), 24))
     }
+
+    @Test
+    fun `the best path keeps the version every client has always spoken`() {
+        // The compatibility rule, and the reason it exists. Relay 2.7.1 keys a
+        // phone by its address and requires v==1, so a phone announcing two
+        // addresses was listed twice by the released client, which then refused
+        // to connect: "Two phones are showing that code (SM-A307FN, SM-A307FN)".
+        // Keeping v1 on the best path leaves that client with exactly one
+        // address — and the best one, which it can route to.
+        assertEquals(Beacon.VERSION, Beacon.versionFor(isBestPath = true))
+        assertEquals(Beacon.VERSION_EXTRA_PATH, Beacon.versionFor(isBestPath = false))
+        assertEquals(1, Beacon.VERSION)
+    }
+
+    @Test
+    fun `the versions the contract says we send are the ones we send`() {
+        // /shared/test-vectors.json -> beaconVersions.sends lists the version
+        // per link kind, ordered best first. The Windows suite asserts it can
+        // read every one of them; this asserts the phone emits them.
+        val sends = SharedContracts.json("test-vectors.json")
+            .jsonObject.getValue("beaconVersions")
+            .jsonObject.getValue("sends")
+            .jsonObject.getValue("links").jsonArray
+
+        sends.forEachIndexed { index, entry ->
+            val link = entry.jsonObject.getValue("link").jsonPrimitive.content
+            val version = entry.jsonObject.getValue("version").jsonPrimitive.content.toInt()
+            assertEquals(
+                "the contract says $link carries v$version",
+                version,
+                Beacon.versionFor(isBestPath = index == 0),
+            )
+        }
+
+        // And the order the contract lists them in is the order *this phone*
+        // ranks them — LocalAddress.score, which puts the phone's own hotspot
+        // above station Wi-Fi. The listener ranks those two the other way round
+        // and beaconPaths covers that; writing the listener's order here made
+        // this test fail, which is the asymmetry earning its keep.
+        val ranked = sends
+            .map { it.jsonObject.getValue("link").jsonPrimitive.content }
+            .map { link ->
+                when (link) {
+                    "usb" -> LocalAddress.score("rndis0", "192.168.42.129")
+                    "wifi" -> LocalAddress.score("wlan0", "192.168.1.14")
+                    "hotspot" -> LocalAddress.score("ap0", "192.168.43.10")
+                    else -> throw AssertionError("the contract names a link this phone cannot score: $link")
+                }
+            }
+        assertEquals("the contract lists the links in a different order than this phone ranks them",
+            ranked.sortedDescending(), ranked)
+    }
+
+    @Test
+    fun `every version the contract lists as accepted is one this phone can read`() {
+        // The survey that avoids drawing a code already in use reads other
+        // phones' beacons, and a phone on two links announces v2 on the second.
+        // Ignoring those would let two phones land on the same two digits.
+        val accepted = SharedContracts.json("test-vectors.json")
+            .jsonObject.getValue("beaconVersions")
+            .jsonObject.getValue("accepted").jsonArray
+            .map { it.jsonPrimitive.content.toInt() }
+            .toSet()
+
+        assertEquals(accepted, Beacon.KNOWN_VERSIONS)
+    }
 }

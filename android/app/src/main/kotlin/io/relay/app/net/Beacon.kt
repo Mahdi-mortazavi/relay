@@ -150,8 +150,12 @@ class Beacon(
                 // link their probe arrived on. A single pre-built answer would
                 // hand a laptop on the cable the phone's Wi-Fi address, which is
                 // the same fault the broadcast had.
-                val way = wayTowards(packet.address) ?: continue
-                val answer = payload(STATE_SHARING, way.address, way.link)
+                val ways = waysOut()
+                val way = wayTowards(packet.address, ways) ?: continue
+                // Same rule as the broadcast, and for the same reason: answering
+                // every probe with v1 would put two v1 addresses in front of a
+                // laptop that is on both links and probes on each of them.
+                val answer = payload(STATE_SHARING, way.address, way.link, versionFor(way == ways.first()))
                 try {
                     socket.send(DatagramPacket(answer, answer.size, packet.address, packet.port))
                 } catch (e: IOException) {
@@ -207,9 +211,9 @@ class Beacon(
      * an address it usually has no route to. The phone appeared in the list and
      * nothing could connect to it, which is exactly how USB tethering failed.
      */
-    private fun payload(state: String, advertisedHost: String, link: String?): ByteArray {
+    private fun payload(state: String, advertisedHost: String, link: String?, version: Int): ByteArray {
         val json = JSONObject()
-            .put("v", VERSION)
+            .put("v", version)
             .put("code", code)
             .put("mode", mode)
             .put("host", advertisedHost)
@@ -231,8 +235,12 @@ class Beacon(
             // on a link that has no listener anyway.
             return
         }
-        for (way in ways) {
-            val bytes = payload(state, way.address, way.link)
+        for ((index, way) in ways.withIndex()) {
+            // The best path keeps v1 so a client that predates paths is left with
+            // exactly one address instead of listing this phone once per link and
+            // refusing to connect to either. See /shared/pairing-beacon.md ->
+            // "What an older client does with a second path".
+            val bytes = payload(state, way.address, way.link, versionFor(index == 0))
             try {
                 socket.send(DatagramPacket(bytes, bytes.size, way.broadcast, PORT))
             } catch (e: IOException) {
@@ -253,10 +261,8 @@ class Beacon(
      * question came in on. Falls back to the first way out when nothing matches,
      * which is a router doing something unusual rather than a normal setup.
      */
-    private fun wayTowards(asker: InetAddress): WayOut? {
-        val ways = waysOut()
-        return ways.firstOrNull { way -> sharesNetwork(way, asker) } ?: ways.firstOrNull()
-    }
+    private fun wayTowards(asker: InetAddress, ways: List<WayOut>): WayOut? =
+        ways.firstOrNull { way -> sharesNetwork(way, asker) } ?: ways.firstOrNull()
 
     private fun sharesNetwork(way: WayOut, asker: InetAddress): Boolean = try {
         NetworkInterface.getNetworkInterfaces().toList().any { nic ->
@@ -269,11 +275,12 @@ class Beacon(
         false
     }
 
-    /** One way out: where to shout, and the address to shout about. */
+    /** One way out: where to shout, the address to shout about, and how good it is. */
     private data class WayOut(
         val broadcast: InetAddress,
         val address: String,
         val link: String?,
+        val score: Int,
     )
 
     /**
@@ -291,9 +298,13 @@ class Beacon(
                     val broadcast = entry.broadcast ?: return@mapNotNull null
                     val ip = entry.address?.hostAddress ?: return@mapNotNull null
                     if (!LocalAddress.isReachable(nic.name, ip)) return@mapNotNull null
-                    WayOut(broadcast, ip, LocalAddress.linkKind(nic.name))
+                    WayOut(broadcast, ip, LocalAddress.linkKind(nic.name), LocalAddress.score(nic.name, ip))
                 }
             }
+            // Best first, so the head of the list is the path that keeps v1 and
+            // the fallback in wayTowards is the best guess rather than whichever
+            // interface the system happened to enumerate first.
+            .sortedByDescending { it.score }
     } catch (e: Exception) {
         Log.d(TAG, "no interfaces to announce on: ${e.message}")
         emptyList()
@@ -301,7 +312,30 @@ class Beacon(
 
     companion object {
         const val PORT = 47654
+
+        /**
+         * The version every client has always spoken, and the one this phone
+         * puts on its **best** path.
+         */
         const val VERSION = 1
+
+        /**
+         * The version carried by every *additional* path.
+         *
+         * A client that predates paths requires `v == 1` and drops these, which
+         * is the point: without it, a laptop on the cable and Wi-Fi at once was
+         * shown the same phone twice and could not connect to either. See
+         * /shared/pairing-beacon.md -> "What an older client does with a second
+         * path", and the `beaconVersions` vectors.
+         */
+        const val VERSION_EXTRA_PATH = 2
+
+        /** Versions this build understands when reading someone else's beacon. */
+        val KNOWN_VERSIONS = setOf(VERSION, VERSION_EXTRA_PATH)
+
+        /** [VERSION] for the phone's best way out, [VERSION_EXTRA_PATH] for the rest. */
+        internal fun versionFor(isBestPath: Boolean): Int =
+            if (isBestPath) VERSION else VERSION_EXTRA_PATH
         const val INTERVAL_MS = 1000L
         const val STATE_SHARING = "sharing"
         const val STATE_STOPPED = "stopped"
@@ -406,7 +440,10 @@ class Beacon(
 
         private fun parseCode(text: String): String? = try {
             val json = JSONObject(text)
-            if (json.optInt("v") != VERSION) null
+            // Both versions: a phone on two links announces v2 on the second,
+            // and a survey that ignored those would happily draw a code that is
+            // already in use by a phone it simply refused to hear.
+            if (json.optInt("v") !in KNOWN_VERSIONS) null
             else if (json.optString("state") != STATE_SHARING) null
             else PairingCode.normalize(json.optString("code"))
         } catch (_: Exception) {
