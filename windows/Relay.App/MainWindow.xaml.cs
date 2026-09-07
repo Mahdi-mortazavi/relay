@@ -1244,7 +1244,7 @@ public sealed partial class MainWindow : Window
                 // against the phone. Then the link, when the phone said one:
                 // clicking this row commits to a path, and which path it is
                 // belongs on the row rather than being discovered afterwards.
-                Content = Row(device),
+                Content = RowLabel(device),
                 Tag = device,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
@@ -1266,7 +1266,7 @@ public sealed partial class MainWindow : Window
     /// to the one it would take, so the link named here is the link a click will
     /// actually use.
     /// </summary>
-    private static string Row(LanDiscovery.Device device)
+    private static string RowLabel(LanDiscovery.Device device)
     {
         var who = device.Name is { Length: > 0 } name ? name : device.Host;
         return device.LinkStringKey is { } key
