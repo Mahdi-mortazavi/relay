@@ -16,6 +16,17 @@ public sealed class LanDiscovery : IDisposable
     public const int Port = 47654;
     public const int Version = 1;
 
+    /// <summary>
+    /// The version a phone puts on every path except its best one.
+    ///
+    /// A client that predates paths requires <c>v == 1</c> and drops these, so a
+    /// phone on a cable and Wi-Fi at once shows up in Relay 2.7.1 as one device
+    /// rather than as the same phone listed twice with no way to connect to
+    /// either. This client understands both. See
+    /// /shared/pairing-beacon.md → "What an older client does with a second path".
+    /// </summary>
+    public const int VersionExtraPath = 2;
+
     /// <summary>Digits in a pairing code (/shared/pairing-beacon.md).</summary>
     public const int CodeLength = 2;
 
@@ -32,12 +43,49 @@ public sealed class LanDiscovery : IDisposable
     /// </param>
     public sealed record Device(
         string Code, string Mode, string Host, int PortNumber, string? Name, DateTimeOffset Seen,
-        int? PairingPort = null)
+        int? PairingPort = null, string? Link = null)
     {
         public string Key => $"{Host}:{PortNumber}";
 
         /// <summary>Whether two digits alone are enough to connect to this phone.</summary>
         public bool CanPairByCode => PairingPort is > 0 and <= 65535;
+
+        /// <summary>
+        /// How good this path is, higher being better. See
+        /// /shared/pairing-beacon.md → "Two paths are not two addresses".
+        ///
+        /// A cable first: nothing shares the medium with it, it works with no
+        /// Wi-Fi in range, and it costs the phone no battery holding an access
+        /// point up. Not "faster" — that is unmeasured, and a good 5 GHz link
+        /// can beat USB 2.0. A beacon with no link at all sorts last, because a
+        /// phone that does not send one is announcing the single address it
+        /// always did.
+        /// </summary>
+        public int PathRank => Link switch
+        {
+            "usb" => 3,
+            "wifi" => 2,
+            "hotspot" => 1,
+            _ => 0,
+        };
+
+        /// <summary>
+        /// The Strings key naming this link to a person, or null for a link
+        /// with no name.
+        ///
+        /// A key and not the words: every user-facing string in this app exists
+        /// in English and Persian and lives in Relay.App/Strings.cs, which is
+        /// the only string store there is. Returning "Wi-Fi" from here would
+        /// have put an untranslatable English word on the Persian UI, from a
+        /// project that has already shipped that bug once.
+        /// </summary>
+        public string? LinkStringKey => Link switch
+        {
+            "usb" => "LinkUsb",
+            "wifi" => "LinkWifi",
+            "hotspot" => "LinkHotspot",
+            _ => null,
+        };
     }
 
     private readonly Dictionary<string, Device> _devices = new();
@@ -230,6 +278,17 @@ public sealed class LanDiscovery : IDisposable
     }
 
     /// <summary>
+    /// Records an already-parsed beacon as if it had arrived at
+    /// <paramref name="seen"/>.
+    ///
+    /// Exists for the path-selection tests, which need beacons of *different*
+    /// ages in one pass — freshness is the whole distinction between two live
+    /// paths and one address that replaced another, and it cannot be expressed
+    /// by a single clock reading.
+    /// </summary>
+    public void Observe(Device device, DateTimeOffset seen) => Add(device with { Seen = seen });
+
+    /// <summary>
     /// Parses a beacon. Everything in it is attacker-controlled — anything on
     /// the network can send one — so every field is validated and nothing is
     /// trusted beyond being shown.
@@ -243,7 +302,11 @@ public sealed class LanDiscovery : IDisposable
             using var json = JsonDocument.Parse(Encoding.UTF8.GetString(bytes));
             var root = json.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return false;
-            if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number || v.GetInt32() != Version)
+            // A version outside the known set is refused rather than guessed at.
+            // Accepting v3 on the strength of "v2 worked" is how a field that
+            // changed meaning gets read with the old meaning.
+            if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number ||
+                v.GetInt32() is not (Version or VersionExtraPath))
                 return false;
 
             var code = root.TryGetProperty("code", out var c) ? c.GetString() : null;
@@ -275,7 +338,13 @@ public sealed class LanDiscovery : IDisposable
                 if (candidate is >= 1 and <= 65535) pairingPort = candidate;
             }
 
-            device = new Device(code, mode, host!, portNumber, name, seen, pairingPort);
+            // Optional too. Only the three the contract names are accepted:
+            // anything else is a phone speaking a dialect this build does not
+            // know, and it sorts last exactly like a phone that sent nothing.
+            var link = root.TryGetProperty("link", out var l) ? l.GetString() : null;
+            if (link is not ("usb" or "wifi" or "hotspot")) link = null;
+
+            device = new Device(code, mode, host!, portNumber, name, seen, pairingPort, link);
             return true;
         }
         catch (JsonException)
@@ -337,7 +406,13 @@ public sealed class LanDiscovery : IDisposable
 
     public IReadOnlyList<Device> Devices
     {
-        get { lock (_lock) return _devices.Values.OrderBy(d => d.Code).ToList(); }
+        get
+        {
+            // One row per phone, not per link: a phone with a cable in and
+            // Wi-Fi on is announcing on both, and listing it twice makes the
+            // person choose between two rows that are the same device.
+            lock (_lock) return Phones(_devices.Values);
+        }
     }
 
     /// <summary>
@@ -352,6 +427,77 @@ public sealed class LanDiscovery : IDisposable
         if (normalized is null) return [];
         lock (_lock) return _devices.Values.Where(d => d.Code == normalized).ToList();
     }
+
+    /// <summary>
+    /// The Strings key for the link a phone at <paramref name="host"/> said it
+    /// was announcing by, or null when nothing fresh said.
+    ///
+    /// Asked of every path rather than of the best one: a PC connected over
+    /// Wi-Fi while a cable is also plugged in must go on saying Wi-Fi, and
+    /// <see cref="Devices"/> would hand back the USB path because that is the
+    /// one it would rather use next time.
+    ///
+    /// Reads without pruning, deliberately. <see cref="Expire"/> raises
+    /// DevicesChanged, and this is called from the render path.
+    /// </summary>
+    public string? LinkStringKeyFor(string host)
+    {
+        var now = _clock();
+        lock (_lock)
+        {
+            return _devices.Values
+                .Where(d => d.Host == host && now - d.Seen <= Stale)
+                .Select(d => d.LinkStringKey)
+                .FirstOrDefault(key => key is not null);
+        }
+    }
+
+    /// <summary>
+    /// The one path to take for <paramref name="code"/>, when a phone is
+    /// reachable on more than one at once.
+    ///
+    /// A phone with a cable in and Wi-Fi on announces on both, so the same code
+    /// arrives from two addresses a second apart, forever. Read as roaming —
+    /// which is what the older rule alone would say — that is a phone moving
+    /// house twice a second, and a client following it re-points its tunnel back
+    /// and forth for as long as both links are up. Both being *fresh* is what
+    /// separates two paths from one address replacing another.
+    ///
+    /// Contract: /shared/pairing-beacon.md → "Two paths are not two addresses",
+    /// and the cases in /shared/test-vectors.json → beaconPaths.
+    /// </summary>
+    public Device? BestPath(string? code) => Phones(Match(code)).FirstOrDefault();
+
+    /// <summary>
+    /// The phones answering to <paramref name="code"/>, one entry each, on
+    /// their best path.
+    ///
+    /// This is what "how many phones have this code?" must be asked of. Asking
+    /// <see cref="Match"/> counts *paths*, and once a phone announces on both a
+    /// cable and Wi-Fi that is two — so a single phone on two links reported
+    /// ERR_CODE_AMBIGUOUS and listed itself twice on the pairing screen. Two
+    /// entries are two phones only when they are actually different phones.
+    /// </summary>
+    public IReadOnlyList<Device> MatchPhones(string? code) => Phones(Match(code));
+
+    /// <summary>
+    /// Collapses paths to phones, keeping the best path for each.
+    ///
+    /// Two beacons from one phone agree on everything the phone is — its code,
+    /// its mode, its name, the ports it listens on — and differ only in which
+    /// way out they left by. That is the grouping. Two genuinely different
+    /// phones that collided on a code differ by name, which is what the person
+    /// is shown when they have to choose.
+    /// </summary>
+    private static List<Device> Phones(IEnumerable<Device> paths) =>
+        paths
+            .GroupBy(d => (d.Code, d.Mode, d.Name, d.PortNumber, d.PairingPort))
+            .Select(group => group
+                .OrderByDescending(d => d.PathRank)
+                .ThenByDescending(d => d.Seen)
+                .First())
+            .OrderBy(d => d.Code)
+            .ToList();
 
     /// <summary>
     /// The one place a typed code becomes a comparable string. Both platforms

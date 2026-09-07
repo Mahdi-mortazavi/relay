@@ -101,6 +101,7 @@ after uninstall.
 
 | Not covered | Why | Status |
 |---|---|---|
+| USB tethering end to end: the cable carrying the tunnel, and the laptop choosing the cable address over the Wi-Fi one when both are live | An emulator has no USB host on the other end, and the two ends of a cable are two machines. The ranking and the per-link payload are unit-tested on both sides against `beaconPaths` in `/shared/test-vectors.json`; the cable itself is not | **BLOCKED — infrastructure.** Runbook: `docs/local-device-testing.md` → The cable check |
 | Physical camera scanning a QR off a real screen | No camera on either runner; `-camera-back none` | **BLOCKED — infrastructure** |
 | The WinUI window's own controls (clicking Connect, reading the popover) | No reliable UI automation for unpackaged WinUI 3 on a GitHub runner | **BLOCKED — infrastructure** |
 | Full Mode's *Windows* client | Creating a WinTun adapter needs elevation and a real machine; the hosted runner has neither | **BLOCKED — infrastructure** |

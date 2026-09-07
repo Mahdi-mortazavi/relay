@@ -46,93 +46,206 @@
   "invalid": [
     {
       "description": "unsupported schema version",
-      "payload": { "v": 99, "mode": "socks5", "host": "192.168.43.1", "port": 1080 },
+      "payload": {
+        "v": 99,
+        "mode": "socks5",
+        "host": "192.168.43.1",
+        "port": 1080
+      },
       "reason": "unknown-version"
     },
     {
       "description": "missing host",
-      "payload": { "v": 1, "mode": "socks5", "port": 1080 },
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "port": 1080
+      },
       "reason": "missing-required-field"
     },
     {
       "description": "missing port",
-      "payload": { "v": 1, "mode": "socks5", "host": "192.168.43.1" },
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "host": "192.168.43.1"
+      },
       "reason": "missing-required-field"
     },
     {
       "description": "port out of range",
-      "payload": { "v": 1, "mode": "socks5", "host": "192.168.43.1", "port": 70000 },
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "host": "192.168.43.1",
+        "port": 70000
+      },
       "reason": "invalid-port"
     },
     {
       "description": "port zero",
-      "payload": { "v": 1, "mode": "socks5", "host": "192.168.43.1", "port": 0 },
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "host": "192.168.43.1",
+        "port": 0
+      },
       "reason": "invalid-port"
     },
     {
       "description": "host is not an IPv4 address",
-      "payload": { "v": 1, "mode": "socks5", "host": "not-an-ip", "port": 1080 },
+      "payload": {
+        "v": 1,
+        "mode": "socks5",
+        "host": "not-an-ip",
+        "port": 1080
+      },
       "reason": "invalid-host"
     },
     {
       "description": "unknown mode",
-      "payload": { "v": 1, "mode": "carrier-pigeon", "host": "192.168.43.1", "port": 1080 },
+      "payload": {
+        "v": 1,
+        "mode": "carrier-pigeon",
+        "host": "192.168.43.1",
+        "port": 1080
+      },
       "reason": "invalid-mode"
     },
     {
       "description": "wireguard mode without wg block",
-      "payload": { "v": 1, "mode": "wireguard", "host": "192.168.43.1", "port": 51820 },
+      "payload": {
+        "v": 1,
+        "mode": "wireguard",
+        "host": "192.168.43.1",
+        "port": 51820
+      },
       "reason": "missing-wg-block"
     },
     {
       "description": "socks5 mode with a stray wg block",
       "payload": {
-        "v": 1, "mode": "socks5", "host": "192.168.43.1", "port": 1080,
-        "wg": { "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820, "dns": "1.1.1.1" }
+        "v": 1,
+        "mode": "socks5",
+        "host": "192.168.43.1",
+        "port": 1080,
+        "wg": {
+          "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=",
+          "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=",
+          "allowedIps": "0.0.0.0/0",
+          "endpointPort": 51820,
+          "dns": "1.1.1.1"
+        }
       },
       "reason": "unexpected-wg-block"
     },
     {
       "description": "wireguard mode missing a wg sub-field (dns)",
       "payload": {
-        "v": 1, "mode": "wireguard", "host": "192.168.43.1", "port": 51820,
-        "wg": { "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820 }
+        "v": 1,
+        "mode": "wireguard",
+        "host": "192.168.43.1",
+        "port": 51820,
+        "wg": {
+          "serverPublicKey": "a1yn3fwDEBl6ZPc+KD67rwGn0oia5dlFElp9lkWxGI4=",
+          "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=",
+          "allowedIps": "0.0.0.0/0",
+          "endpointPort": 51820
+        }
       },
       "reason": "missing-wg-field"
     },
     {
       "description": "wireguard mode with a malformed key",
       "payload": {
-        "v": 1, "mode": "wireguard", "host": "192.168.43.1", "port": 51820,
-        "wg": { "serverPublicKey": "not-a-valid-key", "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=", "allowedIps": "0.0.0.0/0", "endpointPort": 51820, "dns": "1.1.1.1" }
+        "v": 1,
+        "mode": "wireguard",
+        "host": "192.168.43.1",
+        "port": 51820,
+        "wg": {
+          "serverPublicKey": "not-a-valid-key",
+          "clientPrivateKey": "P2GJ1aWQb5UrrLNLl/iwYX/AA8K6C/BS9L1e2Jnewpo=",
+          "allowedIps": "0.0.0.0/0",
+          "endpointPort": 51820,
+          "dns": "1.1.1.1"
+        }
       },
       "reason": "invalid-wg-key"
     }
   ],
   "invalidEncoded": [
-    { "description": "not base64url", "encoded": "%%%not-base64%%%", "reason": "decode-error" },
-    { "description": "base64url of non-JSON", "encoded": "aGVsbG8gd29ybGQ", "reason": "decode-error" },
-    { "description": "empty string", "encoded": "", "reason": "decode-error" }
+    {
+      "description": "not base64url",
+      "encoded": "%%%not-base64%%%",
+      "reason": "decode-error"
+    },
+    {
+      "description": "base64url of non-JSON",
+      "encoded": "aGVsbG8gd29ybGQ",
+      "reason": "decode-error"
+    },
+    {
+      "description": "empty string",
+      "encoded": "",
+      "reason": "decode-error"
+    }
   ],
   "typedCodes": {
     "$comment": "See typed-code.md. Valid entries round-trip: encode(host,port)==code and decode(code)=={host,port,mode:socks5}. Decoders accept lowercase and '-'/whitespace separators.",
     "valid": [
-      { "host": "192.168.43.1", "port": 1080, "code": "FNASJQE2" },
-      { "host": "192.168.137.1", "port": 1080, "code": "TEASJQAA" },
-      { "host": "192.168.49.23", "port": 8080, "code": "GEMT9EBS" },
-      { "host": "192.168.0.1", "port": 65535, "code": "AAA99952" }
+      {
+        "host": "192.168.43.1",
+        "port": 1080,
+        "code": "FNASJQE2"
+      },
+      {
+        "host": "192.168.137.1",
+        "port": 1080,
+        "code": "TEASJQAA"
+      },
+      {
+        "host": "192.168.49.23",
+        "port": 8080,
+        "code": "GEMT9EBS"
+      },
+      {
+        "host": "192.168.0.1",
+        "port": 65535,
+        "code": "AAA99952"
+      }
     ],
     "invalid": [
-      { "description": "corrupted character (checksum mismatch)", "code": "FNBSJQE2" },
-      { "description": "non-zero padding bits", "code": "FNASJQE3" },
-      { "description": "excluded character O", "code": "FNASJQEO" },
-      { "description": "too short", "code": "FNASJQ" },
-      { "description": "too long", "code": "FNASJQE2A" }
+      {
+        "description": "corrupted character (checksum mismatch)",
+        "code": "FNBSJQE2"
+      },
+      {
+        "description": "non-zero padding bits",
+        "code": "FNASJQE3"
+      },
+      {
+        "description": "excluded character O",
+        "code": "FNASJQEO"
+      },
+      {
+        "description": "too short",
+        "code": "FNASJQ"
+      },
+      {
+        "description": "too long",
+        "code": "FNASJQE2A"
+      }
     ]
   },
   "reconnect": {
     "$comment": "See reconnect.md. Both platforms assert their ReconnectPolicy equals this.",
-    "attemptDelaysMs": [1000, 2000, 2000, 3000, 3000],
+    "attemptDelaysMs": [
+      1000,
+      2000,
+      2000,
+      3000,
+      3000
+    ],
     "attempts": 5,
     "totalBoundMs": 11000
   },
@@ -209,6 +322,177 @@
         "{\"v\":1,\"ok\":1,\"wg\":{\"serverPublicKey\":\"j8f7dEXAMPLEserverPublicKeyBase64Padding0123=\",\"clientPrivateKey\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\",\"allowedIps\":\"0.0.0.0/0\",\"endpointPort\":51820,\"dns\":\"1.1.1.1\"}}",
         "not json at all",
         ""
+      ]
+    }
+  },
+  "beaconPaths": {
+    "$comment": "Choosing between beacons when a phone is reachable on more than one link at once. A phone with a cable in and Wi-Fi on announces on both, so a listener sees the same code from two hosts a second apart, forever. Read as roaming that is a phone moving twice a second, and a client following it re-points its tunnel back and forth. See pairing-beacon.md, 'Two paths are not two addresses'. freshMs is how long ago each beacon arrived; the window is 5000.",
+    "windowMs": 5000,
+    "cases": [
+      {
+        "name": "usb wins over wifi while both are fresh",
+        "beacons": [
+          {
+            "code": "42",
+            "host": "192.168.1.14",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 900
+          },
+          {
+            "code": "42",
+            "host": "192.168.42.129",
+            "port": 51820,
+            "link": "usb",
+            "freshMs": 400
+          }
+        ],
+        "expectHost": "192.168.42.129",
+        "expectRoamed": false
+      },
+      {
+        "name": "wifi wins over hotspot while both are fresh",
+        "beacons": [
+          {
+            "code": "42",
+            "host": "192.168.43.1",
+            "port": 51820,
+            "link": "hotspot",
+            "freshMs": 500
+          },
+          {
+            "code": "42",
+            "host": "192.168.1.14",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 800
+          }
+        ],
+        "expectHost": "192.168.1.14",
+        "expectRoamed": false
+      },
+      {
+        "name": "a beacon with no link sorts last, because an older phone sends only one address",
+        "beacons": [
+          {
+            "code": "42",
+            "host": "192.168.1.20",
+            "port": 51820,
+            "freshMs": 300
+          },
+          {
+            "code": "42",
+            "host": "192.168.1.14",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 900
+          }
+        ],
+        "expectHost": "192.168.1.14",
+        "expectRoamed": false
+      },
+      {
+        "name": "a stale previous address is roaming, not a second path",
+        "beacons": [
+          {
+            "code": "42",
+            "host": "192.168.1.14",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 7000
+          },
+          {
+            "code": "42",
+            "host": "192.168.1.31",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 400
+          }
+        ],
+        "expectHost": "192.168.1.31",
+        "expectRoamed": true
+      },
+      {
+        "name": "one path only, which is every phone before this feature existed",
+        "beacons": [
+          {
+            "code": "42",
+            "host": "192.168.1.14",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 600
+          }
+        ],
+        "expectHost": "192.168.1.14",
+        "expectRoamed": false
+      },
+      {
+        "name": "a different code is a different phone and never a path of this one",
+        "beacons": [
+          {
+            "code": "42",
+            "host": "192.168.1.14",
+            "port": 51820,
+            "link": "wifi",
+            "freshMs": 600
+          },
+          {
+            "code": "77",
+            "host": "192.168.42.129",
+            "port": 51820,
+            "link": "usb",
+            "freshMs": 300
+          }
+        ],
+        "forCode": "42",
+        "expectHost": "192.168.1.14",
+        "expectRoamed": false
+      }
+    ]
+  },
+  "beaconVersions": {
+    "$comment": "Which beacon versions a client accepts, and which the phone sends on which link. A phone announces v1 on its best path and v2 on every additional one, so a client that predates paths (Relay 2.7.1 requires v==1) is left with exactly one address instead of listing the same phone twice and refusing to connect. See pairing-beacon.md, 'What an older client does with a second path'.",
+    "accepted": [
+      1,
+      2
+    ],
+    "cases": [
+      {
+        "name": "v1 is the version every client has always spoken",
+        "version": 1,
+        "accept": true
+      },
+      {
+        "name": "v2 carries an additional path and is accepted by clients that know paths",
+        "version": 2,
+        "accept": true
+      },
+      {
+        "name": "an unknown future version is rejected rather than guessed at",
+        "version": 3,
+        "accept": false
+      },
+      {
+        "name": "zero is not a version",
+        "version": 0,
+        "accept": false
+      }
+    ],
+    "sends": {
+      "$comment": "Given these links up at once, the version the phone puts on each, best first. This is the *phone's* ranking (LocalAddress.score), which puts its own hotspot above station Wi-Fi because someone reading a code off the phone is almost certainly on that hotspot. The listener's ranking is the other way round below the cable, and beaconPaths covers that one. Only the best path keeps v1.",
+      "links": [
+        {
+          "link": "usb",
+          "version": 1
+        },
+        {
+          "link": "hotspot",
+          "version": 2
+        },
+        {
+          "link": "wifi",
+          "version": 2
+        }
       ]
     }
   }

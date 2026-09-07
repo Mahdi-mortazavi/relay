@@ -44,7 +44,7 @@
 
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">No Wi-Fi or hotspot</string>
-    <string name="error_hotspot_off_body">Connect the phone to Wi-Fi, or turn on its hotspot, then try again.</string>
+    <string name="error_hotspot_off_body">Connect the phone to Wi-Fi, turn on its hotspot, or plug in a USB cable and turn on USB tethering, then try again.</string>
     <string name="error_port_in_use_title">Ports are busy</string>
     <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
     <string name="error_service_failed_title">Something went wrong</string>
@@ -61,6 +61,15 @@
     <string name="battery_banner_body">Allow Relay to ignore battery optimization so sharing survives when the screen is off.</string>
     <string name="battery_banner_allow">Allow</string>
     <string name="battery_banner_done">Background sharing is protected</string>
+
+    <!-- The cable. Phrased as a question because the signal behind it is a
+         guess: BATTERY_PLUGGED_USB tells a host port from a wall charger and
+         nothing more. See UsbLink.cableToComputer. -->
+    <string name="usb_offer_title">Cable to your PC?</string>
+    <string name="usb_offer_body">Turn on USB tethering — a steady link that costs no battery and needs no Wi‑Fi.</string>
+    <string name="usb_offer_action">Turn on</string>
+    <string name="usb_offer_dismiss">Not now</string>
+    <string name="usb_carrying">Over USB</string>
 
     <!-- Foreground-service notification -->
     <string name="notification_channel">Sharing status</string>

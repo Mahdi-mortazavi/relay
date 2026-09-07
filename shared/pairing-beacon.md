@@ -30,6 +30,12 @@ each connected interface, port **47654**, every **1000 ms**, and one final
 datagram when sharing stops (`state: "stopped"`), so a listener drops it
 immediately rather than after a timeout.
 
+**Each datagram carries the address of the interface it leaves by**, not one
+address reused for all of them. A broadcast only reaches the link it is sent
+on, so a client on the USB link that is told the phone's Wi-Fi address has been
+told an address it cannot reach — which is exactly how USB tethering used to
+fail: the beacon arrived, the phone appeared, and nothing could connect to it.
+
 Payload is UTF-8 JSON, one object, no whitespace requirements:
 
 ```json
@@ -40,7 +46,8 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
   "host": "192.168.43.1",
   "port": 1080,
   "name": "Pixel 4a",
-  "state": "sharing"
+  "state": "sharing",
+  "link": "hotspot"
 }
 ```
 
@@ -54,6 +61,7 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
 | `name`  | string | Device name, ≤ 32 chars, for display. MAY be absent.               |
 | `state` | string | `sharing` or `stopped`.                                           |
 | `pairingPort` | int | 1–65535. Where to ask for a configuration. MAY be absent, and then this phone can only be paired by QR. |
+| `link`  | string | `usb`, `wifi` or `hotspot` — how *this* datagram left the phone. MAY be absent; a listener that does not know it ignores it. |
 
 The keys a `mode: wireguard` phone needs are **not** in the beacon and never can
 be: a beacon is broadcast, unauthenticated, and readable by anything on the
@@ -227,6 +235,92 @@ A client that does this MUST:
 
 A client that does not implement this is still correct; it just makes the
 person pair again after every lease change.
+
+### Two paths are not two addresses
+
+A phone with a cable in and Wi-Fi on is on two links at once, and announces on
+both — the same `code`, the same session, two different `host` values, arriving
+a second apart forever. Read with the rule above and nothing else, that is a
+phone moving house twice a second, and a client that followed it would re-point
+its tunnel back and forth for as long as both links are up.
+
+So the rule is narrower than "a different host":
+
+> A different `host` is a **new address** only once the previous one has gone
+> stale. While two hosts with the same `code` are both fresh — a beacon from
+> each inside the 5 s window — they are **two paths to one phone**, and the
+> client picks one rather than alternating.
+
+Which to pick is what `link` is for.
+
+`usb` first: nothing else shares the medium with a cable, it works with no Wi-Fi
+in range at all, and it costs the phone no battery holding an access point up.
+Note what is *not* claimed — that it is faster. That has not been measured, and
+a good 5 GHz link can beat USB 2.0's RNDIS throughput.
+
+Then `wifi`, then `hotspot`. Hearing both means the PC is on a shared LAN *and*
+on the phone's own access point, which needs two adapters and is rare; when it
+happens, the router's network is the better-provisioned of the two and the phone's
+softAP is a low-power radio doing a second job. A beacon with no `link` sorts
+last, because an older phone that does not send one is announcing the single
+address it always did.
+
+This ranking is the *listener's*. The phone's own choice of which single address
+to print in a QR ranks `hotspot` above `wifi`, and deliberately: someone reading
+a code off the phone's screen is almost certainly on the phone's hotspot, whereas
+a PC that *heard* the station-Wi-Fi beacon has proven it is on that LAN. The two
+answer different questions and are asserted separately on each side.
+
+Having chosen, a client SHOULD stay on that path until it stops working, rather
+than switching the moment a nominally better one appears: a tunnel that survives
+is worth more than a tunnel on the theoretically fastest link.
+
+### What an older client does with a second path
+
+Measured, not reasoned about: Relay 2.7.1 — the released Windows client — keys a
+phone by its address, so two addresses for one code are two phones to it. On a
+laptop that is on the cable *and* Wi-Fi, which is the ordinary way to plug a
+cable in, it lists the same phone twice and refuses to connect:
+
+> Two phones are showing that code (SM-A307FN, SM-A307FN). Stop sharing on the
+> one you don't want.
+
+Advice nobody can act on, about a phone that is one phone. And it is not enough
+to broadcast a single address instead: that client probes on *every* interface,
+so a dual-homed laptop gets one unicast answer per link and collides just the
+same.
+
+So the version field does the job it exists for. A phone announces:
+
+| | |
+|---|---|
+| `"v": 1` | on its **best** path — the one address it would have advertised before paths existed, chosen by the same ranking |
+| `"v": 2` | on every **additional** path |
+
+A v1 client requires `v == 1` and drops the rest, so it is left with exactly one
+address: the best of the phone's links, rather than an arbitrary one. That is no
+worse than it is today, and usually better. A v2 client accepts both and sees
+every path.
+
+The same rule governs a probe answer — v1 when the asker is on the phone's best
+path, v2 otherwise. Answering every probe with v1 would put two v1 addresses in
+front of a dual-homed old client, which is the whole case this rule exists to
+prevent.
+
+What an old client still cannot do is find a phone when it is on a link that is
+*not* that phone's best path and hears nothing else. That is not new: a phone has
+always advertised one best address, and a client on another link has always been
+handed something it could not route to.
+
+A client MUST reject a version it does not know rather than guessing. Accepting
+`v: 3` on the strength of "2 worked" is how a field that changes meaning gets
+read with the old meaning.
+
+This bump is the **beacon's alone**. The probe (`{"v":1,"probe":1}`) and the
+pairing request each carry their own `v`, neither of which has moved, and a
+phone still answers only a v1 probe. They are separate messages that happen to
+share a field name; widening the wrong one would let a stranger's datagram
+through a door this one never opened.
 
 ## The pairing exchange
 

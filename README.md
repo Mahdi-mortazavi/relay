@@ -63,13 +63,13 @@ the PC, and one shared contract both are tested against.
 
 Hi, I'm **Mahdi**. I built Relay because I kept ending up with a laptop that had
 no internet and a phone that did, and every fix was worse than the problem —
-USB tethering that needed drivers, hotspots that ate the battery, apps that
-wanted an account for something that never has to leave my desk.
+USB tethering I had to set up by hand every time, hotspots that ate the battery,
+apps that wanted an account for something that never has to leave my desk.
 
 Relay shares your phone's connection with your PC over an encrypted **WireGuard**
-tunnel, across your own Wi-Fi or the phone's hotspot. Every application on the PC
-goes through it — **TCP and UDP** — so games, video calls and installers work,
-not only the browser.
+tunnel — across your own Wi-Fi, the phone's hotspot, or a **USB cable**. Every
+application on the PC goes through it — **TCP and UDP** — so games, video calls
+and installers work, not only the browser.
 
 **No root. No account. No server. Nothing leaves your two devices.**
 
@@ -166,6 +166,7 @@ Nothing else to install, and no account to make.
 | **Every application** | Nothing to configure per app; the whole machine goes through the phone |
 | **No root** | On either device |
 | **Honest state** | "Connected" means a real WireGuard handshake completed, not that an adapter exists |
+| **Wi-Fi, hotspot or cable** | Whichever way the two devices can already see each other. Plug in a USB cable and Relay offers to use it — one tap, no Wi-Fi needed, and no battery spent holding a hotspot up |
 | **Follows a moving phone** | A changed address — DHCP renewal, Wi-Fi change, NAT rebinding — re-points the tunnel instead of killing it |
 | **Survives a bad network** | Tested against 5% packet loss, a full outage, and a mid-transfer path change |
 | **Leak protection** | DNS and IPv6 cannot leave outside the tunnel. Costs 22 µs per connection and nothing per byte |

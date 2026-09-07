@@ -722,7 +722,13 @@ public sealed partial class MainWindow : Window
         if (state == "Connected" && _controller.Payload is { } payload)
         {
             ConnectedText.Text = string.Format(Strings.Get("ConnectedVia"), payload.Name ?? payload.Host);
-            ConnectedDetailText.Text = $"{payload.Host}:{payload.Port}";
+            // The address line says how, when the phone told us: a person who
+            // plugged a cable in should be able to see that it is the one being
+            // used, rather than inferring it from the speed.
+            var link = _discovery.LinkStringKeyFor(payload.Host);
+            ConnectedDetailText.Text = link is null
+                ? $"{payload.Host}:{payload.Port}"
+                : $"{payload.Host}:{payload.Port} · {Strings.Get(link)}";
             ReconnectingText.Text = Strings.Get("Reconnecting");
             ReconnectingBanner.Visibility = Show(reconnecting);
             ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "AccentBrush");
@@ -1083,7 +1089,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnShortCodeTyped(string digits, bool mayConnect)
     {
-        var matches = _discovery.Match(digits);
+        var matches = _discovery.MatchPhones(digits);
         switch (matches.Count)
         {
             case 0:
@@ -1235,10 +1241,10 @@ public sealed partial class MainWindow : Window
             var button = new Button
             {
                 // The code first, because that is the thing the eye is comparing
-                // against the phone.
-                Content = device.Name is { Length: > 0 } name
-                    ? $"{device.Code}   {name}"
-                    : $"{device.Code}   {device.Host}",
+                // against the phone. Then the link, when the phone said one:
+                // clicking this row commits to a path, and which path it is
+                // belongs on the row rather than being discovered afterwards.
+                Content = RowLabel(device),
                 Tag = device,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
@@ -1251,6 +1257,21 @@ public sealed partial class MainWindow : Window
             button.Click += OnFoundPhoneClick;
             list.Children.Add(button);
         }
+    }
+
+    /// <summary>
+    /// One row: the code, the phone, and how it is reachable.
+    ///
+    /// <see cref="LanDiscovery.Devices"/> has already collapsed a phone's paths
+    /// to the one it would take, so the link named here is the link a click will
+    /// actually use.
+    /// </summary>
+    private static string RowLabel(LanDiscovery.Device device)
+    {
+        var who = device.Name is { Length: > 0 } name ? name : device.Host;
+        return device.LinkStringKey is { } key
+            ? $"{device.Code}   {who}   ·   {Strings.Get(key)}"
+            : $"{device.Code}   {who}";
     }
 
     private void OnFoundPhoneClick(object sender, RoutedEventArgs e)
@@ -1386,7 +1407,7 @@ public sealed partial class MainWindow : Window
                 ShowLocalError("ERR_CODE_INVALID");
                 return;
             }
-            var matches = _discovery.Match(digits);
+            var matches = _discovery.MatchPhones(digits);
             if (matches.Count != 1)
             {
                 // Zero means the phone is not sharing or is on another network;

@@ -75,16 +75,23 @@ class MainActivity : ComponentActivity() {
                         ActivityResultContracts.RequestPermission(),
                     ) { viewModel.startSharing() } // start regardless; the notification just may not show
 
-                    // Re-check the exemption whenever the user returns from Settings.
+                    // Re-check the exemption whenever the user returns from Settings,
+                    // and watch the cable for as long as the screen is in front of
+                    // someone. watchCable suspends forever, so it is cancelled on
+                    // the way out of RESUMED and restarted on the way back in --
+                    // which is also what makes returning from the tethering screen
+                    // update the card immediately rather than up to two seconds later.
                     val lifecycleOwner = LocalLifecycleOwner.current
                     LaunchedEffect(lifecycleOwner) {
                         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                             viewModel.refreshBatteryExempt()
+                            viewModel.watchCable()
                         }
                     }
 
                     val pendingClient by ConnectionRepository.clientGate.pending.collectAsState()
                     val updateAvailable by viewModel.updateAvailable.collectAsState()
+                    val cable by viewModel.cable.collectAsState()
 
                     // The launcher shortcut. Honoured only from Idle: arriving
                     // here while already sharing means the person tapped it out
@@ -159,6 +166,9 @@ class MainActivity : ComponentActivity() {
                                 ConnectionRepository.clientGate.resolve(it.address, allowed)
                             }
                         },
+                        cable = cable,
+                        onTurnOnUsb = viewModel::openTetheringSettings,
+                        onDismissUsbOffer = viewModel::dismissUsbOffer,
                     )
                 }
             }

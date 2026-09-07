@@ -16,6 +16,7 @@ firewall in its default state.
 |---|---|
 | The PC finds the phone through an unconfigured Windows Firewall | The runner has no phone to find, and its firewall state is not a user's |
 | Pairing over real Wi-Fi (or the phone's hotspot) | The two jobs share no network |
+| Pairing over a USB cable, with Wi-Fi also up | An emulator has no cable, and a cable's two ends are two machines |
 | The system proxy actually carrying a browser's traffic | Nothing on the runner browses |
 | Full Mode's UAC prompt, and what happens when you decline it | The runner has no interactive desktop |
 | Battery, doze, screen-off over an hour | Emulators do not sleep like phones |
@@ -23,7 +24,7 @@ firewall in its default state.
 
 Everything else — the golden journey, Full Mode's handshake, the installer's
 layout, the proxy rollback — is already covered on every pull request. **Do not
-re-do that work by hand.** This setup exists for the six rows above.
+re-do that work by hand.** This setup exists for the seven rows above.
 
 ## What you need on the laptop
 
@@ -111,10 +112,59 @@ If it only appears after you click **Allow** on a Windows firewall prompt, the
 probe path is not working and **every fresh install will look broken**. That is a
 release-blocking bug, and this is the only place it can be caught.
 
+## The cable check
+
+USB tethering is the one link CI has no way to model: an emulator has no cable,
+and the two ends of a cable are two machines. This is the setup that has one.
+
+1. Plug the phone into the laptop. Phone: Start Sharing.
+2. The offer card appears — *"Cable to your PC?"* — because the phone can see a
+   USB host on the other end. Tap **Turn on**, which opens Android's tethering
+   screen, and switch USB tethering on.
+3. Come back to Relay. The card is gone and the sharing panel says **Over USB**.
+4. Laptop: type the two digits. It must connect, and the address line under
+   "Connected via …" must end in **· USB**.
+
+What is actually being checked in step 4 is that the phone advertised its *cable*
+address and not its Wi-Fi one. With Wi-Fi also on, both are live and both are
+announced; the laptop takes the cable because the beacon says which is which.
+The way this used to fail is worth knowing, because it looks like success until
+the last moment: the phone appears in the list with the right code, and
+connecting times out, because the address it gave is one the laptop has no route
+to.
+
+**Leave Wi-Fi on for this.** With Wi-Fi off there is only one address to
+advertise and the test passes without exercising anything.
+
+5. Open **Advanced** on the phone. The address there must have followed the
+   cable — it is what the QR carries, and a laptop scanning the QR over the
+   cable needs it. This is the step that caught the watcher only ever reacting
+   to an address being *lost*, never to a better one appearing.
+
+Two more things worth knowing before you read a subnet as a constant:
+
+- Samsung picks a **different** tethering subnet each time. Two runs half an
+  hour apart gave 192.168.205.110 and 192.168.99.48. Nothing may hard-code
+  192.168.42.x; the code reads the interface, and so should any check here.
+- Turning tethering on makes the phone the laptop's **default gateway** (a lower
+  interface metric than Wi-Fi), so the laptop's own internet now goes through
+  the phone. That is what tethering is, but it means downloads on the laptop
+  take the phone's route — worth knowing when something unrelated suddenly
+  cannot reach the network.
+
+Two notes on the setup itself:
+
+- `adb` and USB tethering share the cable happily. Debugging does not have to be
+  turned off, and the tethering switch does not drop the adb connection.
+- Windows brings up the phone as an RNDIS/NCM adapter with no driver install on
+  anything current. If it does not appear in `ipconfig` within a few seconds of
+  the switch, that is the thing to report — not a Relay bug, but the reason
+  someone's cable will not work.
+
 ## Reporting what you find
 
 A bug found here needs the same standard as one found in CI: a failing test
 first, in the suite that should have caught it, then the fix. If the bug is
-structurally invisible to CI — one of the six rows at the top — say so in the
+structurally invisible to CI — one of the seven rows at the top — say so in the
 commit and add the manual check to `docs/testing.md` instead of pretending a
 test covers it.

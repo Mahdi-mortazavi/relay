@@ -6,6 +6,7 @@ import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.WarningCode
+import io.relay.app.net.UsbLink
 import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.LocalLog
@@ -15,7 +16,9 @@ import io.relay.app.core.UpdateCheck
 import io.relay.app.service.UpdateFetcher
 import io.relay.app.service.UpdateNotice
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -99,6 +102,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- the cable ----------------------------------------------------------
+
+    private val _cable = MutableStateFlow(UsbLink.Cable.Absent)
+
+    /**
+     * What the USB cable is doing, for the offer and the "over USB" line.
+     * Absent while the offer stands dismissed, so the screen needs no second
+     * flag to consult.
+     */
+    val cable: StateFlow<UsbLink.Cable> = _cable.asStateFlow()
+
+    /** Applies the dismissal rule; see [UsbLink.Offer]. */
+    private val offer = UsbLink.Offer()
+
+    /**
+     * Polls the cable for as long as the screen is in front of someone.
+     *
+     * Polling rather than listening, because neither half of this has a
+     * broadcast worth trusting: a USB interface appearing is not a
+     * ConnectivityManager network this app is ever told about, and the one
+     * broadcast that would say a host is on the other end of the cable is
+     * @hide. Twice a second would be a waste; every two seconds is faster than
+     * anyone can plug a cable in and look up.
+     *
+     * Suspends forever by design — the caller runs it inside repeatOnLifecycle,
+     * so it starts when the screen appears and is cancelled when it leaves.
+     */
+    suspend fun watchCable() {
+        while (true) {
+            // Interface enumeration is a syscall; the battery read crosses a
+            // binder. Neither belongs on the frame-drawing thread.
+            val now = withContext(Dispatchers.IO) { UsbLink.read(getApplication()) }
+            _cable.value = offer.observe(now)
+            delay(CABLE_POLL_MS)
+        }
+    }
+
+    /**
+     * Hides the offer until the cable situation changes.
+     *
+     * Deliberately not remembered across launches. The signal behind the offer
+     * is a guess (see [UsbLink.cableToComputer]), so a person dismissing it once
+     * on a wall charger should not lose the feature on the day they actually
+     * plug into their PC.
+     */
+    fun dismissUsbOffer() {
+        offer.dismiss()
+        _cable.value = UsbLink.Cable.Absent
+    }
+
+    /** Opens the one screen with the USB tethering switch on it. */
+    fun openTetheringSettings() = UsbLink.openTetheringSettings(getApplication())
+
     private val _batteryExempt = MutableStateFlow(readBatteryExempt())
     val batteryExempt: StateFlow<Boolean> = _batteryExempt
 
@@ -141,6 +197,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearLogs() = LocalLog.clear()
+
+    private companion object {
+        /** How often [watchCable] looks, while the screen is in front of someone. */
+        const val CABLE_POLL_MS = 2000L
+    }
 
     private fun readBatteryExempt(): Boolean {
         val app = getApplication<Application>()

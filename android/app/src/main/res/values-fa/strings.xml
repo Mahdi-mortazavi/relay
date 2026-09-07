@@ -44,7 +44,7 @@
 
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">وای‌فای یا هات‌اسپات نیست</string>
-    <string name="error_hotspot_off_body">گوشی را به وای‌فای وصل کنید یا هات‌اسپات را روشن کنید و دوباره تلاش کنید.</string>
+    <string name="error_hotspot_off_body">گوشی را به وای‌فای وصل کنید، هات‌اسپات را روشن کنید، یا کابل USB را بزنید و اشتراک اینترنت با USB را روشن کنید، سپس دوباره تلاش کنید.</string>
     <string name="error_port_in_use_title">پورت‌ها در اشغال‌اند</string>
     <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
     <string name="error_service_failed_title">مشکلی پیش آمد</string>
@@ -61,6 +61,12 @@
     <string name="battery_banner_body">به رله اجازه دهید بهینه‌سازی باتری را نادیده بگیرد تا با خاموش‌شدن صفحه، اشتراک‌گذاری قطع نشود.</string>
     <string name="battery_banner_allow">اجازه دادن</string>
     <string name="battery_banner_done">اشتراک‌گذاری در پس‌زمینه محافظت می‌شود</string>
+
+    <string name="usb_offer_title">کابل به کامپیوتر وصل است؟</string>
+    <string name="usb_offer_body">اشتراک اینترنت با USB را روشن کنید — اتصالی پایدار که باتری مصرف نمی‌کند و به وای‌فای نیاز ندارد.</string>
+    <string name="usb_offer_action">روشن کردن</string>
+    <string name="usb_offer_dismiss">الان نه</string>
+    <string name="usb_carrying">از طریق USB</string>
 
     <!-- Foreground-service notification -->
     <string name="notification_channel">وضعیت اشتراک‌گذاری</string>

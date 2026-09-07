@@ -2,17 +2,21 @@ package io.relay.app.e2e
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.relay.app.net.Beacon
+import io.relay.app.net.LocalAddress
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.Inet4Address
 import java.net.InetAddress
+import java.net.NetworkInterface
 
 /**
  * The half of pairing that decides whether the PC can find this phone at all.
@@ -67,11 +71,62 @@ class PairingDiscoveryTest {
         assertEquals("wireguard", json.getString("mode"))
         // The address and port are the whole point of the answer: the code only
         // selects a phone, the beacon is what says where it is.
-        assertEquals(HOST, json.getString("host"))
+        //
+        // Which address, though, is no longer the one this Beacon was handed.
+        // A single pre-built address used to go to every link, so a PC on the
+        // USB cable was told the phone's Wi-Fi address and could not route to
+        // it — the phone appeared in the list and nothing could connect. The
+        // answer now names this phone's address *on the link the asker is on*,
+        // so what there is to assert is that it is an address this device
+        // actually has. HOST deliberately is not one: it stands for the
+        // hotspot address a real phone would have, and asserting it here would
+        // be asserting the bug.
+        val answered = json.getString("host")
+        assertTrue(
+            "answered with $answered, which is not an address this device has: ${ownAddresses()}",
+            answered in ownAddresses(),
+        )
         assertEquals(PORT, json.getInt("port"))
         assertEquals(Beacon.STATE_SHARING, json.getString("state"))
         assertEquals("Relay Test Phone", json.getString("name"))
     }
+
+    @Test
+    fun namesTheLinkItAnsweredOnOrNamesNothing() {
+        // The `link` field is what lets a PC rank a cable above the radio, and
+        // a wrong one is worse than none: it would rank a path by a property it
+        // does not have. So it has to agree with the interface the answered
+        // address actually sits on — including agreeing that there is no name
+        // for it, which is what an emulator's eth0 gets.
+        startBeacon()
+        val json = JSONObject(
+            probeUntilAnswered() ?: throw AssertionError("The phone never answered a probe.")
+        )
+
+        val host = json.getString("host")
+        val expected = interfaceCarrying(host)?.let { LocalAddress.linkKind(it) }
+        val actual = if (json.has("link")) json.getString("link") else null
+
+        assertEquals("the answer named a link the address is not on", expected, actual)
+    }
+
+    /** Every non-loopback IPv4 address this device is actually reachable at. */
+    private fun ownAddresses(): Set<String> =
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { nic ->
+                nic.inetAddresses.toList().filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
+            }
+            .toSet()
+
+    /** The interface [ip] belongs to, lowercased as LocalAddress expects. */
+    private fun interfaceCarrying(ip: String): String? =
+        NetworkInterface.getNetworkInterfaces().toList()
+            .firstOrNull { nic ->
+                nic.inetAddresses.toList().any { it.hostAddress == ip }
+            }
+            ?.name
+            ?.lowercase()
 
     @Test
     fun answersTheProbeTheWindowsClientActuallySends() {
