@@ -89,6 +89,48 @@ and installers work, not only the browser.
 
 <br>
 
+<div align="center">
+
+### ✨ New in 2.8.0 &nbsp;·&nbsp; Connect over the USB cable
+
+</div>
+
+<div align="center">
+
+**Plug the phone in. Relay offers the cable, and takes you to the one switch.**
+
+</div>
+
+<div align="center">
+
+| | | |
+|:---:|:---:|:---:|
+| 🔌 | 👉 | ✔️ |
+| **Plug in** | **Tap "Turn on"** | **Over USB** |
+| Relay notices and asks<br><sub>*"Cable to your PC?"*</sub> | It opens Android's<br>tethering switch for you | The phone says so,<br>and the PC shows it |
+
+</div>
+
+<br>
+
+No Wi-Fi in range. No hotspot draining the battery. Nothing else sharing the
+airwaves with it.
+
+Relay can't flip that switch for you — USB tethering is a system setting, and
+Android gives no app the permission. So it does the two things it can: notices
+the cable, and opens the right screen. One tap.
+
+> **What this doesn't claim:** that a cable is *faster*. That was never measured,
+> and a good 5 GHz link can beat USB 2.0. What is true by construction is that
+> nothing else shares the medium, it works with no Wi-Fi at all, and no battery
+> goes on holding an access point up.
+
+<br>
+
+---
+
+<br>
+
 ## Setup
 
 <div align="center">
@@ -99,6 +141,10 @@ and installers work, not only the browser.
 | Tap **Start Sharing** | Click the phone in the list<br><sub>or type the two digits</sub> | Approve it on the phone |
 
 </div>
+
+Connect the two however they can already see each other — **your Wi-Fi**, the
+**phone's hotspot**, or a **USB cable**. With a cable in, Relay offers to turn
+USB tethering on for you, and both ends then say *Over USB*.
 
 The PC finds phones that are already sharing, so there is usually nothing to type
 at all. No camera? Type the two digits. No list? Scan the QR.

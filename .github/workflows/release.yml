@@ -397,6 +397,9 @@ jobs:
             echo "telemetry. The connection is an encrypted WireGuard tunnel, and"
             echo "**every application** on the PC goes through it -- not only the browser."
             echo
+            echo "Over your Wi-Fi, the phone's hotspot, or **a USB cable** -- whichever way"
+            echo "the two devices can already see each other."
+            echo
             echo "### Download"
             echo
             echo "| Platform | File | Requirements |"
@@ -410,8 +413,9 @@ jobs:
             echo "### Install"
             echo
             echo "1. Install both apps."
-            echo "2. On the phone, turn on the hotspot -- or put both devices on the"
-            echo "   same Wi-Fi -- and tap **Start Sharing**."
+            echo "2. On the phone, tap **Start Sharing**. Put both devices on the same"
+            echo "   Wi-Fi, turn on the phone's hotspot, or plug in a USB cable -- with a"
+            echo "   cable, Relay offers to switch USB tethering on for you."
             echo "3. On the PC, open Relay. **Your phone is already in the list.** Click it."
             echo "4. Tap **Allow** on the phone."
             echo

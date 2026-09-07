@@ -9,6 +9,74 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-09-07
+
+### Added — connect over the USB cable
+
+Plug the phone into the laptop and Relay uses the cable. No Wi-Fi in range, no
+hotspot draining the battery, nothing sharing the airwaves with it.
+
+Because USB tethering is a *system* setting that no app permission can switch
+on, Relay does the two things it is allowed to do: it notices the cable and it
+opens the right screen. A card appears while you are sharing — *"Cable to your
+PC?"* — and its button takes you straight to Android's tethering switch. Turn it
+on and the phone says **Over USB**; the PC shows the link on the row it is about
+to connect to, and again on the address line once it has.
+
+The card asks rather than announces, on purpose. Android gives no public way to
+tell a computer from a wall charger on the other end of a cable, so this is a
+good guess and is worded like one — and **Not now** makes it go away until you
+plug in again.
+
+What it does *not* claim is that a cable is faster. That was never measured, and
+a good 5 GHz link can beat USB 2.0. What is true by construction: nothing else
+shares the medium, it works with no Wi-Fi in range at all, and no battery goes
+on holding an access point up.
+
+### Fixed — a phone on two links at once
+
+A phone with a cable in *and* Wi-Fi on has two addresses, and the beacon only
+ever carried one of them. Every copy of the datagram was built from a single
+chosen address and then broadcast on every interface — so the laptop on the
+cable was handed the phone's *Wi-Fi* address, which it has no route to. The
+failure looked like this: the phone appears in the list, showing the right code,
+and connecting times out for no visible reason.
+
+Each datagram now carries the address of the interface it leaves by, and names
+what kind of link that is. The PC ranks them and takes the cable.
+
+**Two live addresses are no longer read as a phone that moved.** The old rule —
+"a different address for the same code means the phone moved" — turns a phone on
+two links into a phone changing house once a second, with the PC re-pointing its
+tunnel back and forth for as long as both are up. A different address is a *new*
+address only once the previous one has gone stale; while both are fresh they are
+two paths to one phone.
+
+**And one phone on two links was being listed as two phones.** The count that
+decides "which phone has this code?" was counting *paths*, so a single phone
+reported `ERR_CODE_AMBIGUOUS` and appeared twice on the pairing screen, asking
+you to choose between two rows that were the same device.
+
+A phone with the hotspot up and a cable in also put its hotspot address in the
+QR about half the time — the two scored equally, and the winner was decided by
+whichever network interface the system happened to list first.
+
+### Fixed — English text on the Persian UI
+
+The link labels ("USB", "Wi-Fi", "hotspot") were about to ship as English words
+baked into shared code, where no translation could reach them. Every user-facing
+string in this app exists in both languages; Windows has enforced that since six
+keys once shipped missing, and **Android now enforces it too** — the same names,
+the same plurals, and the same format arguments in both. A translation that
+drops a `%d` throws when it is shown, and only for the people reading Persian.
+
+### Verified on hardware
+
+Not only in CI, which has no cable to test with: a phone and a laptop, both
+links live, released 2.7.1 as the PC client. It listed one phone, chose the
+cable address, and carried 35.5 MB three times — with the tunnel's packets on
+the cable and Wi-Fi idle.
+
 ## [2.7.1] — 2026-08-27
 
 ### Fixed — the approval prompt could not be answered, and then stopped appearing
