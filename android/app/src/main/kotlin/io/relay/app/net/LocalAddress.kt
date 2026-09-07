@@ -61,8 +61,10 @@ object LocalAddress {
     internal fun score(interfaceName: String, ip: String): Int {
         var score = 1 // baseline: any site-local address is advertisable
         when {
-            // A cable beats every radio: faster, nothing to interfere with it,
-            // and it costs no battery holding an access point up. It was worth
+            // A cable is preferred over every radio: nothing shares the medium
+            // with it, it works with no Wi-Fi in range, and it costs no battery
+            // holding an access point up. (Not "faster" — that is unmeasured.)
+            // It was worth
             // nothing at all before this — USB interfaces were not named here,
             // so they took the baseline 1 and lost to wlan0's 3, and a laptop
             // on the cable was advertised the phone's Wi-Fi address.
@@ -94,6 +96,17 @@ object LocalAddress {
         interfaceName.startsWith("wlan") -> "wifi"
         else -> null
     }
+
+    /**
+     * The kinds of link this phone is currently reachable on.
+     *
+     * Same enumeration the beacon announces from, so the UI cannot claim a
+     * cable the beacon is not using, or stay quiet about one it is. Anything
+     * [linkKind] has no name for is left out rather than counted as unknown:
+     * the callers ask about a specific kind.
+     */
+    fun activeLinkKinds(): Set<String> =
+        enumerate().mapNotNull { linkKind(it.interfaceName) }.toSet()
 
     /** Whether this link is worth announcing on at all. */
     internal fun isReachable(interfaceName: String, ip: String): Boolean =

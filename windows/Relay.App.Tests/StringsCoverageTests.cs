@@ -107,6 +107,38 @@ public class StringsCoverageTests
     }
 
     [Fact]
+    public void Every_link_name_a_beacon_can_produce_has_both_languages()
+    {
+        // These keys reach Strings.Get through a variable, so the scan above is
+        // blind to them — the same blindness that let six error strings ship as
+        // identifiers. They also come from Relay.Core rather than Relay.App,
+        // which is the point: LanDiscovery.Device.LinkStringKey returns a key
+        // and not the word "Wi-Fi" precisely so this check is possible.
+        var core = File.ReadAllText(
+            Path.Combine(SharedContracts.RepoRoot, "windows", "Relay.Core", "LanDiscovery.cs"));
+
+        var start = core.IndexOf("LinkStringKey => Link switch", StringComparison.Ordinal);
+        Assert.True(start >= 0, "LanDiscovery no longer has a LinkStringKey switch — this test is reading the wrong shape.");
+        var end = core.IndexOf("};", start, StringComparison.Ordinal);
+        Assert.True(end > start, "Could not find the end of the LinkStringKey switch.");
+
+        var keys = Regex.Matches(core[start..end], @"""[a-z]+""\s*=>\s*""([A-Za-z0-9_]+)""")
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet();
+        Assert.NotEmpty(keys);
+
+        var english = DefinedIn("En");
+        var persian = DefinedIn("Fa");
+
+        Assert.True(
+            keys.IsSubsetOf(english),
+            "A beacon can name a link with no English text: " + string.Join(", ", keys.Except(english)));
+        Assert.True(
+            keys.IsSubsetOf(persian),
+            "A beacon can name a link with no Persian text: " + string.Join(", ", keys.Except(persian)));
+    }
+
+    [Fact]
     public void No_string_still_tells_the_user_to_look_for_an_eight_character_code()
     {
         // The phone shows two digits. A caption asking for eight characters in

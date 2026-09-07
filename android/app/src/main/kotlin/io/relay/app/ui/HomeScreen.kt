@@ -77,6 +77,7 @@ import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.WarningCode
+import io.relay.app.net.UsbLink
 import io.relay.app.service.LocalLog
 import io.relay.app.ui.theme.LocalGlass
 import io.relay.app.ui.theme.glassPanel
@@ -106,6 +107,10 @@ fun HomeScreen(
     /** The computer waiting on an answer, or null. /shared/pairing-beacon.md. */
     pendingClient: String? = null,
     onApproveClient: (Boolean) -> Unit = {},
+    /** What the USB cable is doing. See [UsbLink.Cable]. */
+    cable: UsbLink.Cable = UsbLink.Cable.Absent,
+    onTurnOnUsb: () -> Unit = {},
+    onDismissUsbOffer: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -149,6 +154,7 @@ fun HomeScreen(
                             ),
                             reconnecting = current.reconnecting,
                             traffic = null, onStop = onStop,
+                            overUsb = cable == UsbLink.Cable.Carrying,
                         )
                     is ConnectionState.Connected ->
                         PairingPanel(
@@ -161,12 +167,21 @@ fun HomeScreen(
                             reconnecting = current.reconnecting,
                             traffic = formatTraffic(current.bytesUp, current.bytesDown),
                             onStop = onStop, connected = true,
+                            overUsb = cable == UsbLink.Cable.Carrying,
                         )
                     is ConnectionState.Error -> ErrorPanel(current.code, onRetry, onDismissError)
                 }
             }
 
             Spacer(Modifier.height(20.dp))
+            // Only while sharing. On the idle screen the cable is a fact about
+            // the phone; the moment Start is pressed it becomes the answer to
+            // "how does the PC reach me", which is the question on screen.
+            val sharing = state is ConnectionState.Advertising || state is ConnectionState.Connected
+            if (sharing && cable == UsbLink.Cable.Offered) {
+                UsbOffer(onTurnOn = onTurnOnUsb, onDismiss = onDismissUsbOffer)
+                Spacer(Modifier.height(12.dp))
+            }
             if (updateAvailable != null) {
                 UpdateBanner(updateAvailable, onGetUpdate)
                 Spacer(Modifier.height(12.dp))
@@ -385,6 +400,8 @@ private fun PairingPanel(
     traffic: String?,
     onStop: () -> Unit,
     connected: Boolean = false,
+    /** Whether the phone is currently reachable over the cable. */
+    overUsb: Boolean = false,
 ) {
     val glass = LocalGlass.current
     Column(
@@ -403,6 +420,18 @@ private fun PairingPanel(
                 else -> glass.textSecondary
             },
         )
+        // The payoff for the whole feature: the person who plugged the cable in
+        // gets told it is being used, rather than having to infer it from the
+        // speed. Accent-coloured because it is good news, and it sits above the
+        // byte counters because it explains them.
+        if (overUsb) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.usb_carrying),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.accent,
+            )
+        }
         if (traffic != null && !reconnecting) {
             Spacer(Modifier.height(4.dp))
             Text(traffic, style = MaterialTheme.typography.labelSmall, color = glass.textTertiary)
@@ -537,6 +566,52 @@ private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Un
         PrimaryButton(text = stringResource(R.string.action_retry), onClick = onRetry)
         Spacer(Modifier.height(8.dp))
         SubtleButton(text = stringResource(R.string.action_dismiss), onClick = onDismiss)
+    }
+}
+
+/**
+ * Offers the cable that is already plugged in.
+ *
+ * Not a warning, and it does not borrow the warning banner's orange dot:
+ * nothing is wrong, there is simply a better link available. It asks rather
+ * than asserts because the signal behind it cannot tell a computer from a
+ * charger — see [UsbLink.cableToComputer] — so the cost of being wrong is one
+ * card a person can wave away.
+ *
+ * The button leaves the app, which is the honest shape of this feature: USB
+ * tethering is a system switch, and no permission Relay can hold will flip it.
+ */
+@Composable
+private fun UsbOffer(onTurnOn: () -> Unit, onDismiss: () -> Unit) {
+    val glass = LocalGlass.current
+    Row(
+        modifier = Modifier.fillMaxWidth().glassPanel(radius = 16.dp).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(8.dp).background(glass.accent, CircleShape))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.usb_offer_title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.textPrimary,
+            )
+            Text(
+                stringResource(R.string.usb_offer_body),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textSecondary,
+            )
+        }
+        SubtleButton(text = stringResource(R.string.usb_offer_action), onClick = onTurnOn)
+        Text(
+            text = stringResource(R.string.action_dismiss),
+            style = MaterialTheme.typography.labelSmall,
+            color = glass.textTertiary,
+            modifier = Modifier
+                .clickable(role = Role.Button) { onDismiss() }
+                .minimumInteractiveComponentSize()
+                .padding(4.dp),
+        )
     }
 }
 

@@ -128,26 +128,43 @@ public class BeaconPathTests
             Beacon("42", "192.168.1.14", 51820, "carrier-pigeon"),
             DateTimeOffset.UnixEpoch, out var parsed, out _));
         Assert.Null(parsed!.Link);
-        Assert.Null(parsed.LinkLabel);
+        Assert.Null(parsed.LinkStringKey);
     }
 
     [Fact]
-    public void TwoDifferentPhonesSharingACodeAreStillTwoPhones()
+    public void ConnectedOverWifiKeepsSayingWifiWhenACableIsAlsoIn()
     {
-        // The collapse must not go too far. Ninety codes and two phones collide
-        // about one time in forty-five, and when they do the person has to be
-        // asked which one — that is what ERR_CODE_AMBIGUOUS is for.
+        // The address line answers "how am I connected", not "how would I
+        // rather connect". Asking Devices — which ranks the cable first, because
+        // that is the path to prefer next time — would relabel a working Wi-Fi
+        // session as USB the moment someone plugged in to charge.
+        var now = DateTimeOffset.UnixEpoch.AddHours(1);
+        var discovery = new LanDiscovery(() => now);
+
+        foreach (var (host, link) in new[] { ("192.168.1.14", "wifi"), ("192.168.42.129", "usb") })
+        {
+            Assert.True(LanDiscovery.TryParseBeacon(Beacon("42", host, 51820, link), now, out var d, out _));
+            discovery.Observe(d!, now);
+        }
+
+        Assert.Equal("LinkWifi", discovery.LinkStringKeyFor("192.168.1.14"));
+        Assert.Equal("LinkUsb", discovery.LinkStringKeyFor("192.168.42.129"));
+        Assert.Null(discovery.LinkStringKeyFor("192.168.1.99"));
+    }
+
+    [Fact]
+    public void AStaleBeaconNoLongerSaysHowWeAreConnected()
+    {
+        // Beacons stopping is the phone leaving the network or Relay closing on
+        // it. Either way the last thing it said about its links is no longer
+        // something to put on screen as present tense.
         var now = DateTimeOffset.UnixEpoch.AddHours(1);
         var discovery = new LanDiscovery(() => now);
 
         Assert.True(LanDiscovery.TryParseBeacon(
-            Beacon("42", "192.168.1.14", 51820, "wifi", name: "Pixel"), now, out var first, out _));
-        Assert.True(LanDiscovery.TryParseBeacon(
-            Beacon("42", "192.168.1.55", 51820, "wifi", name: "Galaxy"), now, out var second, out _));
+            Beacon("42", "192.168.42.129", 51820, "usb"), now, out var device, out _));
+        discovery.Observe(device!, now - LanDiscovery.Stale - TimeSpan.FromMilliseconds(1));
 
-        discovery.Observe(first!, now);
-        discovery.Observe(second!, now);
-
-        Assert.Equal(2, discovery.MatchPhones("42").Count);
+        Assert.Null(discovery.LinkStringKeyFor("192.168.42.129"));
     }
 }

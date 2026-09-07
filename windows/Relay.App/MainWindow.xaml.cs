@@ -722,7 +722,13 @@ public sealed partial class MainWindow : Window
         if (state == "Connected" && _controller.Payload is { } payload)
         {
             ConnectedText.Text = string.Format(Strings.Get("ConnectedVia"), payload.Name ?? payload.Host);
-            ConnectedDetailText.Text = $"{payload.Host}:{payload.Port}";
+            // The address line says how, when the phone told us: a person who
+            // plugged a cable in should be able to see that it is the one being
+            // used, rather than inferring it from the speed.
+            var link = _discovery.LinkStringKeyFor(payload.Host);
+            ConnectedDetailText.Text = link is null
+                ? $"{payload.Host}:{payload.Port}"
+                : $"{payload.Host}:{payload.Port} · {Strings.Get(link)}";
             ReconnectingText.Text = Strings.Get("Reconnecting");
             ReconnectingBanner.Visibility = Show(reconnecting);
             ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "AccentBrush");

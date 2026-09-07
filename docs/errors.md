@@ -14,7 +14,7 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 
 | Code | Severity | Condition | Next action shown to user |
 |---|---|---|---|
-| `HOTSPOT_OFF` | Error | No usable Wi-Fi or hotspot IPv4 interface when starting (works on a shared Wi-Fi/LAN too, not only the phone's hotspot). Mobile-data and VPN interfaces don't count — the client cannot route to them | Connect the phone to Wi-Fi or turn on its hotspot, then try again |
+| `HOTSPOT_OFF` | Error | No usable IPv4 interface when starting. A shared Wi-Fi/LAN and a USB tethering link both count, not only the phone's hotspot. Mobile-data and VPN interfaces don't — the client cannot route to them | Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable and turn on USB tethering, then try again |
 | `HOTSPOT_LOST` | Transient → Error | Hotspot interface dropped and did not return within the reconnect bound | Check the hotspot is still on, then start sharing again |
 | `PORT_IN_USE` | Error | Every candidate SOCKS port is bound by another app | Close the other app using those ports, then try again |
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly | Start sharing again |
@@ -31,11 +31,11 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_QR_INVALID` | Error | Scanned QR isn't a Relay payload (decode/validation failed) | Show the QR from the Relay app on the phone and try again |
 | `ERR_QR_NEWER_VERSION` | Error | Payload `v` is newer than this client supports | Update the Windows app |
 | `ERR_CODE_INVALID` | Error | Typed code isn't a shape the scheme could have issued (two digits, or the long code's length/alphabet/checksum) | Re-check the code on the phone and try again |
-| `ERR_CODE_NOT_FOUND` | Error | No phone on this network is announcing the two digits that were typed | Check the phone is still sharing and this PC is on its hotspot or the same Wi-Fi |
+| `ERR_CODE_NOT_FOUND` | Error | No phone on this network is announcing the two digits that were typed | Check the phone is still sharing and this PC is on its hotspot, the same Wi-Fi, or its USB cable with tethering on |
 | `ERR_CODE_AMBIGUOUS` | Error | More than one phone is announcing that code (see `/shared/pairing-beacon.md`) | Stop sharing on the phone you don't want, then try again |
 | `ERR_FULL_MODE_NEEDS_QR` | Error | The phone is sharing but is not offering a pairing port, so a code cannot fetch a configuration | Scan its QR code instead |
-| `ERR_HOST_UNREACHABLE` | Error | SOCKS5 probe to the phone failed on first connect (proxy rolled back) | Connect this PC to the phone's hotspot Wi-Fi, then try again |
-| `ERR_WRONG_NETWORK` | Error | The phone's host IP is not on any connected interface's subnet | This PC isn't on the phone's hotspot. Join the phone's Wi-Fi, then try again |
+| `ERR_HOST_UNREACHABLE` | Error | SOCKS5 probe to the phone failed on first connect (proxy rolled back) | Put this PC on the phone's Wi-Fi or hotspot, or connect it by USB with tethering on, then try again |
+| `ERR_WRONG_NETWORK` | Error | The phone's host IP is not on any connected interface's subnet | This PC shares no network with the phone. Join its Wi-Fi or hotspot, or plug in the cable and turn on USB tethering, then try again |
 | `ERR_CONNECTION_LOST` | Transient → Error | An established connection dropped and did not recover within the reconnect bound | The phone became unreachable. Re-check the hotspot and connect again |
 | `ERR_FIREWALL_BLOCKED` | Error | Local connect refused/blocked in a way consistent with a firewall rule | Allow Relay through Windows Firewall (or your security software), then try again |
 | `ERR_PROXY_APPLY_FAILED` | Error | Applied proxy didn't verify on read-back (rolled back) | Close other proxy/VPN managers and try again |

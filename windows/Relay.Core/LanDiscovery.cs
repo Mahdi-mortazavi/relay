@@ -43,10 +43,12 @@ public sealed class LanDiscovery : IDisposable
         /// How good this path is, higher being better. See
         /// /shared/pairing-beacon.md → "Two paths are not two addresses".
         ///
-        /// A cable first: it is faster than the radio, nothing can interfere
-        /// with it, and it costs the phone no battery holding an access point
-        /// up. A beacon with no link at all sorts last, because a phone that
-        /// does not send one is announcing the single address it always did.
+        /// A cable first: nothing shares the medium with it, it works with no
+        /// Wi-Fi in range, and it costs the phone no battery holding an access
+        /// point up. Not "faster" — that is unmeasured, and a good 5 GHz link
+        /// can beat USB 2.0. A beacon with no link at all sorts last, because a
+        /// phone that does not send one is announcing the single address it
+        /// always did.
         /// </summary>
         public int PathRank => Link switch
         {
@@ -56,12 +58,21 @@ public sealed class LanDiscovery : IDisposable
             _ => 0,
         };
 
-        /// <summary>How this path reads to a person: "USB", "Wi-Fi", "hotspot".</summary>
-        public string? LinkLabel => Link switch
+        /// <summary>
+        /// The Strings key naming this link to a person, or null for a link
+        /// with no name.
+        ///
+        /// A key and not the words: every user-facing string in this app exists
+        /// in English and Persian and lives in Relay.App/Strings.cs, which is
+        /// the only string store there is. Returning "Wi-Fi" from here would
+        /// have put an untranslatable English word on the Persian UI, from a
+        /// project that has already shipped that bug once.
+        /// </summary>
+        public string? LinkStringKey => Link switch
         {
-            "usb" => "USB",
-            "wifi" => "Wi-Fi",
-            "hotspot" => "hotspot",
+            "usb" => "LinkUsb",
+            "wifi" => "LinkWifi",
+            "hotspot" => "LinkHotspot",
             _ => null,
         };
     }
@@ -400,6 +411,30 @@ public sealed class LanDiscovery : IDisposable
         var normalized = NormalizeCode(code);
         if (normalized is null) return [];
         lock (_lock) return _devices.Values.Where(d => d.Code == normalized).ToList();
+    }
+
+    /// <summary>
+    /// The Strings key for the link a phone at <paramref name="host"/> said it
+    /// was announcing by, or null when nothing fresh said.
+    ///
+    /// Asked of every path rather than of the best one: a PC connected over
+    /// Wi-Fi while a cable is also plugged in must go on saying Wi-Fi, and
+    /// <see cref="Devices"/> would hand back the USB path because that is the
+    /// one it would rather use next time.
+    ///
+    /// Reads without pruning, deliberately. <see cref="Expire"/> raises
+    /// DevicesChanged, and this is called from the render path.
+    /// </summary>
+    public string? LinkStringKeyFor(string host)
+    {
+        var now = _clock();
+        lock (_lock)
+        {
+            return _devices.Values
+                .Where(d => d.Host == host && now - d.Seen <= Stale)
+                .Select(d => d.LinkStringKey)
+                .FirstOrDefault(key => key is not null);
+        }
     }
 
     /// <summary>
