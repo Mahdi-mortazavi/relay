@@ -57,6 +57,40 @@ class StringsCoverageTest {
         assertTrue("These translations take different arguments:\n  " + wrong.joinToString("\n  "), wrong.isEmpty())
     }
 
+    @Test
+    fun `every form of a plural takes the same arguments`() {
+        // The <string> check above cannot see inside a <plurals>, and all three
+        // of this app's plurals carry the count — "1 device connected". A form
+        // that drops it throws from String.format, and only for the quantity
+        // that hits it: correct at one device, a crash at two. Both languages
+        // and every quantity are held to one answer, because all forms of a
+        // plural describe the same thing with the same arguments.
+        // Grouped by name, so the two languages are compared with each other and
+        // not each held to its own answer — which is what concatenating the two
+        // lists and walking them would quietly do.
+        val byName = (pluralForms(english) + pluralForms(persian)).groupBy({ it.first }, { it.second })
+        for ((name, perLanguage) in byName) {
+            val forms = perLanguage.flatten()
+            assertTrue(
+                "$name: its forms take different arguments — $forms",
+                forms.map { it.second }.toSet().size == 1,
+            )
+        }
+    }
+
+    /** Each `<plurals>`, as its quantity forms paired with the arguments each takes. */
+    private fun pluralForms(xml: String): List<Pair<String, List<Pair<String, List<String>>>>> =
+        Regex("<plurals name=\"([^\"]+)\"[^>]*>(.*?)</plurals>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(xml)
+            .map { plural ->
+                plural.groupValues[1] to
+                    Regex("<item quantity=\"([^\"]+)\"[^>]*>(.*?)</item>", RegexOption.DOT_MATCHES_ALL)
+                        .findAll(plural.groupValues[2])
+                        .map { item -> item.groupValues[1] to placeholders(item.groupValues[2]) }
+                        .toList()
+            }
+            .toList()
+
     private fun names(xml: String, tag: String = "string"): Set<String> =
         Regex("<" + Regex.escape(tag) + " name=\"([^\"]+)\"")
             .findAll(xml).map { it.groupValues[1] }.toSet()
@@ -76,7 +110,7 @@ class StringsCoverageTest {
      * a template, and bare in a pattern it anchors the end of input.
      */
     private fun placeholders(text: String): List<String> =
-        Regex("""%(\d+[${'$'}])?[a-zA-Z]""").findAll(text).map { it.value }.sorted()
+        Regex("""%(\d+[${'$'}])?[a-zA-Z]""").findAll(text).map { it.value }.toList().sorted()
 
     private companion object {
         /** `app/src/main/res`, found from the module directory Gradle runs in. */
