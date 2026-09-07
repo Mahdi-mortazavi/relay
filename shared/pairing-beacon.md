@@ -251,11 +251,25 @@ So the rule is narrower than "a different host":
 > each inside the 5 s window — they are **two paths to one phone**, and the
 > client picks one rather than alternating.
 
-Which to pick is what `link` is for. `usb` first: it is a cable, so it is faster
-than the radio, it cannot be interfered with, and it costs the phone no battery
-holding an access point up. Then `wifi`, then `hotspot`. A beacon with no `link`
-sorts last, because an older phone that does not send one is announcing the
-single address it always did.
+Which to pick is what `link` is for.
+
+`usb` first: nothing else shares the medium with a cable, it works with no Wi-Fi
+in range at all, and it costs the phone no battery holding an access point up.
+Note what is *not* claimed — that it is faster. That has not been measured, and
+a good 5 GHz link can beat USB 2.0's RNDIS throughput.
+
+Then `wifi`, then `hotspot`. Hearing both means the PC is on a shared LAN *and*
+on the phone's own access point, which needs two adapters and is rare; when it
+happens, the router's network is the better-provisioned of the two and the phone's
+softAP is a low-power radio doing a second job. A beacon with no `link` sorts
+last, because an older phone that does not send one is announcing the single
+address it always did.
+
+This ranking is the *listener's*. The phone's own choice of which single address
+to print in a QR ranks `hotspot` above `wifi`, and deliberately: someone reading
+a code off the phone's screen is almost certainly on the phone's hotspot, whereas
+a PC that *heard* the station-Wi-Fi beacon has proven it is on that LAN. The two
+answer different questions and are asserted separately on each side.
 
 Having chosen, a client SHOULD stay on that path until it stops working, rather
 than switching the moment a nominally better one appears: a tunnel that survives
