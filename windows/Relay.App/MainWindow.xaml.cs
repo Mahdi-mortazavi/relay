@@ -1241,10 +1241,10 @@ public sealed partial class MainWindow : Window
             var button = new Button
             {
                 // The code first, because that is the thing the eye is comparing
-                // against the phone.
-                Content = device.Name is { Length: > 0 } name
-                    ? $"{device.Code}   {name}"
-                    : $"{device.Code}   {device.Host}",
+                // against the phone. Then the link, when the phone said one:
+                // clicking this row commits to a path, and which path it is
+                // belongs on the row rather than being discovered afterwards.
+                Content = Row(device),
                 Tag = device,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
@@ -1257,6 +1257,21 @@ public sealed partial class MainWindow : Window
             button.Click += OnFoundPhoneClick;
             list.Children.Add(button);
         }
+    }
+
+    /// <summary>
+    /// One row: the code, the phone, and how it is reachable.
+    ///
+    /// <see cref="LanDiscovery.Devices"/> has already collapsed a phone's paths
+    /// to the one it would take, so the link named here is the link a click will
+    /// actually use.
+    /// </summary>
+    private static string Row(LanDiscovery.Device device)
+    {
+        var who = device.Name is { Length: > 0 } name ? name : device.Host;
+        return device.LinkStringKey is { } key
+            ? $"{device.Code}   {who}   ·   {Strings.Get(key)}"
+            : $"{device.Code}   {who}";
     }
 
     private void OnFoundPhoneClick(object sender, RoutedEventArgs e)
