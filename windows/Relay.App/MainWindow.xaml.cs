@@ -1083,7 +1083,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnShortCodeTyped(string digits, bool mayConnect)
     {
-        var matches = _discovery.Match(digits);
+        var matches = _discovery.MatchPhones(digits);
         switch (matches.Count)
         {
             case 0:
@@ -1386,7 +1386,7 @@ public sealed partial class MainWindow : Window
                 ShowLocalError("ERR_CODE_INVALID");
                 return;
             }
-            var matches = _discovery.Match(digits);
+            var matches = _discovery.MatchPhones(digits);
             if (matches.Count != 1)
             {
                 // Zero means the phone is not sharing or is on another network;

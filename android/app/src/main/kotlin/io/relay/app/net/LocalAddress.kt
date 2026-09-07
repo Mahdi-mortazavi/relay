@@ -61,6 +61,17 @@ object LocalAddress {
     internal fun score(interfaceName: String, ip: String): Int {
         var score = 1 // baseline: any site-local address is advertisable
         when {
+            // A cable beats every radio: faster, nothing to interfere with it,
+            // and it costs no battery holding an access point up. It was worth
+            // nothing at all before this — USB interfaces were not named here,
+            // so they took the baseline 1 and lost to wlan0's 3, and a laptop
+            // on the cable was advertised the phone's Wi-Fi address.
+            // Five, not four, so the gateway nudge below cannot pull a hotspot
+            // level with it: `ap0` on 192.168.43.1 scores 3 + 1, and a tie is
+            // decided by interface enumeration order, which is to say by
+            // nothing. A phone with the hotspot up and a cable in would put its
+            // hotspot address in the QR about half the time.
+            USB_HINTS.any { interfaceName.startsWith(it) } -> score += 5
             AP_HINTS.any { interfaceName.startsWith(it) } -> score += 3 // phone hotspot
             interfaceName.startsWith("wlan") -> score += 2              // station Wi-Fi (shared LAN)
             interfaceName.startsWith("eth") || interfaceName.startsWith("en") -> score += 1
@@ -69,6 +80,31 @@ object LocalAddress {
         if (ip.endsWith(".1") && AP_HINTS.any { interfaceName.startsWith(it) }) score += 1
         return score
     }
+
+    /**
+     * What kind of link this is, for the beacon's `link` field.
+     *
+     * Null for anything unrecognised rather than a guess: the contract makes the
+     * field optional and sorts an absent one last, which is the right place for
+     * a link nobody here has a name for.
+     */
+    internal fun linkKind(interfaceName: String): String? = when {
+        USB_HINTS.any { interfaceName.startsWith(it) } -> "usb"
+        AP_HINTS.any { interfaceName.startsWith(it) } -> "hotspot"
+        interfaceName.startsWith("wlan") -> "wifi"
+        else -> null
+    }
+
+    /** Whether this link is worth announcing on at all. */
+    internal fun isReachable(interfaceName: String, ip: String): Boolean =
+        ip.isNotEmpty() && isReachableFromClient(interfaceName)
+
+    /**
+     * USB tethering, under the names Android has used for it. `rndis0` is the
+     * long-standing one; Android 11 and later prefer NCM and name it `ncm0`.
+     * Some OEMs simply call it `usb0`.
+     */
+    private val USB_HINTS = listOf("rndis", "ncm", "usb")
 
     private val AP_HINTS = listOf("ap", "swlan", "softap", "wlan1", "wigig")
 

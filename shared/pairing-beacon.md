@@ -30,6 +30,12 @@ each connected interface, port **47654**, every **1000 ms**, and one final
 datagram when sharing stops (`state: "stopped"`), so a listener drops it
 immediately rather than after a timeout.
 
+**Each datagram carries the address of the interface it leaves by**, not one
+address reused for all of them. A broadcast only reaches the link it is sent
+on, so a client on the USB link that is told the phone's Wi-Fi address has been
+told an address it cannot reach — which is exactly how USB tethering used to
+fail: the beacon arrived, the phone appeared, and nothing could connect to it.
+
 Payload is UTF-8 JSON, one object, no whitespace requirements:
 
 ```json
@@ -40,7 +46,8 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
   "host": "192.168.43.1",
   "port": 1080,
   "name": "Pixel 4a",
-  "state": "sharing"
+  "state": "sharing",
+  "link": "hotspot"
 }
 ```
 
@@ -54,6 +61,7 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
 | `name`  | string | Device name, ≤ 32 chars, for display. MAY be absent.               |
 | `state` | string | `sharing` or `stopped`.                                           |
 | `pairingPort` | int | 1–65535. Where to ask for a configuration. MAY be absent, and then this phone can only be paired by QR. |
+| `link`  | string | `usb`, `wifi` or `hotspot` — how *this* datagram left the phone. MAY be absent; a listener that does not know it ignores it. |
 
 The keys a `mode: wireguard` phone needs are **not** in the beacon and never can
 be: a beacon is broadcast, unauthenticated, and readable by anything on the
@@ -227,6 +235,31 @@ A client that does this MUST:
 
 A client that does not implement this is still correct; it just makes the
 person pair again after every lease change.
+
+### Two paths are not two addresses
+
+A phone with a cable in and Wi-Fi on is on two links at once, and announces on
+both — the same `code`, the same session, two different `host` values, arriving
+a second apart forever. Read with the rule above and nothing else, that is a
+phone moving house twice a second, and a client that followed it would re-point
+its tunnel back and forth for as long as both links are up.
+
+So the rule is narrower than "a different host":
+
+> A different `host` is a **new address** only once the previous one has gone
+> stale. While two hosts with the same `code` are both fresh — a beacon from
+> each inside the 5 s window — they are **two paths to one phone**, and the
+> client picks one rather than alternating.
+
+Which to pick is what `link` is for. `usb` first: it is a cable, so it is faster
+than the radio, it cannot be interfered with, and it costs the phone no battery
+holding an access point up. Then `wifi`, then `hotspot`. A beacon with no `link`
+sorts last, because an older phone that does not send one is announcing the
+single address it always did.
+
+Having chosen, a client SHOULD stay on that path until it stops working, rather
+than switching the moment a nominally better one appears: a tunnel that survives
+is worth more than a tunnel on the theoretically fastest link.
 
 ## The pairing exchange
 

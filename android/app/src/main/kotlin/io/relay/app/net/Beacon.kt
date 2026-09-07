@@ -80,7 +80,7 @@ class Beacon(
         // coroutine to be scheduled first. Both operations are local socket and
         // interface lookups; neither talks to the network.
         val probeSocket = openProbeSocket()
-        canAnnounce = probeSocket != null || broadcastAddresses().isNotEmpty()
+        canAnnounce = probeSocket != null || waysOut().isNotEmpty()
         if (!canAnnounce) {
             Log.d(TAG, "no way to announce on this network; the short code would be a dead end")
         }
@@ -88,9 +88,12 @@ class Beacon(
         job = scope.launch {
             DatagramSocket().use { socket ->
                 socket.broadcast = true
-                val sharing = payload(STATE_SHARING)
                 while (isActive) {
-                    send(socket, sharing)
+                    // Rebuilt every tick rather than once: a cable can be
+                    // plugged in, or Wi-Fi joined, long after sharing started,
+                    // and the new link has to start being announced without
+                    // making the person stop and start sharing again.
+                    send(socket, STATE_SHARING)
                     delay(intervalMs)
                 }
             }
@@ -132,7 +135,6 @@ class Beacon(
 
     private suspend fun answerProbes(socket: DatagramSocket) {
         socket.use {
-            val answer = payload(STATE_SHARING)
             val buffer = ByteArray(512)
             while (currentCoroutineContext().isActive) {
                 val packet = DatagramPacket(buffer, buffer.size)
@@ -144,6 +146,12 @@ class Beacon(
                 // Everything else on this port is ignored, including this
                 // phone's own broadcasts, which the host loops straight back.
                 if (!isProbe(String(packet.data, packet.offset, packet.length, Charsets.UTF_8))) continue
+                // Answer with the address *this asker* can reach, chosen by the
+                // link their probe arrived on. A single pre-built answer would
+                // hand a laptop on the cable the phone's Wi-Fi address, which is
+                // the same fault the broadcast had.
+                val way = wayTowards(packet.address) ?: continue
+                val answer = payload(STATE_SHARING, way.address, way.link)
                 try {
                     socket.send(DatagramPacket(answer, answer.size, packet.address, packet.port))
                 } catch (e: IOException) {
@@ -175,12 +183,11 @@ class Beacon(
         job = null
         answerJob?.cancel()
         answerJob = null
-        val goodbye = payload(STATE_STOPPED)
         kotlin.concurrent.thread(isDaemon = true, name = "relay-beacon-goodbye") {
             try {
                 DatagramSocket().use { socket ->
                     socket.broadcast = true
-                    send(socket, goodbye)
+                    send(socket, STATE_STOPPED)
                 }
             } catch (e: IOException) {
                 Log.d(TAG, "final beacon not sent: ${e.message}")
@@ -189,37 +196,104 @@ class Beacon(
         scope.cancel()
     }
 
-    private fun payload(state: String): ByteArray {
+    /**
+     * One datagram, describing the way out it is about to take.
+     *
+     * [advertisedHost] is this phone's address *on the interface this copy
+     * leaves by*, which is what /shared/pairing-beacon.md has always asked for
+     * and what this did not do: a single payload was built with one address and
+     * sent to every interface's broadcast. A broadcast only reaches its own
+     * link, so a laptop on the USB cable was handed the phone's Wi-Fi address —
+     * an address it usually has no route to. The phone appeared in the list and
+     * nothing could connect to it, which is exactly how USB tethering failed.
+     */
+    private fun payload(state: String, advertisedHost: String, link: String?): ByteArray {
         val json = JSONObject()
             .put("v", VERSION)
             .put("code", code)
             .put("mode", mode)
-            .put("host", host)
+            .put("host", advertisedHost)
             .put("port", port)
             .put("state", state)
         deviceName?.take(NAME_MAX)?.let { json.put("name", it) }
         pairingPort?.let { json.put("pairingPort", it) }
+        // Optional by contract: a listener that does not know it ignores it,
+        // and an older phone that never sends it still pairs exactly as before.
+        link?.let { json.put("link", it) }
         return json.toString().toByteArray(Charsets.UTF_8)
     }
 
-    private fun send(socket: DatagramSocket, bytes: ByteArray) {
-        for (address in broadcastAddresses()) {
+    private fun send(socket: DatagramSocket, state: String) {
+        val ways = waysOut()
+        if (ways.isEmpty()) {
+            // Nothing to announce on. Falling back to the constructor's address
+            // would be worse than silence: it would put an unreachable address
+            // on a link that has no listener anyway.
+            return
+        }
+        for (way in ways) {
+            val bytes = payload(state, way.address, way.link)
             try {
-                socket.send(DatagramPacket(bytes, bytes.size, address, PORT))
+                socket.send(DatagramPacket(bytes, bytes.size, way.broadcast, PORT))
             } catch (e: IOException) {
                 // One interface refusing is normal — a VPN's tun device has no
                 // broadcast peer. Only every interface failing is interesting,
                 // and that shows up as the PC never finding the phone.
-                Log.d(TAG, "beacon to $address failed: ${e.message}")
+                Log.d(TAG, "beacon to ${way.broadcast} failed: ${e.message}")
             }
         }
     }
 
-    private fun broadcastAddresses(): List<InetAddress> = try {
+    /**
+     * The way out that shares a network with [asker].
+     *
+     * Matched by prefix rather than by guessing: the laptop probing over the
+     * cable and the laptop probing over Wi-Fi are the same code asking the same
+     * question, and the only honest answer is the address on the link the
+     * question came in on. Falls back to the first way out when nothing matches,
+     * which is a router doing something unusual rather than a normal setup.
+     */
+    private fun wayTowards(asker: InetAddress): WayOut? {
+        val ways = waysOut()
+        return ways.firstOrNull { way -> sharesNetwork(way, asker) } ?: ways.firstOrNull()
+    }
+
+    private fun sharesNetwork(way: WayOut, asker: InetAddress): Boolean = try {
+        NetworkInterface.getNetworkInterfaces().toList().any { nic ->
+            nic.interfaceAddresses.any { entry ->
+                entry.address?.hostAddress == way.address &&
+                    inSameNetwork(entry.address, asker, entry.networkPrefixLength.toInt())
+            }
+        }
+    } catch (_: Exception) {
+        false
+    }
+
+    /** One way out: where to shout, and the address to shout about. */
+    private data class WayOut(
+        val broadcast: InetAddress,
+        val address: String,
+        val link: String?,
+    )
+
+    /**
+     * Every link this phone can be reached on, each with its own address.
+     *
+     * A VPN's tun has no broadcast peer and is skipped by that alone; mobile
+     * interfaces are skipped by LocalAddress, whose job is knowing which names
+     * a laptop could never route to.
+     */
+    private fun waysOut(): List<WayOut> = try {
         NetworkInterface.getNetworkInterfaces().toList()
             .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.interfaceAddresses }
-            .mapNotNull { it.broadcast }
+            .flatMap { nic ->
+                nic.interfaceAddresses.mapNotNull { entry ->
+                    val broadcast = entry.broadcast ?: return@mapNotNull null
+                    val ip = entry.address?.hostAddress ?: return@mapNotNull null
+                    if (!LocalAddress.isReachable(nic.name, ip)) return@mapNotNull null
+                    WayOut(broadcast, ip, LocalAddress.linkKind(nic.name))
+                }
+            }
     } catch (e: Exception) {
         Log.d(TAG, "no interfaces to announce on: ${e.message}")
         emptyList()
@@ -275,6 +349,30 @@ class Beacon(
                 (probe.booleanOrNull == true || (probe.intOrNull ?: 0) != 0)
         } catch (_: Exception) {
             false // not ours; something else uses this port
+        }
+
+        /**
+         * Whether two addresses sit on the same link, given that link's prefix.
+         *
+         * This is what decides which of the phone's addresses answers a probe,
+         * so getting it wrong is not a near miss: a laptop on the cable would be
+         * told the phone's Wi-Fi address and never connect. Kept here, and
+         * internal, so the boundary cases are asserted off the device rather
+         * than discovered on it.
+         */
+        internal fun inSameNetwork(a: InetAddress, b: InetAddress, prefixBits: Int): Boolean {
+            val left = a.address
+            val right = b.address
+            if (left.size != right.size || prefixBits !in 0..(left.size * 8)) return false
+            var bitsLeft = prefixBits
+            for (i in left.indices) {
+                if (bitsLeft <= 0) return true
+                val take = minOf(8, bitsLeft)
+                val mask = (0xFF shl (8 - take)) and 0xFF
+                if ((left[i].toInt() and mask) != (right[i].toInt() and mask)) return false
+                bitsLeft -= take
+            }
+            return true
         }
 
         /** Codes currently claimed by other phones, for [PairingCode.draw]. */
