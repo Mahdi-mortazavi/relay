@@ -16,6 +16,7 @@ import androidx.core.app.ServiceCompat
 import io.relay.app.MainActivity
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
+import io.relay.app.core.ShouldRetarget
 import io.relay.app.core.UpdateCheck
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
@@ -405,7 +406,22 @@ class SharingService : Service() {
                 delay(HOTSPOT_POLL_MS)
                 val state = ConnectionRepository.state.value
                 if (state !is ConnectionState.Advertising && state !is ConnectionState.Connected) continue
-                if (LocalAddress.findAdvertisableIpv4() != null) continue
+
+                val host = LocalAddress.findAdvertisableIpv4()
+                if (host != null) {
+                    // A *better* way out can appear mid-session, which is exactly
+                    // what the cable offer invites someone to do: "Turn on USB
+                    // tethering" while already sharing. The beacon picks it up on
+                    // its own — it rebuilds its links every tick — but the QR and
+                    // the address in Advanced are fixed at the payload, so
+                    // without this a laptop that scans the QR over the new cable
+                    // is handed the Wi-Fi address it has no route to.
+                    if (ShouldRetarget.now(advertised = currentHost, best = host, connected = state is ConnectionState.Connected)) {
+                        LocalLog.add("A better address appeared: $host")
+                        rebind(host)
+                    }
+                    continue
+                }
                 if (!runReconnect()) return@launch // exhausted → Error, stop watching
             }
         }

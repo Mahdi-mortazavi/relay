@@ -136,6 +136,22 @@ to.
 **Leave Wi-Fi on for this.** With Wi-Fi off there is only one address to
 advertise and the test passes without exercising anything.
 
+5. Open **Advanced** on the phone. The address there must have followed the
+   cable — it is what the QR carries, and a laptop scanning the QR over the
+   cable needs it. This is the step that caught the watcher only ever reacting
+   to an address being *lost*, never to a better one appearing.
+
+Two more things worth knowing before you read a subnet as a constant:
+
+- Samsung picks a **different** tethering subnet each time. Two runs half an
+  hour apart gave 192.168.205.110 and 192.168.99.48. Nothing may hard-code
+  192.168.42.x; the code reads the interface, and so should any check here.
+- Turning tethering on makes the phone the laptop's **default gateway** (a lower
+  interface metric than Wi-Fi), so the laptop's own internet now goes through
+  the phone. That is what tethering is, but it means downloads on the laptop
+  take the phone's route — worth knowing when something unrelated suddenly
+  cannot reach the network.
+
 Two notes on the setup itself:
 
 - `adb` and USB tethering share the cable happily. Debugging does not have to be
