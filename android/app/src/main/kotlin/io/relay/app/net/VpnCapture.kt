@@ -52,6 +52,34 @@ object VpnCapture {
         false
     }
 
+    /**
+     * A stand-in for "some laptop on the same network as [advertisedHost]", so
+     * the reply path can be asked about *before* any PC has connected.
+     *
+     * Why this is needed at all: [wouldSwallow] is called from the pairing
+     * server's configuration step, which only runs once a PC has completed a
+     * TCP connection. When the capture is severe enough to stop that handshake
+     * completing, `accept()` never returns — so the phone shows no prompt *and*
+     * no warning. The one case that most needs the message is the case that
+     * cannot produce it. Reported as #126, third category.
+     *
+     * The routing decision is per-destination-prefix, not per-host, so any
+     * address on the same /24 answers the same question. `.1` is the usual
+     * gateway; when this phone *is* `.1` (its own hotspot) `.2` is used instead,
+     * because a route lookup to our own address answers a different question.
+     *
+     * Returns null for anything that is not a dotted IPv4 quad — an address
+     * this cannot parse is one it should not guess about.
+     */
+    fun aPeerOn(advertisedHost: String): String? {
+        val parts = advertisedHost.split(".")
+        if (parts.size != 4) return null
+        val octets = parts.map { it.toIntOrNull() ?: return null }
+        if (octets.any { it !in 0..255 }) return null
+        val last = if (octets[3] == 1) 2 else 1
+        return "${octets[0]}.${octets[1]}.${octets[2]}.$last"
+    }
+
     /** Any port will do; connect() only performs the lookup, nothing is sent. */
     private const val DISCARD_PORT = 9
 }
