@@ -21,6 +21,51 @@ transport is active when sharing starts, Relay shows the non-blocking
 `NO_VPN_ACTIVE` advisory (`VpnStatus` checks `NetworkCapabilities.TRANSPORT_VPN`),
 because the user may have intended to share a VPN that is off.
 
+## What people actually report
+
+Three reports on 2.7.1 — [#124](https://github.com/Mahdi-mortazavi/relay/issues/124),
+[#125](https://github.com/Mahdi-mortazavi/relay/issues/125),
+[#126](https://github.com/Mahdi-mortazavi/relay/issues/126) — all say the same
+thing from different angles: with a VPN on the phone, the PC finds the phone and
+then cannot connect. #126 sorted the VPN apps into three groups, which is the
+most useful framing anyone has given this problem:
+
+| گروه | نشانه | معنی |
+|---|---|---|
+| ۱ | همه‌چیز کار می‌کند (FSecure) | VPN ترافیک LAN را رها می‌کند |
+| ۲ | برنامه می‌گوید نمی‌تواند تونل کند (TLS Tunnel) | تشخیص داده شد و گفته شد |
+| ۳ | **پیام تایید اصلاً نمی‌آید** (Seed 4 me) | تشخیص داده شد ولی گفته نشد |
+
+**Group 3 is the one to fix, and its cause is structural.** `VpnCapture.wouldSwallow`
+is called from the pairing server's `configuration` step, which runs only after
+`accept()` has returned — i.e. after a PC has completed a TCP connection. When
+the capture is severe enough that the phone's SYN-ACK never leaves by the LAN
+interface, the handshake never completes: no `accept()`, no prompt, and no
+warning either. **The case that most needs the message is the only case that
+cannot produce it.**
+
+Since 2.8.1 the diagnostic log carries a `Reply path check:` line written when
+sharing starts, before any PC is involved, so a report from a group-3 phone
+still says which way replies would leave. It is log-only on purpose — the same
+probe has said "swallowed" on a link that then carried 35 MB without trouble, so
+it is trustworthy enough to triage with and not to alarm anyone with.
+
+### Two settings worth trying before anything else
+
+Both are on the VPN app's side, and either one alone can produce group 3:
+
+- **"Block connections without VPN"** (Android's lockdown mode, in
+  *Settings → Network → VPN → ⚙*). It drops everything that is not the tunnel,
+  **including replies to your own LAN**. Turn it off and retry.
+- **Per-app / split tunnelling** — exclude Relay in the VPN app's own app list.
+  This is what the in-app warning already tells people to do, and it is the
+  reliable fix when it is available.
+
+Neither is a Relay setting; Android gives an app inside a VPN no way to opt out
+of either (`Network.bindSocket` fails `EPERM`, `SO_BINDTODEVICE` needs
+`CAP_NET_RAW`). Saying so plainly is better than implying Relay can route around
+a policy the system is enforcing on purpose.
+
 ## Hardware verification checklist (per VPN app)
 
 Since there is no local device loop, run this from an installable CI artifact

@@ -235,6 +235,7 @@ class SharingService : Service() {
         val payload = prepareFull(host) ?: return
 
         currentHost = host
+        noteReplyPath(host)
 
         // Drawn once per sharing session and kept for its life, so the number on
         // screen never changes under someone who is mid-way through typing it.
@@ -300,6 +301,29 @@ class SharingService : Service() {
         return pairing.issuePayload(
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
+        )
+    }
+
+    /**
+     * Writes the reply path into the diagnostic log at the moment sharing
+     * starts, before any PC is involved.
+     *
+     * This does **not** raise the warning banner, deliberately. The same probe
+     * has been seen to say "swallowed" on a link that then carried 35 MB
+     * without trouble, so acting on it would put an alarming message in front
+     * of people whose connection is working. What it is good for is triage: it
+     * costs one route lookup, and it means a diagnostic report carries the
+     * answer even when the session never got far enough to produce one.
+     *
+     * The warning itself still comes from the pairing path, where a real client
+     * address is known — see [startPairingServer].
+     */
+    private fun noteReplyPath(host: String) {
+        val peer = VpnCapture.aPeerOn(host) ?: return
+        val swallowed = VpnCapture.wouldSwallow(client = peer, advertisedHost = host)
+        LocalLog.add(
+            if (swallowed) "Reply path check: a reply to $peer would leave by the VPN, not by $host"
+            else "Reply path check: replies to $peer leave by $host, as they should"
         )
     }
 
