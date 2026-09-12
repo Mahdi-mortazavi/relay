@@ -278,7 +278,7 @@ if it is killed. A dead Relay cannot leave your machine unable to resolve names.
 | **Start with Windows** | A switch in Advanced, using the per-user key — no elevation |
 | **Live statistics** | Speed, totals, tunnel latency and connection duration, read from the adapter |
 | **Connect notification** | When the tunnel comes up — and a warning instead if it came up unprotected |
-| **Diagnostic report** | One button, copies what a bug report needs — and nothing is uploaded |
+| **Diagnostic report** | One button, copies what a bug report needs — levelled, with every interface the phone had at the moment it failed, and nothing uploaded ([how to read one](docs/diagnostics.md)) |
 
 </details>
 

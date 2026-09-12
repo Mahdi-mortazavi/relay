@@ -122,15 +122,42 @@ object LocalAddress {
     private val AP_HINTS = listOf("ap", "swlan", "softap", "wlan1", "wigig")
 
     /**
-     * Substrings (not prefixes — 464XLAT names its link `v4-rmnet_data0`) of
-     * interfaces whose addresses are unreachable from the client. See issue #18:
-     * with hotspot and Wi-Fi both off, `rmnet_data0`'s carrier address was the only
-     * candidate left and got advertised, producing a QR that could never connect.
+     * Why a link was rejected, or null when it was not.
+     *
+     * Exists so a diagnostic log can say *which* kind of unreachable a link was.
+     * "No usable Wi-Fi, hotspot or USB link" is true and unhelpful on a phone
+     * that had four interfaces up; "the cable was there and had no address yet"
+     * is the same fact in a form somebody can act on. See [LinkSnapshot].
      */
-    private val UNREACHABLE_HINTS = listOf(
-        "rmnet", "ccmni", "pdp", "seth", "wwan", "qmi", "ppp", // cellular
-        "tun", "ipsec", "dummy",                               // VPN / placeholder
-        // No "tap" here: it is a substring of the legitimate `softap0` hotspot,
-        // and Android VPNs land on tun anyway.
-    )
+    internal fun rejection(interfaceName: String): String? = when {
+        CELLULAR_HINTS.any { interfaceName.contains(it) } -> "cellular"
+        VPN_HINTS.any { interfaceName.contains(it) } -> "vpn"
+        else -> null
+    }
+
+    /** Substrings of the carrier's own links. 464XLAT names one `v4-rmnet_data0`. */
+    private val CELLULAR_HINTS = listOf("rmnet", "ccmni", "pdp", "seth", "wwan", "qmi", "ppp")
+
+    /**
+     * VPN tunnels and placeholders.
+     *
+     * No "tap" here: it is a substring of the legitimate `softap0` hotspot, and
+     * Android VPNs land on tun anyway.
+     */
+    private val VPN_HINTS = listOf("tun", "ipsec", "dummy")
+
+    /**
+     * Substrings (not prefixes) of interfaces whose addresses are unreachable
+     * from the client. Both halves hand out site-local IPv4 — a carrier commonly
+     * uses 10.0.0.0/8, a tun sits on 10.x or 172.16.x — so `isSiteLocalAddress`
+     * alone will happily advertise an address no PC can reach. See issue #18:
+     * with hotspot and Wi-Fi both off, `rmnet_data0`'s carrier address was the
+     * only candidate left and got advertised, producing a QR that could never
+     * connect.
+     *
+     * Derived from the two named lists rather than written out again, so the
+     * reason a link is rejected and the fact that it is rejected cannot drift
+     * apart.
+     */
+    private val UNREACHABLE_HINTS = CELLULAR_HINTS + VPN_HINTS
 }

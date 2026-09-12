@@ -50,14 +50,26 @@ object DiagnosticReport {
         appendLine("ABIs:     ${Build.SUPPORTED_ABIS?.joinToString(", ") ?: UNKNOWN}")
         appendLine("State:    ${describe(state)}")
         appendLine()
-        appendLine("Log (most recent last, times in seconds since sharing started)")
-        appendLine("-------------------------------------------------------------")
+        // "since sharing started" is what this said, and it was wrong: the clock
+        // runs from the moment the app's process started, so a report from a
+        // phone that had been open for an hour and a half opened at 4999.58 and
+        // read like a timestamp from a different machine. A log's own header
+        // being wrong is a special kind of expensive — it is the one line a
+        // reader trusts before they have read anything else.
+        appendLine("Log (most recent last, seconds since the app started)")
+        appendLine("----------------------------------------------------")
         if (entries.isEmpty()) {
             appendLine("(empty)")
         } else {
             for (entry in entries) {
-                appendLine("%8.2f  %s".format(entry.elapsedMs / 1000.0, entry.message))
+                appendLine(entry.render())
             }
+            appendLine()
+            val errors = entries.count { it.level == LocalLog.Level.ERROR }
+            val warnings = entries.count { it.level == LocalLog.Level.WARN }
+            // Read first, and often the only thing read. A report is pasted into
+            // a chat where whoever answers it is scrolling on a phone.
+            appendLine("$errors error(s), $warnings warning(s) in ${entries.size} line(s).")
         }
         appendLine()
         appendLine("This report was assembled on the device and shared by hand.")

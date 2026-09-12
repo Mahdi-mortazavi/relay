@@ -42,6 +42,7 @@ reason and an ADR.
 | What goes in the QR? | `shared/qr-payload.schema.json` |
 | What are the legal states? | `shared/connection-states.json` |
 | What does error X tell the user? | `docs/errors.md` |
+| How do I read a user's log? | `docs/diagnostics.md` |
 | What has hardware still not proven? | `docs/testing.md` |
 | How does a release get cut? | `docs/release.md` |
 

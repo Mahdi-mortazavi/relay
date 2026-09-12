@@ -57,7 +57,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (!UpdateCheck.isNewer(latest, currentVersion)) return@launch
 
             val version = latest.trimStart('v')
-            LocalLog.add("Update available: $latest")
+            LocalLog.info(
+                LocalLog.Area.UPDATE, "A newer release is available",
+                "latest" to latest, "current" to currentVersion,
+            )
             _updateAvailable.value = version
             // The banner only reaches someone already opening the app, which is
             // the person least likely to be on an old build.
@@ -93,11 +96,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     UpdateNotice.clear(getApplication())
                 }
                 UpdateFetcher.Result.ChecksumMismatch ->
-                    LocalLog.add("Update refused: the download did not match the published checksum")
+                    LocalLog.error(
+                        LocalLog.Area.UPDATE,
+                        "Update refused: the download did not match the published checksum",
+                    )
                 UpdateFetcher.Result.Unverifiable ->
-                    LocalLog.add("Update refused: that release published no checksums")
+                    LocalLog.error(
+                        LocalLog.Area.UPDATE, "Update refused: that release published no checksums",
+                    )
                 UpdateFetcher.Result.Unavailable ->
-                    LocalLog.add("Update could not be downloaded; try again later")
+                    LocalLog.warn(
+                        LocalLog.Area.UPDATE, "Update could not be downloaded; try again later",
+                    )
             }
         }
     }

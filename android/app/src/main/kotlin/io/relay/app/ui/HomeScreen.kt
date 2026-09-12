@@ -788,9 +788,18 @@ private fun AdvancedSection(
                         } else {
                             logs.asReversed().forEach { entry ->
                                 Text(
-                                    text = "%6.1fs  %s".format(Locale.US, entry.elapsedMs / 1000.0, entry.message),
+                                    text = entry.renderCompact(),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = glass.textTertiary,
+                                    // The level as colour rather than as a
+                                    // column: this box is 160dp on a phone, and
+                                    // the whole reason for having levels is
+                                    // being able to find the failure without
+                                    // reading every line.
+                                    color = when (entry.level) {
+                                        LocalLog.Level.ERROR -> glass.error
+                                        LocalLog.Level.WARN -> glass.warning
+                                        LocalLog.Level.INFO -> glass.textTertiary
+                                    },
                                     fontFamily = FontFamily.Monospace,
                                 )
                             }

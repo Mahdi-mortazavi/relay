@@ -26,6 +26,7 @@ import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
 import io.relay.app.core.WarningCode
 import io.relay.app.core.WgConfig
+import io.relay.app.net.LinkSnapshot
 import io.relay.app.net.LocalAddress
 import io.relay.app.core.PairingCode
 import io.relay.app.net.Beacon
@@ -224,7 +225,7 @@ class SharingService : Service() {
 
     private suspend fun startSharing() {
         if (!ConnectionRepository.dispatch("start") { ConnectionState.Preparing }) return
-        LocalLog.add("Starting sharing")
+        LocalLog.info(LocalLog.Area.SERVICE, "Starting sharing")
         ConnectionRepository.clearWarnings()
 
         // Non-blocking advisory: sharing works either way, but the user may have
@@ -236,9 +237,17 @@ class SharingService : Service() {
         // Works on the phone's hotspot, a shared Wi-Fi/LAN, or a USB cable.
         val host = awaitAdvertisableIpv4()
         if (host == null) {
-            LocalLog.add(
-                "No usable Wi-Fi, hotspot or USB link after ${LinkWait.totalBoundMs} ms " +
-                    "(${LinkWait.looks} looks)"
+            // The links themselves, not just the conclusion. A report saying
+            // only "no usable link" cannot tell a cable that is not plugged in
+            // from one whose tethering is off from one that is still getting an
+            // address -- three faults, three different things to tell someone,
+            // and answering that used to take a message to the user and a day.
+            LocalLog.error(
+                LocalLog.Area.LINK, "No usable Wi-Fi, hotspot or USB link",
+                "waited_ms" to LinkWait.totalBoundMs.toString(),
+                "looks" to LinkWait.looks.toString(),
+                "vpn" to VpnStatus.isVpnActive(this).toString(),
+                "links" to LinkSnapshot.summarise(LinkSnapshot.take()),
             )
             fail(ErrorCode.HOTSPOT_OFF)
             return
@@ -280,10 +289,15 @@ class SharingService : Service() {
         val announced = announcer.canAnnounce
         pairingCode = code
         shortCode = code.takeIf { announced }
-        LocalLog.add(
-            if (announced) "Pairing code: $code"
-            else "Cannot announce on this network; showing the 8-character code instead",
-        )
+        if (announced) {
+            LocalLog.info(LocalLog.Area.PAIRING, "Pairing code issued", "code" to code)
+        } else {
+            LocalLog.warn(
+                LocalLog.Area.PAIRING,
+                "Cannot announce on this network; showing the 8-character code instead",
+                "code" to code,
+            )
+        }
 
         ConnectionRepository.dispatch("ready") {
             ConnectionState.Advertising(payload, pairing.issueTypedCode(payload), shortCode)
@@ -295,7 +309,7 @@ class SharingService : Service() {
     private fun prepareFull(host: String): QrPayload? {
         val forwarder = wgForwarder
         if (forwarder == null) {
-            LocalLog.add("WireGuard forwarder unavailable")
+            LocalLog.error(LocalLog.Area.TUNNEL, "No WireGuard forwarder in this build")
             fail(ErrorCode.WG_START_FAILED)
             return null
         }
@@ -303,12 +317,18 @@ class SharingService : Service() {
         try {
             forwarder.start(WgConfig.serverConfig(keys))
         } catch (e: WgForwarderException) {
-            LocalLog.add("WireGuard endpoint failed: ${e.message}")
+            LocalLog.error(
+                LocalLog.Area.TUNNEL, "The WireGuard endpoint would not start",
+                "error" to (e.message ?: "no message"),
+            )
             fail(ErrorCode.WG_START_FAILED)
             return null
         }
         wgKeys = keys
-        LocalLog.add("WireGuard endpoint up on $host:${keys.endpointPort}")
+        LocalLog.info(
+            LocalLog.Area.TUNNEL, "WireGuard endpoint up",
+            "host" to host, "port" to keys.endpointPort.toString(),
+        )
         startPeerWatcher(forwarder)
         startPairingServer()
         return pairing.issuePayload(
@@ -337,7 +357,12 @@ class SharingService : Service() {
             if (host != null) {
                 // Only worth a line when waiting actually did something. On the
                 // common path this says nothing at all.
-                if (waited > 0) LocalLog.add("A usable link appeared after $waited ms")
+                if (waited > 0) {
+                    LocalLog.info(
+                        LocalLog.Area.LINK, "A usable link appeared",
+                        "waited_ms" to waited.toString(), "host" to host,
+                    )
+                }
                 return host
             }
         }
@@ -361,9 +386,11 @@ class SharingService : Service() {
     private fun noteReplyPath(host: String) {
         val peer = VpnCapture.aPeerOn(host) ?: return
         val swallowed = VpnCapture.wouldSwallow(client = peer, advertisedHost = host)
-        LocalLog.add(
-            if (swallowed) "Reply path check: a reply to $peer would leave by the VPN, not by $host"
-            else "Reply path check: replies to $peer leave by $host, as they should"
+        LocalLog.info(
+            LocalLog.Area.LINK, "Reply path checked before any PC asked",
+            "probe" to peer,
+            "advertised" to host,
+            "verdict" to if (swallowed) "would-leave-by-vpn" else "leaves-by-the-link",
         )
     }
 
@@ -398,9 +425,11 @@ class SharingService : Service() {
                 // and not worth alarming anyone with.
                 if (host != null) {
                     val swallowed = VpnCapture.wouldSwallow(client = client, advertisedHost = host)
-                    LocalLog.add(
-                        if (swallowed) "Reply path to $client: would leave by the VPN, not by $host"
-                        else "Reply path to $client: leaves by $host, as it should"
+                    LocalLog.info(
+                        LocalLog.Area.LINK, "Reply path checked for the PC that asked",
+                        "pc" to client,
+                        "advertised" to host,
+                        "verdict" to if (swallowed) "would-leave-by-vpn" else "leaves-by-the-link",
                     )
                 }
                 if (keys == null || host == null) null
@@ -413,10 +442,16 @@ class SharingService : Service() {
         )
         pairingServer = try {
             server.start()
-            LocalLog.add("Pairing by code available on ${server.boundPort}")
+            LocalLog.info(
+                LocalLog.Area.PAIRING, "Pairing by code available",
+                "port" to server.boundPort.toString(),
+            )
             server
         } catch (e: IOException) {
-            LocalLog.add("Pairing port busy; this phone is QR-only: ${e.message}")
+            LocalLog.warn(
+                LocalLog.Area.PAIRING, "Pairing port busy; this phone is QR-only",
+                "error" to (e.message ?: "no message"),
+            )
             null
         }
     }
@@ -458,9 +493,12 @@ class SharingService : Service() {
                     saidNoReply = noReply
                     ConnectionRepository.setWarning(WarningCode.PC_GOT_NO_REPLY, noReply)
                     if (noReply) {
-                        LocalLog.add(
-                            "A PC took the settings ${HandshakeWatch.GRACE_MS / 1000} s ago and " +
-                                "the tunnel never handshaked; replies are not leaving this phone"
+                        LocalLog.warn(
+                            LocalLog.Area.TUNNEL,
+                            "A PC took the settings and the tunnel never handshaked; " +
+                                "replies are not leaving this phone",
+                            "waited_s" to (HandshakeWatch.GRACE_MS / 1000).toString(),
+                            "vpn" to VpnStatus.isVpnActive(this@SharingService).toString(),
                         )
                     }
                 }
@@ -508,7 +546,11 @@ class SharingService : Service() {
                     // without this a laptop that scans the QR over the new cable
                     // is handed the Wi-Fi address it has no route to.
                     if (ShouldRetarget.now(advertised = currentHost, best = host, connected = state is ConnectionState.Connected)) {
-                        LocalLog.add("A better address appeared: $host")
+                        LocalLog.info(
+                            LocalLog.Area.LINK, "A better address appeared",
+                            "host" to host,
+                            "links" to LinkSnapshot.summarise(LinkSnapshot.take()),
+                        )
                         rebind(host)
                     }
                     continue
@@ -520,19 +562,28 @@ class SharingService : Service() {
 
     /** Returns true when the hotspot came back (session restored), false when the budget was exhausted. */
     private suspend fun runReconnect(): Boolean {
-        LocalLog.add("Hotspot dropped — reconnecting")
+        LocalLog.warn(
+            LocalLog.Area.LINK, "The link dropped; reconnecting",
+            "links" to LinkSnapshot.summarise(LinkSnapshot.take()),
+        )
         ConnectionRepository.annotateReconnecting(true)
         for ((attempt, wait) in ReconnectPolicy.attemptDelaysMs.withIndex()) {
             delay(wait)
             val host = LocalAddress.findAdvertisableIpv4()
             if (host != null) {
-                LocalLog.add("Network back after attempt ${attempt + 1}")
+                LocalLog.info(
+                    LocalLog.Area.LINK, "The link came back",
+                    "attempt" to (attempt + 1).toString(),
+                )
                 ConnectionRepository.annotateReconnecting(false)
                 if (host != currentHost) rebind(host)
                 return true
             }
         }
-        LocalLog.add("Reconnect budget exhausted")
+        LocalLog.error(
+            LocalLog.Area.LINK, "Reconnect budget exhausted",
+            "links" to LinkSnapshot.summarise(LinkSnapshot.take()),
+        )
         fail(ErrorCode.HOTSPOT_LOST)
         return false
     }
@@ -547,7 +598,10 @@ class SharingService : Service() {
     private fun rebind(host: String) {
         currentHost = host
         val keys = wgKeys ?: return
-        LocalLog.add("Re-advertising WireGuard on $host:${keys.endpointPort}")
+        LocalLog.info(
+            LocalLog.Area.TUNNEL, "Re-advertising WireGuard",
+            "host" to host, "port" to keys.endpointPort.toString(),
+        )
         val payload = pairing.issuePayload(
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
@@ -576,10 +630,18 @@ class SharingService : Service() {
             // old one could not, or the other way round. Re-ask rather than
             // keeping an answer that was true of a network we have left.
             shortCode = code.takeIf { announcer.canAnnounce }
-            LocalLog.add(
-                if (announcer.canAnnounce) "Re-announcing $code on ${payload.host}:${payload.port}"
-                else "Cannot announce on this network; showing the 8-character code instead",
-            )
+            if (announcer.canAnnounce) {
+                LocalLog.info(
+                    LocalLog.Area.PAIRING, "Re-announcing on the new network",
+                    "code" to code, "host" to payload.host, "port" to payload.port.toString(),
+                )
+            } else {
+                LocalLog.warn(
+                    LocalLog.Area.PAIRING,
+                    "Cannot announce on this network; showing the 8-character code instead",
+                    "code" to code, "host" to payload.host,
+                )
+            }
         }
 
         // Present the fresh payload in place; the client count (if any) is stale
@@ -655,7 +717,10 @@ class SharingService : Service() {
      * because a separate class used to raise these.
      */
     private fun onClientsChanged(devices: Int) {
-        LocalLog.add("Clients: $devices")
+        LocalLog.info(
+            LocalLog.Area.TUNNEL, "Connected client count changed",
+            "clients" to devices.toString(),
+        )
         if (devices > 0) {
             acquireWakeLock()
             ConnectionRepository.dispatch("clientConnected") { current ->
