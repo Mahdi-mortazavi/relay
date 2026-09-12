@@ -30,6 +30,16 @@ public sealed class LanDiscovery : IDisposable
     /// <summary>Digits in a pairing code (/shared/pairing-beacon.md).</summary>
     public const int CodeLength = 2;
 
+    /// <summary>
+    /// The only value <c>blocked</c> is defined to carry.
+    ///
+    /// Deliberately not <c>lockdown</c> or <c>vpn</c>: the beacon is
+    /// unauthenticated and read by everything on the link, so naming the cause
+    /// would tell a whole network that this phone's owner runs a VPN. What the
+    /// cause probably is gets explained here, on this screen, to one person.
+    /// </summary>
+    public const string BlockedReplies = "replies";
+
     public static readonly TimeSpan Stale = TimeSpan.FromSeconds(5);
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
 
@@ -41,10 +51,27 @@ public sealed class LanDiscovery : IDisposable
     /// "scan the QR" rather than to report a correct code as invalid.
     /// See /shared/pairing-beacon.md → The pairing exchange.
     /// </param>
+    /// <param name="Blocked">
+    /// <c>"replies"</c> when the phone says its replies are not leaving it, or
+    /// null when it said nothing. Null means only that nothing is *known* to be
+    /// wrong — never that all is well.
+    /// See /shared/pairing-beacon.md → "`blocked`: the one thing the phone can
+    /// still say".
+    /// </param>
     public sealed record Device(
         string Code, string Mode, string Host, int PortNumber, string? Name, DateTimeOffset Seen,
-        int? PairingPort = null, string? Link = null)
+        int? PairingPort = null, string? Link = null, string? Blocked = null)
     {
+        /// <summary>
+        /// The phone has told us a pairing will not complete.
+        ///
+        /// It reaches us because a link-scoped broadcast bypasses the phone's own
+        /// VPN while its unicast answers do not — which is the whole asymmetry
+        /// this field exists to exploit. Worth acting on before spending a
+        /// connection attempt and a timeout on it.
+        /// </summary>
+        public bool RepliesBlocked => Blocked == BlockedReplies;
+
         public string Key => $"{Host}:{PortNumber}";
 
         /// <summary>Whether two digits alone are enough to connect to this phone.</summary>
@@ -344,7 +371,15 @@ public sealed class LanDiscovery : IDisposable
             var link = root.TryGetProperty("link", out var l) ? l.GetString() : null;
             if (link is not ("usb" or "wifi" or "hotspot")) link = null;
 
-            device = new Device(code, mode, host!, portNumber, name, seen, pairingPort, link);
+            // Optional, and an unrecognised value is treated exactly like an
+            // absent one rather than as a reason to drop the beacon: a later
+            // version may name a second cause, and a phone doing that must go on
+            // being findable by this client. Never a reason to refuse the phone
+            // — it is still there and still worth listing.
+            var blocked = root.TryGetProperty("blocked", out var bl) ? bl.GetString() : null;
+            if (blocked is not BlockedReplies) blocked = null;
+
+            device = new Device(code, mode, host!, portNumber, name, seen, pairingPort, link, blocked);
             return true;
         }
         catch (JsonException)

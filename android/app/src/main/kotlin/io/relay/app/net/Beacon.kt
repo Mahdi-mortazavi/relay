@@ -48,6 +48,16 @@ class Beacon(
      * See /shared/pairing-beacon.md → "The pairing exchange".
      */
     private val pairingPort: Int? = null,
+    /**
+     * What to put in `blocked`, asked once per datagram.
+     *
+     * A supplier rather than a value because the answer changes inside a
+     * session: lockdown is read when sharing starts, and a PC going unanswered
+     * is only known twenty seconds after one asks. The beacon already rebuilds
+     * its payload every tick, so this costs nothing and means the field is
+     * never a second out of date. See [VpnLockdown.blockedValue].
+     */
+    private val blocked: () -> String? = { null },
     private val intervalMs: Long = INTERVAL_MS,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -224,6 +234,11 @@ class Beacon(
         // Optional by contract: a listener that does not know it ignores it,
         // and an older phone that never sends it still pairs exactly as before.
         link?.let { json.put("link", it) }
+        // The one thing this phone can still say when its replies are being
+        // swallowed. Only on `sharing`: a goodbye datagram removes the phone
+        // from the PC's list outright, so a reason attached to it would be read
+        // and then immediately thrown away.
+        if (state == STATE_SHARING) blocked()?.let { json.put("blocked", it) }
         return json.toString().toByteArray(Charsets.UTF_8)
     }
 

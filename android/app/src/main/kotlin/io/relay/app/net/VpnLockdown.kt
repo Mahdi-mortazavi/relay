@@ -98,6 +98,34 @@ object VpnLockdown {
     }
 
     /**
+     * What the beacon should carry in its `blocked` field, or null for nothing.
+     *
+     * The broadcast is the only channel that survives a capture — a link-scoped
+     * broadcast bypasses the phone's own VPN, while a unicast answer is routed
+     * into it — so this is the phone's one chance to tell a PC that a pairing
+     * will not complete. See /shared/pairing-beacon.md → "`blocked`: the one
+     * thing the phone can still say".
+     *
+     * Two grounds, both of them facts rather than forecasts. Lockdown drops
+     * every non-tunnel packet **by definition**, LAN replies included; and a PC
+     * that took a configuration and never handshaked is direct evidence.
+     *
+     * [State.UNKNOWN] is not a ground. Absent means "nothing known to be wrong",
+     * which is exactly the truth when the setting could not be read, and a
+     * warning broadcast on a guess is worse than silence.
+     */
+    fun blockedValue(lockdown: State, pcWentUnanswered: Boolean): String? =
+        if (lockdown == State.ON || pcWentUnanswered) BLOCKED_REPLIES else null
+
+    /**
+     * The single value the contract defines. Deliberately not `lockdown` or
+     * `vpn`: the beacon is unauthenticated and read by everything on the link,
+     * and naming the cause would tell a whole café that this phone's owner runs
+     * a VPN. The PC explains it from its own local strings, to one person.
+     */
+    const val BLOCKED_REPLIES = "replies"
+
+    /**
      * Opens the VPN screen in Settings, falling back until something opens.
      *
      * **There is no deep link to the per-app page** — the one with the switch

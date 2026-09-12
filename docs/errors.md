@@ -48,12 +48,31 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_WG_ELEVATION_DECLINED` | Error | The elevation prompt was dismissed | Choose Yes on the prompt to connect |
 | `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again |
 | `ERR_WG_ELEVATION_UNAVAILABLE` | Error | Windows refused to elevate from Relay's install folder, so no prompt was ever shown — seen when `%LOCALAPPDATA%\Programs` is a junction to another drive | Reinstall Relay somewhere that is not redirected |
+| `ERR_PHONE_REPLIES_BLOCKED` | Error | The phone's own beacon carries `blocked: "replies"` — it knows a pairing cannot complete. Raised **before** the attempt, so the click does not spend 20 s reaching `ERR_WG_NO_HANDSHAKE`, whose advice ("scan the QR") is wrong in this case. Not enforced: the beacon refreshes once a second, so fixing it on the phone and clicking again goes straight through. See [`/shared/pairing-beacon.md`](../shared/pairing-beacon.md) → "`blocked`" | On the phone: Settings → Network → VPN → ⚙ beside the VPN app → turn off "Block connections without VPN". The VPN itself keeps running |
 | `ERR_WG_NO_HANDSHAKE` | Error | The adapter came up but the peer never handshaked — almost always a QR whose keys the phone has since replaced | Scan the QR the phone is showing now |
 | `ERR_PAIRING_DENIED` | Error | The person holding the phone declined this computer, or did not answer within 60 s | Tap Allow on the phone, then try the code again |
 | `ERR_PAIRING_VERSION` | Error | The phone speaks an older pairing version than this PC | Update Relay on the phone |
 | `ERR_WG_ALREADY_RUNNING` | Error | A tunnel is already up; a second would fight it for the adapter | Disconnect first |
 | `ERR_WG_STOP_FAILED` | Error | The tunnel process would not exit | Restart Relay; the adapter and its routes go when it exits |
 | `ERR_CAMERA_DENIED` | Error | Camera unavailable or access denied | Allow camera access for desktop apps in Windows Settings → Privacy, or enter the code manually |
+
+## The empty list is not an error, and still needs a reason
+
+An empty phone list on Windows is not a failure — nothing has gone wrong yet —
+but "Open Relay on your phone and tap Start Sharing" is right for only one of
+three situations. `DiscoveryHealth` picks between them, and each has a different
+next action:
+
+| State | Condition | What it says |
+|---|---|---|
+| `NotListening` | `LanDiscovery.Start()` threw — port 47654 taken, or a policy forbids the bind | Two digits cannot work here; scan the QR or use the longer code |
+| `NoNetwork` | No non-loopback, non-link-local IPv4 on any adapter that is up. 169.254/16 counts as no network: it is what Windows assigns when DHCP never answered | Join the phone's hotspot, its Wi-Fi, or plug in the cable |
+| `Listening` | Listening, on a network, nothing heard yet | The original message, unchanged |
+
+`NotListening` used to be a log line only. It is survivable — QR and the
+eight-character code both still work — which is why it was never surfaced, and
+that was the mistake: **a fallback only helps somebody who knows to reach for
+it.**
 
 ## Design rules
 
