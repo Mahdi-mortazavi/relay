@@ -61,9 +61,16 @@ private val DarkGlass = GlassColors(
     textSecondary = Color.White.copy(alpha = 0.62f),
     // ~3.4:1 at 0.38 over the dark glass; 0.60 reaches ~5.4:1.
     textTertiary = Color.White.copy(alpha = 0.60f),
-    accent = Color(0xFF45D6B8),
-    accentPressed = Color(0xFF33B99C),
-    accentSubtle = Color(0x2945D6B8),
+    // #4ADFBF, not #45D6B8. The two coexisted: the token file and this theme
+    // said #45D6B8 while the Windows client, the README badges, the cover art
+    // and every download button shipped #4ADFBF -- so the value users have
+    // actually seen for the life of the product was the one written down
+    // nowhere authoritative. Resolved toward what shipped, in /shared first.
+    accent = Color(0xFF4ADFBF),
+    // Carried across by the same delta the old pair used (-18, -29, -28), so
+    // pressed stays the same distance from rest rather than being re-picked.
+    accentPressed = Color(0xFF38C2A3),
+    accentSubtle = Color(0x294ADFBF),
     error = Color(0xFFE5645F),
     errorSubtle = Color(0x29E5645F),
     warning = Color(0xFFE0A458),

@@ -18,6 +18,10 @@
     <string name="or_type_code">یا این کد را در رایانه وارد کنید</string>
     <string name="code_unavailable">کد دستی در این شبکه نیست — کیو‌آر را اسکن کنید</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
+    <string name="traffic_gb">%1$s گیگابایت</string>
+    <string name="traffic_mb">%1$s مگابایت</string>
+    <string name="traffic_kb">%1$s کیلوبایت</string>
+    <string name="traffic_b">%1$s بایت</string>
     <string name="status_reconnecting">در حال اتصال مجدد…</string>
 
     <!-- Transport modes -->
@@ -56,12 +60,12 @@
     <string name="error_only_vpn_body">تنها شبکه‌ای که نشانی دارد، خودِ تونل وی‌پی‌ان است و کامپیوترتان از آن راه به گوشی نمی‌رسد. گوشی را به وای‌فای وصل کنید، هات‌اسپات را روشن کنید، یا کابل را بزنید — وی‌پی‌ان‌تان روشن می‌ماند و رله همان را به اشتراک می‌گذارد.</string>
     <string name="error_port_in_use_title">پورت‌ها در اشغال‌اند</string>
     <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
-    <string name="error_service_failed_title">مشکلی پیش آمد</string>
-    <string name="error_service_failed_body">اشتراک‌گذاری به‌طور غیرمنتظره متوقف شد. دوباره شروع کنید.</string>
+    <string name="error_service_failed_title">اندروید سرویس اشتراک‌گذاری را متوقف کرد</string>
+    <string name="error_service_failed_body">معمولاً به‌خاطر بهینه‌سازی باتری است، یا بسته‌شدن رله از فهرست برنامه‌های اخیر. در «پیشرفته» به رله اجازه دهید بهینه‌سازی باتری را نادیده بگیرد، بعد دوباره اشتراک‌گذاری را شروع کنید.</string>
     <string name="error_hotspot_lost_title">اتصال هات‌اسپات قطع شد</string>
     <string name="error_hotspot_lost_body">هات‌اسپات قطع شد و بازنگشت. مطمئن شوید روشن است و دوباره اشتراک‌گذاری را شروع کنید.</string>
-    <string name="error_wg_start_title">حالت کامل شروع نشد</string>
-    <string name="error_wg_start_body">تونل WireGuard روی این گوشی شروع نشد. حالت سریع را امتحان کنید یا دوباره شروع کنید.</string>
+    <string name="error_wg_start_title">تونل شروع نشد</string>
+    <string name="error_wg_start_body">نقطهٔ پایانی WireGuard رله روی این گوشی شروع نشد — معمولاً چون برنامهٔ دیگری پورت موردنیاز را گرفته. دوباره اشتراک‌گذاری را شروع کنید؛ اگر باز هم نشد، برنامه‌های وی‌پی‌ان یا پروکسی دیگر را ببندید و یک بار دیگر امتحان کنید.</string>
     <string name="action_retry">تلاش دوباره</string>
     <string name="action_dismiss">بستن</string>
 

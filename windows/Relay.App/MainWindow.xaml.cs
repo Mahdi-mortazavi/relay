@@ -552,18 +552,24 @@ public sealed partial class MainWindow : Window
         if (Application.Current.Resources.TryGetValue(key, out var app) &&
             app is Microsoft.UI.Xaml.Media.Brush b2) return b2;
 
-        (byte a, byte r, byte g, byte b) = key switch
-        {
-            "AccentBrush" => ((byte)0xFF, (byte)0x4A, (byte)0xDF, (byte)0xBF),
-            "DangerBrush" => ((byte)0xFF, (byte)0xFF, (byte)0x7A, (byte)0x75),
-            "WarningBrush" => ((byte)0xFF, (byte)0xF5, (byte)0xB9, (byte)0x5F),
-            "LabelSecondary" => ((byte)0xB8, (byte)0xFF, (byte)0xFF, (byte)0xFF),
-            // Opaque on purpose: this one is a window background, and the
-            // translucent default below would leave the desktop showing through.
-            "WindowSolidBrush" => ((byte)0xFF, (byte)0x12, (byte)0x16, (byte)0x1D),
-            _ => ((byte)0x5C, (byte)0xFF, (byte)0xFF, (byte)0xFF),
-        };
-        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
+        // No per-key colour table here any more.
+        //
+        // There used to be one, and it was a third copy of the palette: the
+        // accent existed as #45D6B8 in shared/design-tokens.json, #4ADFBF in
+        // Styles/Tokens.xaml, and (0xFF,0x4A,0xDF,0xBF) again in this switch.
+        // Every one of those five keys is defined in Tokens.xaml, so the table
+        // could only ever be reached by an app whose resources failed to merge —
+        // and in that app it made a broken theme render as a correct one, which
+        // is how a drifted value survives being looked at.
+        //
+        // A missing token now degrades to something visible and plainly
+        // unstyled, except for the one key that is a window background: a
+        // translucent fallback there would leave the desktop showing through.
+        LocalLog.Add($"Theme resource missing: {key}");
+        return new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            key == "WindowSolidBrush"
+                ? Windows.UI.Color.FromArgb(0xFF, 0x12, 0x16, 0x1D)
+                : Windows.UI.Color.FromArgb(0x5C, 0xFF, 0xFF, 0xFF));
     }
 
     private void RefreshLogs()
@@ -1574,7 +1580,11 @@ public sealed partial class MainWindow : Window
         }
 
         var reading = _stats.Update(DateTimeOffset.UtcNow, _latency);
-        if (reading is null) return;
+        if (reading is null)
+        {
+            ShowStatsUnreadable();
+            return;
+        }
         var r = reading.Value;
 
         StatDownRate.Text = $"↓ {TunnelStats.Rate(r.DownPerSecond)}";
@@ -1586,6 +1596,37 @@ public sealed partial class MainWindow : Window
             : Strings.Get("StatLatencyUnknown");
         StatDuration.Text = $"{Strings.Get("StatConnectedFor")} {TunnelStats.Duration(r.Duration)}";
     }
+
+    /// <summary>
+    /// The stats card when the adapter cannot be read.
+    ///
+    /// Two faults, not one. <c>TunnelStats.Update</c> returns null whenever the
+    /// adapter will not answer, and the caller used to simply return — so a
+    /// tunnel whose adapter was never readable showed an **empty sunken box,
+    /// forever**: five of the six TextBlocks have no Text in XAML, and
+    /// StatLatencyUnknown was the only field with a designed unknown state.
+    ///
+    /// The second is worse. If the adapter stops answering *mid-session*, an
+    /// early return leaves the last good numbers frozen on screen, and a frozen
+    /// rate reads as a live one. That is the interface claiming a reading it
+    /// does not have, which the product's first principle forbids. An unknown
+    /// value renders as unknown.
+    ///
+    /// The labels stay: "— " on its own says nothing about which figure is
+    /// missing, and they are the localised half of each line.
+    /// </summary>
+    private void ShowStatsUnreadable()
+    {
+        StatDownRate.Text = $"↓ {Unreadable}";
+        StatUpRate.Text = $"↑ {Unreadable}";
+        StatDownTotal.Text = $"{Strings.Get("StatDown")} {Unreadable}";
+        StatUpTotal.Text = $"{Strings.Get("StatUp")} {Unreadable}";
+        StatLatency.Text = Strings.Get("StatLatencyUnknown");
+        StatDuration.Text = $"{Strings.Get("StatConnectedFor")} {Unreadable}";
+    }
+
+    /// <summary>An em dash: the figure is not known. Punctuation, so it needs no locale.</summary>
+    private const string Unreadable = "—";
 
     /// <summary>The recovery the error itself suggests, so there is always a way forward.</summary>
     private async void OnErrorPrimaryClick(object sender, RoutedEventArgs e)
