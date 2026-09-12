@@ -88,6 +88,14 @@ enum class WarningCode {
      * are not leaving this phone. See [io.relay.app.core.HandshakeWatch].
      */
     PC_GOT_NO_REPLY,
+
+    /**
+     * The same fault, with the cause confirmed: Android's "Block connections
+     * without VPN" is on, and it drops replies to the phone's own LAN. Raised
+     * instead of [PC_GOT_NO_REPLY] only when the switch is read as on — see
+     * [io.relay.app.net.VpnLockdown].
+     */
+    VPN_LOCKDOWN_ON,
 }
 
 /**

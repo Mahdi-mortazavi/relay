@@ -32,6 +32,7 @@ import io.relay.app.core.PairingCode
 import io.relay.app.net.Beacon
 import io.relay.app.net.PairingServer
 import io.relay.app.net.VpnCapture
+import io.relay.app.net.VpnLockdown
 import io.relay.app.net.VpnStatus
 import io.relay.app.net.wg.WgForwarder
 import io.relay.app.net.wg.WgForwarderException
@@ -225,14 +226,22 @@ class SharingService : Service() {
 
     private suspend fun startSharing() {
         if (!ConnectionRepository.dispatch("start") { ConnectionState.Preparing }) return
-        LocalLog.info(LocalLog.Area.SERVICE, "Starting sharing")
+        // Recorded on every start, whether or not anything goes wrong. It is the
+        // one fact that explains a whole category of reports -- a PC that finds
+        // the phone and never hears back -- and by the time someone is asking
+        // about it, they are being asked to go and look at a settings screen
+        // and report what they saw. This is that answer, already in the log.
+        val vpnActive = VpnStatus.isVpnActive(this)
+        LocalLog.info(
+            LocalLog.Area.SERVICE, "Starting sharing",
+            "vpn" to vpnActive.toString(),
+            "lockdown" to VpnLockdown.describe(VpnLockdown.read(this)),
+        )
         ConnectionRepository.clearWarnings()
 
         // Non-blocking advisory: sharing works either way, but the user may have
         // meant to share a VPN that isn't on (docs/errors.md → NO_VPN_ACTIVE).
-        ConnectionRepository.setWarning(
-            WarningCode.NO_VPN_ACTIVE, !VpnStatus.isVpnActive(this),
-        )
+        ConnectionRepository.setWarning(WarningCode.NO_VPN_ACTIVE, !vpnActive)
 
         // Works on the phone's hotspot, a shared Wi-Fi/LAN, or a USB cable.
         val host = awaitAdvertisableIpv4()
@@ -478,6 +487,10 @@ class SharingService : Service() {
         peerWatcher = scope.launch {
             var present = false
             var saidNoReply = false
+            // Which of the two no-reply warnings went up, so the right one comes
+            // down. They are separate codes because the log should record which
+            // message the user was actually shown.
+            var raised: WarningCode? = null
             while (isActive) {
                 delay(PEER_POLL_MS)
                 val handshake = forwarder.lastHandshakeUnix()
@@ -498,15 +511,26 @@ class SharingService : Service() {
                 // which is the whole of the dismiss button's job.
                 if (noReply != saidNoReply) {
                     saidNoReply = noReply
-                    ConnectionRepository.setWarning(WarningCode.PC_GOT_NO_REPLY, noReply)
                     if (noReply) {
+                        // Read only now, not every tick: the fault is already
+                        // established, and this decides nothing except how
+                        // precisely Relay is allowed to describe it.
+                        val lockdown = VpnLockdown.read(this@SharingService)
+                        val code = VpnLockdown.warningFor(lockdown)
+                        raised = code
+                        ConnectionRepository.setWarning(code, true)
                         LocalLog.warn(
                             LocalLog.Area.TUNNEL,
                             "A PC took the settings and the tunnel never handshaked; " +
                                 "replies are not leaving this phone",
                             "waited_s" to (HandshakeWatch.GRACE_MS / 1000).toString(),
                             "vpn" to VpnStatus.isVpnActive(this@SharingService).toString(),
+                            "lockdown" to VpnLockdown.describe(lockdown),
+                            "shown" to code.name,
                         )
+                    } else {
+                        raised?.let { ConnectionRepository.setWarning(it, false) }
+                        raised = null
                     }
                 }
                 // Three minutes is what wg(8)'s own tooling treats as alive:

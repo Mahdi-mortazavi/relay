@@ -25,6 +25,9 @@
     <string name="mode_full_unavailable">این نسخه بخش تونل را ندارد و نمی‌تواند چیزی به اشتراک بگذارد. رله را دوباره از صفحهٔ انتشارها نصب کنید.</string>
 
     <!-- Warnings (non-blocking banners) -->
+    <string name="warning_lockdown_title">«Block connections without VPN» روشن است</string>
+    <string name="warning_lockdown_body">این گزینه هر چیزی جز وی‌پی‌ان را قطع می‌کند — از جمله پاسخ‌های همین گوشی به کامپیوترتان، برای همین کامپیوتر به گوشی می‌رسد ولی جوابی نمی‌شنود. تنظیمات VPN را باز کنید، روی ⚙ کنار نام برنامهٔ وی‌پی‌ان بزنید و خاموشش کنید. وی‌پی‌ان‌تان روشن می‌ماند و رله همان را به اشتراک می‌گذارد.</string>
+    <string name="warning_lockdown_action">تنظیمات VPN</string>
     <string name="warning_no_reply_title">کامپیوترتان جوابی نمی‌گیرد</string>
     <string name="warning_no_reply_body">یک کامپیوتر تنظیمات رله را گرفت و تونلش را شروع کرد، ولی هیچ جوابی از این گوشی بیرون نرفت. در فهرست هر-برنامهٔ وی‌پی‌ان، رله را مستثنا کنید، یا «Block connections without VPN» را در تنظیمات → شبکه → VPN خاموش کنید.</string>
     <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>

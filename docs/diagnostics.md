@@ -20,6 +20,10 @@ promising.
 | message | A sentence, with no values in it |
 | fields | `key=value`, quoted when the value contains a space |
 
+The report's header carries `Lockdown: on / off / unknown` — Android's *"Block
+connections without VPN"*. `unknown` means the platform would not answer, **not**
+that it is off; see [`vpn-compat.md`](vpn-compat.md).
+
 The last line of the report counts the errors and warnings, because a report is
 usually read by somebody scrolling a chat on a phone.
 

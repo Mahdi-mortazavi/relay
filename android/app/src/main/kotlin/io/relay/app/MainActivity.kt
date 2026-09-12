@@ -31,6 +31,7 @@ import io.relay.app.service.ConnectionRepository
 import io.relay.app.core.ConnectionState
 import io.relay.app.service.HomeScreenExtras
 import io.relay.app.service.Settings as RelaySettings
+import io.relay.app.net.VpnLockdown
 import io.relay.app.service.DiagnosticReport
 import io.relay.app.ui.HomeScreen
 import io.relay.app.ui.MainViewModel
@@ -156,7 +157,13 @@ class MainActivity : ComponentActivity() {
                             val version = runCatching {
                                 packageManager.getPackageInfo(packageName, 0).versionName
                             }.getOrNull() ?: "unknown"
-                            val report = DiagnosticReport.build(state, logs, version)
+                            val report = DiagnosticReport.build(
+                                state, logs,
+                                appVersion = version,
+                                vpnLockdown = VpnLockdown.describe(
+                                    VpnLockdown.read(this@MainActivity)
+                                ),
+                            )
                             startActivity(DiagnosticReport.shareIntent(this@MainActivity, report))
                         },
                         updateAvailable = updateAvailable,
@@ -169,6 +176,7 @@ class MainActivity : ComponentActivity() {
                         cable = cable,
                         onTurnOnUsb = viewModel::openTetheringSettings,
                         onDismissUsbOffer = viewModel::dismissUsbOffer,
+                        onOpenVpnSettings = viewModel::openVpnSettings,
                     )
                 }
             }

@@ -100,9 +100,40 @@ called "block connections" sounds like it would be:
   so an app that does not support always-on shows nothing there. It drops
   everything that is not the tunnel, **including replies to your own LAN**.
   Turn it off and retry.
+
+  **Since 2.8.3 Relay reads this itself** and says so — see below.
 - **Per-app / split tunnelling** — this one *is* in the VPN app's own app list;
   exclude Relay there. It is what the in-app warning tells people to do, and it
   is the reliable fix when the app offers it.
+
+### Relay reads the lockdown switch, and only that one
+
+`Settings.Secure.always_on_vpn_lockdown` is annotated `@Readable` in AOSP with no
+`maxTargetSdk`, so any app may read it at any API level. Its two neighbours are
+not — `always_on_vpn_app` and `always_on_vpn_lockdown_whitelist` both throw
+`SecurityException` for a modern `targetSdk`. The platform deliberately left one
+boolean open and closed the rest, and that boolean is exactly the switch the user
+sees: `Vpn.saveAlwaysOnPackage` writes it as `mAlwaysOn && mLockdown`.
+
+So Relay can say *that* a setting is blocking it. It **cannot** say which VPN app
+— that is the closed key — and it cannot deep-link to the page the switch is on,
+because AOSP's Settings exports only `Settings$VpnSettingsActivity`
+(`Settings.ACTION_VPN_SETTINGS`, API 24) and not `AppManagementFragment`. The
+button lands on the VPN list and the message names the last tap itself.
+
+Three rules hold this honest:
+
+- **It is not the signal.** `HandshakeWatch` is — a PC took the settings and no
+  handshake came back. A plain full-tunnel VPN with no always-on configured
+  causes the identical fault while this setting reads `off`, so a clear reading
+  never means "nothing is wrong".
+- **The reading is three-valued.** `ON`, `OFF`, `UNKNOWN`. The key is `@hide` and
+  could be closed like its neighbours; `UNKNOWN` takes the same path as `OFF`,
+  because telling somebody to turn off a switch that may not be on sends them
+  looking for something that is not there.
+- **It is in every diagnostic report's header**, on every start, whether or not
+  anything went wrong. Asking a user to go and look at that screen and report
+  back is exactly the round trip this is meant to remove.
 
 Neither is a Relay setting; Android gives an app inside a VPN no way to opt out
 of either (`Network.bindSocket` fails `EPERM`, `SO_BINDTODEVICE` needs

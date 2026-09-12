@@ -92,6 +92,28 @@ class DiagnosticReportTest {
     }
 
     @Test
+    fun `the header carries the lockdown setting`() {
+        // It explains a whole class of reports on its own -- a PC that finds the
+        // phone and never hears back -- and it is in the header rather than
+        // somewhere in the log because it is the first thing worth checking.
+        val report = DiagnosticReport.build(
+            ConnectionState.Idle, emptyList(), vpnLockdown = "on",
+        )
+
+        assertTrue(report, report.contains("Lockdown: on"))
+        assertTrue(report, report.contains("Block connections without VPN"))
+    }
+
+    @Test
+    fun `an unread lockdown setting says unknown, not off`() {
+        // The default. Android could close the key; a report that printed "off"
+        // in that case would send whoever reads it past the likeliest cause.
+        val report = DiagnosticReport.build(ConnectionState.Idle, emptyList())
+
+        assertTrue(report, report.contains("Lockdown: unknown"))
+    }
+
+    @Test
     fun `does not claim the clock starts when sharing does`() {
         // It said "seconds since sharing started" and counted from process
         // start, so a report from a phone that had been open ninety minutes
