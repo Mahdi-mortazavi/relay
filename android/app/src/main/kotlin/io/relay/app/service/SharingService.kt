@@ -96,6 +96,26 @@ class SharingService : Service() {
     @Volatile
     private var configuredAtMs: Long? = null
 
+    /**
+     * Whether a PC has already taken a configuration and left the tunnel
+     * unanswered this session. Half of what the beacon's `blocked` field is
+     * built from; the other half is the lockdown setting, read fresh each time.
+     */
+    @Volatile
+    private var pcWentUnanswered = false
+
+    /**
+     * What the beacon should say about this phone's replies, asked once per
+     * datagram.
+     *
+     * Read at send time rather than captured, because both grounds appear
+     * mid-session and the broadcast is the only channel that still leaves a
+     * captured phone. See [VpnLockdown.blockedValue] and
+     * /shared/pairing-beacon.md.
+     */
+    private fun blockedForBeacon(): String? =
+        VpnLockdown.blockedValue(VpnLockdown.read(this), pcWentUnanswered)
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -291,6 +311,7 @@ class SharingService : Service() {
             port = payload.port,
             deviceName = payload.name,
             pairingPort = pairingServer?.boundPort,
+            blocked = ::blockedForBeacon,
         ).also { it.start() }
         beacon = announcer
 
@@ -509,6 +530,11 @@ class SharingService : Service() {
                 // Raised on the edge, not every tick. Pushing it once a second
                 // would put the banner back a second after anyone dismissed it,
                 // which is the whole of the dismiss button's job.
+                // Told to the beacon as well as to this phone's own screen. A
+                // capture severe enough to stop the pairing means the phone
+                // never learns a PC tried -- but a phone that got this far did
+                // learn, and the broadcast still leaves.
+                pcWentUnanswered = noReply
                 if (noReply != saidNoReply) {
                     saidNoReply = noReply
                     if (noReply) {
@@ -655,6 +681,7 @@ class SharingService : Service() {
                 // The pairing server survives a rebind — it listens on a port,
                 // not on an address — so it keeps announcing the same one.
                 pairingPort = pairingServer?.boundPort,
+                blocked = ::blockedForBeacon,
             ).also { it.start() }
             beacon = announcer
             // The new network may be able to carry the announcement where the
@@ -734,6 +761,7 @@ class SharingService : Service() {
         currentHost = null
         // Nobody is owed a handshake once there is no endpoint to give them one.
         configuredAtMs = null
+        pcWentUnanswered = false
         releaseWakeLock()
         ConnectionRepository.clearWarnings()
     }

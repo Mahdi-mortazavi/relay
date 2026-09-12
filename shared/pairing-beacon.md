@@ -62,6 +62,7 @@ Payload is UTF-8 JSON, one object, no whitespace requirements:
 | `state` | string | `sharing` or `stopped`.                                           |
 | `pairingPort` | int | 1–65535. Where to ask for a configuration. MAY be absent, and then this phone can only be paired by QR. |
 | `link`  | string | `usb`, `wifi` or `hotspot` — how *this* datagram left the phone. MAY be absent; a listener that does not know it ignores it. |
+| `blocked` | string | `replies` — this phone knows its replies are not leaving it, so a pairing is not expected to succeed. MAY be absent, and absent means only that nothing is *known* to be wrong. A listener that does not know the value ignores the field. See below. |
 
 The keys a `mode: wireguard` phone needs are **not** in the beacon and never can
 be: a beacon is broadcast, unauthenticated, and readable by anything on the
@@ -156,6 +157,47 @@ There is no app-level escape, and all three obvious ones were tried on hardware:
 
 Escaping requires `CONNECTIVITY_USE_RESTRICTED_NETWORKS`, which is
 signature-level and not available to a normal app.
+
+### `blocked`: the one thing the phone can still say
+
+The paragraph above describes a phone that cannot answer. It can still
+**broadcast** — that is the asymmetry: a link-scoped broadcast bypasses the
+tunnel and arrives, while a unicast answer is routed into it and does not.
+
+So the broadcast is the only channel that survives this failure, and `blocked`
+is what rides it. A phone sets `blocked: "replies"` when it knows a pairing will
+not complete:
+
+- Android's **"Block connections without VPN"** reads as on. That setting drops
+  every non-tunnel packet by definition, LAN replies included, so this is not an
+  inference — it is what the switch does.
+- Or a PC took a configuration and **no handshake came back** within the client's
+  own timeout, which is direct evidence rather than a forecast.
+
+**It must not be set on a guess.** When the phone cannot read the setting — the
+key is `@hide` and some builds refuse — the field is absent, because absent means
+"nothing known to be wrong" and that is the truthful answer.
+
+This closes the case that was otherwise structurally unreachable: a capture
+severe enough to stop the TCP handshake means `accept()` never returns, so the
+phone shows no prompt **and** no warning, and the PC sees a phone it cannot pair
+with and cannot explain. With this, the PC — the screen the person is actually
+looking at — can tell them what to do on the phone.
+
+#### Why the value is `replies` and not `lockdown`
+
+The beacon is unauthenticated and broadcast to the whole link. Anything on that
+network reads it.
+
+`lockdown`, or `vpn`, would tell every device on a café or office Wi-Fi that this
+phone's owner runs a VPN — which, for the people Relay is built for, is not a
+neutral fact about a network setting. `replies` says only *"do not expect a
+pairing to succeed"*, which is the entire amount the listener needs to act on.
+**The explanation lives on the PC**, in its own local strings, where it is shown
+to one person and broadcast to nobody.
+
+A listener MUST treat an unrecognised value the same as an absent field, so a
+later cause can be added without any client needing to change.
 
 This is a real conflict between two of Relay's own requirements rather than an
 oversight. The proxy has to be *inside* the VPN or the shared traffic would not

@@ -77,6 +77,13 @@ public sealed partial class MainWindow : Window
     /// <summary>Guards the two paths that can resolve a code at the same moment.</summary>
     private bool _connecting;
 
+    /// <summary>
+    /// Whether the discovery socket actually came up. False means two digits
+    /// cannot work on this PC at all, and the empty list has to say so rather
+    /// than blaming the phone. See <see cref="DiscoveryHealth"/>.
+    /// </summary>
+    private bool _discoveryListening;
+
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -137,12 +144,17 @@ public sealed partial class MainWindow : Window
         try
         {
             _discovery.Start();
+            _discoveryListening = true;
         }
         catch (Exception ex)
         {
             // Another program on 47654, or a policy that forbids the bind.
             // Pairing by QR and by the eight-character code both still work, so
-            // this is a note in the log rather than a dialog.
+            // this is not a dialog — but it was only a log line, and that was
+            // the mistake: the person sat in front of an empty list being told
+            // to start sharing on a phone that already was. The fallbacks only
+            // help someone who knows to reach for them. PopulateIdleList says so.
+            _discoveryListening = false;
             LocalLog.Add($"Device discovery unavailable: {ex.Message}");
         }
 
@@ -820,6 +832,12 @@ public sealed partial class MainWindow : Window
             "ERR_WG_ELEVATION_UNAVAILABLE" =>
                 ("ErrTitleElevationBlocked", "ErrWgElevationUnavailable", (string?)null),
             "ERR_WG_NO_HANDSHAKE" => ("ErrTitleTunnel", "ErrWgNoHandshake", "ScanQr"),
+            // The phone said so itself, on its broadcast, before anything was
+            // attempted. "Try again" is the right action because the fix is on
+            // the phone and the beacon stops carrying it within a second of
+            // being fixed — so a retry that works is the confirmation.
+            "ERR_PHONE_REPLIES_BLOCKED" =>
+                ("ErrTitlePhoneBlocked", "ErrPhoneRepliesBlocked", "TryAgain"),
             "ERR_PAIRING_DENIED" => ("ErrTitlePairing", "ErrPairingDenied", "EnterCode"),
             "ERR_PAIRING_VERSION" => ("ErrTitlePairing", "ErrPairingVersion", "ScanQr"),
             "ERR_WG_ALREADY_RUNNING" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
@@ -1220,6 +1238,17 @@ public sealed partial class MainWindow : Window
         // someone wonder whether the app has noticed what it is showing them.
         IdleBody.Visibility = Show(devices.Count == 0);
 
+        // And when it is empty, say which empty this is. The old text is right
+        // for a phone that is not sharing yet and wrong for a PC that never
+        // managed to listen, or that has not joined the phone's hotspot —
+        // advice for a problem they do not have, which they will follow, watch
+        // fail, and blame on the two apps not seeing each other.
+        if (devices.Count == 0)
+        {
+            IdleBody.Text = Strings.Get(DiscoveryHealth.StringKey(
+                DiscoveryHealth.Diagnose(_discoveryListening, DiscoveryHealth.OnANetwork)));
+        }
+
         // Two accented buttons on one screen is no emphasis at all. When a
         // phone is offered, scanning becomes the alternative it actually is.
         if (Application.Current.Resources.TryGetValue(
@@ -1269,9 +1298,14 @@ public sealed partial class MainWindow : Window
     private static string RowLabel(LanDiscovery.Device device)
     {
         var who = device.Name is { Length: > 0 } name ? name : device.Host;
-        return device.LinkStringKey is { } key
+        var label = device.LinkStringKey is { } key
             ? $"{device.Code}   {who}   ·   {Strings.Get(key)}"
             : $"{device.Code}   {who}";
+        // Marked before it is clicked, not only after. The phone is genuinely
+        // there and genuinely reachable — it is the reply that is not getting
+        // back — so it stays in the list and stays clickable; it just stops
+        // being the obvious thing to try when another phone is listed beside it.
+        return device.RepliesBlocked ? $"{label}   ·   {Strings.Get("PhoneCannotAnswer")}" : label;
     }
 
     private void OnFoundPhoneClick(object sender, RoutedEventArgs e)
@@ -1374,6 +1408,21 @@ public sealed partial class MainWindow : Window
         if (!device.CanPairByCode)
         {
             ShowLocalError("ERR_FULL_MODE_NEEDS_QR");
+            return;
+        }
+
+        // The phone told us, on the one channel that survives a capture, that
+        // its replies are not getting out. Without this the click spends twenty
+        // seconds reaching ERR_WG_NO_HANDSHAKE — whose advice is "scan the QR
+        // the phone is showing now", which is *wrong here* and sends someone to
+        // re-scan a code that was never the problem.
+        //
+        // Said, not enforced: the beacon refreshes once a second, so a person
+        // who turns the setting off and clicks again gets straight through, and
+        // that retry is its own confirmation that the fix worked.
+        if (device.RepliesBlocked)
+        {
+            ShowLocalError("ERR_PHONE_REPLIES_BLOCKED");
             return;
         }
 

@@ -139,6 +139,38 @@ public class StringsCoverageTests
     }
 
     [Fact]
+    public void Every_reason_an_empty_list_can_give_has_both_languages()
+    {
+        // Same blindness, same shape: DiscoveryHealth.StringKey hands a key to
+        // Strings.Get through a variable, so the literal scan cannot see any of
+        // them. These are the sentences someone reads while nothing is
+        // happening, which is the worst possible moment to render an identifier.
+        var core = File.ReadAllText(
+            Path.Combine(SharedContracts.RepoRoot, "windows", "Relay.Core", "DiscoveryHealth.cs"));
+
+        var start = core.IndexOf("StringKey(State state) => state switch", StringComparison.Ordinal);
+        Assert.True(start >= 0, "DiscoveryHealth no longer has a StringKey switch — this test is reading the wrong shape.");
+        var end = core.IndexOf("};", start, StringComparison.Ordinal);
+        Assert.True(end > start, "Could not find the end of the StringKey switch.");
+
+        // Both arms: "State.X => \"Key\"" and the default "_ => \"Key\"".
+        var keys = Regex.Matches(core[start..end], """=>\s*"([A-Za-z0-9_]+)""")
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet();
+        Assert.True(keys.Count >= 3, $"only found {keys.Count} key(s); the switch has three arms");
+
+        var english = DefinedIn("En");
+        var persian = DefinedIn("Fa");
+
+        Assert.True(
+            keys.IsSubsetOf(english),
+            "An empty list can give a reason with no English text: " + string.Join(", ", keys.Except(english)));
+        Assert.True(
+            keys.IsSubsetOf(persian),
+            "An empty list can give a reason with no Persian text: " + string.Join(", ", keys.Except(persian)));
+    }
+
+    [Fact]
     public void No_string_still_tells_the_user_to_look_for_an_eight_character_code()
     {
         // The phone shows two digits. A caption asking for eight characters in

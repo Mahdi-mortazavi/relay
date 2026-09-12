@@ -495,5 +495,40 @@
         }
       ]
     }
+  },
+  "beaconBlocked": {
+    "$comment": "The optional `blocked` field, and what a listener must do with each value. See pairing-beacon.md, '`blocked`: the one thing the phone can still say'. A phone sets it when it knows a pairing cannot complete; the broadcast is the only channel that survives that failure, because a link-scoped broadcast bypasses the phone's own VPN while a unicast answer is routed into it. The value is deliberately `replies` and not `lockdown` or `vpn`: the beacon is unauthenticated and readable by everything on the link, and naming the cause would tell that whole network its owner runs a VPN. `accept` is whether the listener records the field at all; a rejected value MUST be treated exactly like an absent one, never as a reason to drop the beacon.",
+    "cases": [
+      {
+        "name": "the one value the contract defines",
+        "blocked": "replies",
+        "accept": true
+      },
+      {
+        "name": "absent means nothing is known to be wrong, not that all is well",
+        "blocked": null,
+        "accept": false
+      },
+      {
+        "name": "a cause a later version might add is ignored, not guessed at",
+        "blocked": "captive-portal",
+        "accept": false
+      },
+      {
+        "name": "naming the cause is refused: the beacon is broadcast to the whole link",
+        "blocked": "lockdown",
+        "accept": false
+      },
+      {
+        "name": "case matters; this is a wire value, not a display string",
+        "blocked": "Replies",
+        "accept": false
+      },
+      {
+        "name": "empty is not a value",
+        "blocked": "",
+        "accept": false
+      }
+    ]
   }
 }
