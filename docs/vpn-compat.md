@@ -44,7 +44,7 @@ interface, the handshake never completes: no `accept()`, no prompt, and no
 warning either. **The case that most needs the message is the only case that
 cannot produce it.**
 
-Since 2.8.1 the diagnostic log carries a `Reply path check:` line written when
+Since 2.8.1 the diagnostic log carries a `Reply path checked` line written when
 sharing starts, before any PC is involved, so a report from a group-3 phone
 still says which way replies would leave.
 

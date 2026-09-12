@@ -117,17 +117,26 @@ object UpdateFetcher {
 
         when (val verdict = UpdateDownload.verify(target, checksums)) {
             is UpdateDownload.Result.Ready -> {
-                LocalLog.add("Update $apkName verified; opening the installer")
+                LocalLog.info(
+                    LocalLog.Area.UPDATE, "Update verified; opening the installer",
+                    "file" to apkName,
+                )
                 launchInstaller(context, verdict.file)
                 Result.Installing
             }
             UpdateDownload.Result.ChecksumMismatch -> {
                 // Loud, because this is the case that must never be shrugged off.
-                LocalLog.add("Update REJECTED: $apkName did not match the published checksum")
+                LocalLog.error(
+                    LocalLog.Area.UPDATE, "Update REJECTED: it did not match the published checksum",
+                    "file" to apkName,
+                )
                 Result.ChecksumMismatch
             }
             UpdateDownload.Result.Unverifiable -> {
-                LocalLog.add("Update rejected: no published checksum for $apkName")
+                LocalLog.error(
+                    LocalLog.Area.UPDATE, "Update rejected: the release published no checksum for it",
+                    "file" to apkName,
+                )
                 Result.Unverifiable
             }
             UpdateDownload.Result.Unavailable -> Result.Unavailable

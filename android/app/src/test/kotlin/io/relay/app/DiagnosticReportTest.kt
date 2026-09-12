@@ -76,6 +76,34 @@ class DiagnosticReportTest {
     }
 
     @Test
+    fun `counts the failures so they do not have to be found by reading`() {
+        val report = DiagnosticReport.build(
+            ConnectionState.Error(ErrorCode.HOTSPOT_OFF),
+            listOf(
+                LocalLog.Entry(0, "Starting sharing"),
+                LocalLog.Entry(1000, "no link", LocalLog.Level.ERROR, LocalLog.Area.LINK),
+                LocalLog.Entry(2000, "port busy", LocalLog.Level.WARN, LocalLog.Area.PAIRING),
+            ),
+        )
+
+        // A report is pasted into a chat and answered by somebody scrolling on a
+        // phone. The first line they need is how much of it is worth reading.
+        assertTrue(report, report.contains("1 error(s), 1 warning(s) in 3 line(s)"))
+    }
+
+    @Test
+    fun `does not claim the clock starts when sharing does`() {
+        // It said "seconds since sharing started" and counted from process
+        // start, so a report from a phone that had been open ninety minutes
+        // opened at 4999.58 and read like it came from another machine. A log's
+        // own header is the one line a reader trusts before reading anything.
+        val report = DiagnosticReport.build(ConnectionState.Idle, entries("Starting sharing"))
+
+        assertFalse(report, report.contains("since sharing started"))
+        assertTrue(report, report.contains("since the app started"))
+    }
+
+    @Test
     fun `describes a connected session with its client count`() {
         val payload = QrPayload(
             v = 1, mode = QrPayload.MODE_SOCKS5, host = "192.168.1.5", port = 1080,

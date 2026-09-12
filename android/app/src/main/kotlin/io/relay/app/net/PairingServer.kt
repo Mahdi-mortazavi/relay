@@ -123,20 +123,30 @@ class PairingServer(
                 // reporting the phone as unreachable.
                 Request.WRONG_VERSION -> {
                     writer.appendLine(error(ERR_VERSION)); writer.flush()
-                    LocalLog.add("A PC at $address asked in a newer pairing version")
+                    LocalLog.warn(
+                        LocalLog.Area.PAIRING, "A PC asked in a newer pairing version",
+                        "pc" to address,
+                    )
                 }
 
                 Request.PAIR -> {
-                    LocalLog.add("A PC at $address asked to pair")
+                    LocalLog.info(LocalLog.Area.PAIRING, "A PC asked to pair", "pc" to address)
                     val allowed = gate.authorize(address)
                     val config = configuration(address)
                     if (!allowed || config == null) {
                         writer.appendLine(error(ERR_DENIED)); writer.flush()
-                        LocalLog.add("Refused $address")
+                        // Warn, not error: the overwhelmingly common reason is
+                        // that the person tapped Deny, which is the feature
+                        // working. A reader still wants to find it quickly.
+                        LocalLog.warn(
+                            LocalLog.Area.PAIRING, "Refused a PC",
+                            "pc" to address,
+                            "reason" to if (!allowed) "not-allowed" else "no-configuration",
+                        )
                         return
                     }
                     writer.appendLine(accepted(config)); writer.flush()
-                    LocalLog.add("Sent the configuration to $address")
+                    LocalLog.info(LocalLog.Area.PAIRING, "Sent the configuration", "pc" to address)
                 }
             }
         } catch (_: IOException) {
