@@ -33,6 +33,18 @@ object DiagnosticReport {
          *  test at all. */
         appVersion: String = "unknown",
         redactNames: Boolean = true,
+        /**
+         * "on", "off" or "unknown" — Android's "Block connections without VPN".
+         * Passed in rather than read here so this stays a pure function; it is
+         * in the header because it is the one fact that explains a whole class
+         * of reports at a glance. See [io.relay.app.net.VpnLockdown].
+         *
+         * Last, and its one caller names it. Inserted above `appVersion` it
+         * would have silently swallowed the version at the existing positional
+         * call site — two String parameters, no compiler error, and a report
+         * claiming the app's version was the lockdown state.
+         */
+        vpnLockdown: String = "unknown",
     ): String = buildString {
         appendLine("Relay diagnostic report")
         appendLine("=======================")
@@ -49,6 +61,7 @@ object DiagnosticReport {
         appendLine("Device:   ${if (redactNames) "${Build.MANUFACTURER ?: UNKNOWN} $model" else model}")
         appendLine("ABIs:     ${Build.SUPPORTED_ABIS?.joinToString(", ") ?: UNKNOWN}")
         appendLine("State:    ${describe(state)}")
+        appendLine("Lockdown: $vpnLockdown  (Android's \"Block connections without VPN\")")
         appendLine()
         // "since sharing started" is what this said, and it was wrong: the clock
         // runs from the moment the app's process started, so a report from a

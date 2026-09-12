@@ -25,6 +25,9 @@
     <string name="mode_full_unavailable">This build is missing the tunnel component, so it cannot share. Reinstall Relay from the releases page.</string>
 
     <!-- Warnings (non-blocking banners) -->
+    <string name="warning_lockdown_title">“Block connections without VPN” is on</string>
+    <string name="warning_lockdown_body">That setting drops everything except the VPN — including this phone\'s replies to your PC, so your PC can reach the phone but never hears back. Open VPN settings, tap the ⚙ beside your VPN app\'s name, and turn it off. Your VPN keeps running, and Relay will share it.</string>
+    <string name="warning_lockdown_action">VPN settings</string>
     <string name="warning_no_reply_title">Your PC is not getting an answer</string>
     <string name="warning_no_reply_body">A PC took Relay\'s settings and started its tunnel, but no reply ever left this phone. Exclude Relay in your VPN app\'s per-app list, or turn off “Block connections without VPN” in Settings → Network → VPN.</string>
     <string name="warning_no_vpn_title">No VPN is active</string>

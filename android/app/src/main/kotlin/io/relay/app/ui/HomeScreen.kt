@@ -111,6 +111,8 @@ fun HomeScreen(
     cable: UsbLink.Cable = UsbLink.Cable.Absent,
     onTurnOnUsb: () -> Unit = {},
     onDismissUsbOffer: () -> Unit = {},
+    /** Opens Android's VPN screen, for the one warning that can name a setting. */
+    onOpenVpnSettings: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -128,7 +130,7 @@ fun HomeScreen(
             Header(state)
             Spacer(Modifier.height(24.dp))
 
-            WarningBanners(warnings, onDismissWarning)
+            WarningBanners(warnings, onDismissWarning, onOpenVpnSettings)
 
             // Key the crossfade on the state *name*, not the state value.
             // Connected is a data class carrying byte counters that change every
@@ -260,7 +262,11 @@ private fun StatusDot(state: ConnectionState) {
 // --- warnings ----------------------------------------------------------------
 
 @Composable
-private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) -> Unit) {
+private fun WarningBanners(
+    warnings: Set<WarningCode>,
+    onDismiss: (WarningCode) -> Unit,
+    onOpenVpnSettings: () -> Unit = {},
+) {
     val glass = LocalGlass.current
     warnings.forEach { code ->
         val (title, body) = when (code) {
@@ -270,6 +276,8 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
                 R.string.battery_banner_title to R.string.battery_banner_body
             WarningCode.PC_GOT_NO_REPLY ->
                 R.string.warning_no_reply_title to R.string.warning_no_reply_body
+            WarningCode.VPN_LOCKDOWN_ON ->
+                R.string.warning_lockdown_title to R.string.warning_lockdown_body
         }
         Row(
             modifier = Modifier
@@ -284,6 +292,16 @@ private fun WarningBanners(warnings: Set<WarningCode>, onDismiss: (WarningCode) 
             Column(Modifier.weight(1f)) {
                 Text(stringResource(title), style = MaterialTheme.typography.bodyMedium, color = glass.textPrimary)
                 Text(stringResource(body), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
+            }
+            // Only this one gets a button, because it is the only warning that
+            // knows a screen worth opening. Android exports no deep link to the
+            // page the switch is actually on, so this lands on the VPN list and
+            // the body text names the last tap -- the ⚙ beside the app's name.
+            if (code == WarningCode.VPN_LOCKDOWN_ON) {
+                SubtleButton(
+                    text = stringResource(R.string.warning_lockdown_action),
+                    onClick = onOpenVpnSettings,
+                )
             }
             Text(
                 text = stringResource(R.string.action_dismiss),

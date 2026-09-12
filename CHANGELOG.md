@@ -9,6 +9,24 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+### Added — Relay names the setting that is blocking it
+
+When a PC takes Relay's settings and the tunnel never handshakes, the phone now
+checks whether Android's **"Block connections without VPN"** is on — and if it
+is, says so by name, explains that the setting drops replies to your own network,
+and offers a button straight to the VPN screen. The message is explicit that
+**your VPN keeps running**; turning it off is never the advice.
+
+Relay can read that one switch and nothing else about it: Android leaves
+`always_on_vpn_lockdown` readable to any app and closes the key that would say
+*which* VPN. There is no deep link to the page the switch is on either, so the
+button opens the VPN list and the message names the last tap.
+
+The reading is three-valued, and **"unknown" is never shown as "off"** — a
+full-tunnel VPN with no always-on configured causes the identical fault while
+this setting reads off, so a clear reading never means nothing is wrong. Every
+diagnostic report's header now carries it, on every start.
+
 ## [2.8.2] — 2026-09-12
 
 Every item here came out of **one diagnostic log**, sent by a user on Telegram.

@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.WarningCode
 import io.relay.app.net.UsbLink
+import io.relay.app.net.VpnLockdown
 import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.LocalLog
@@ -164,6 +165,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Opens the one screen with the USB tethering switch on it. */
     fun openTetheringSettings() = UsbLink.openTetheringSettings(getApplication())
+
+    /**
+     * Opens Android's VPN list. Not the page with the switch on it — Android
+     * exports no activity for that one. See [VpnLockdown.openVpnSettings].
+     */
+    fun openVpnSettings() = VpnLockdown.openVpnSettings(getApplication())
 
     private val _batteryExempt = MutableStateFlow(readBatteryExempt())
     val batteryExempt: StateFlow<Boolean> = _batteryExempt
