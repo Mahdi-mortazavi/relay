@@ -20,6 +20,7 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly | Start sharing again |
 | `WG_START_FAILED` | Error | The WireGuard endpoint could not start on the phone | Start sharing again |
 | `NO_VPN_ACTIVE` | Warning | No VPN is active on the phone when sharing starts | Informational: you're sharing your regular connection. Turn on your VPN first if you meant to share it |
+| `PC_GOT_NO_REPLY` | Warning | A PC took a configuration and the WireGuard endpoint saw no completed handshake in the 20 s that followed (`HandshakeWatch`). Fires at the same moment the PC shows `ERR_WG_NO_HANDSHAKE`. Replaces 2.8.1's `VPN_CAPTURES_RELAY`, which predicted the fault from a route lookup and was seen announcing it on a session that then paired and carried traffic — see [vpn-compat.md](vpn-compat.md) | Exclude Relay in the VPN app's per-app list, or turn off "Block connections without VPN" in Settings → Network → VPN |
 | `BATTERY_UNRESTRICTED_DENIED` | Warning | Battery-optimization exemption not granted | Allow it so sharing survives screen-off (button opens the exemption dialog) |
 
 ## Windows (client device)

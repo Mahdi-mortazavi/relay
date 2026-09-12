@@ -20,6 +20,7 @@ import io.relay.app.core.ShouldRetarget
 import io.relay.app.core.UpdateCheck
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
+import io.relay.app.core.HandshakeWatch
 import io.relay.app.core.LinkWait
 import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
@@ -84,6 +85,14 @@ class SharingService : Service() {
     // The session's forwarder and this pairing's keys (ADR-0008).
     private var wgForwarder: WgForwarder? = WgForwarderProvider.create()
     private var wgKeys: WgConfig.KeySet? = null
+
+    /**
+     * When a PC last took a configuration, which is when a handshake starts
+     * being owed. Written on the pairing server's accept thread and read by the
+     * peer watcher's coroutine, hence volatile. See [HandshakeWatch].
+     */
+    @Volatile
+    private var configuredAtMs: Long? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -376,21 +385,23 @@ class SharingService : Service() {
             configuration = { client ->
                 val keys = wgKeys
                 val host = currentHost
-                // Now that a PC has actually asked, its address is known, so the
-                // reply path can be checked rather than guessed at. This is the
-                // only moment the phone can tell that its own VPN will swallow
-                // the tunnel's handshake -- and saying so here beats the laptop
-                // reporting an unanswered tunnel and sending someone to look at
-                // their QR code.
+                // A PC only reaches this line because someone pressed Connect on
+                // it, so from this instant a handshake is owed. [startPeerWatcher]
+                // holds the other half of the check: if none arrives within
+                // HandshakeWatch.GRACE_MS, replies are not leaving this phone,
+                // and that is an observation rather than the prediction this
+                // used to raise a banner on. See [HandshakeWatch].
+                configuredAtMs = System.currentTimeMillis()
+                // Log-only, for the same reason as the one at start-up: the probe
+                // has been seen to say "swallowed" on a link that then carried a
+                // pairing and 35 MB of traffic, so it is worth having in a report
+                // and not worth alarming anyone with.
                 if (host != null) {
                     val swallowed = VpnCapture.wouldSwallow(client = client, advertisedHost = host)
-                    ConnectionRepository.setWarning(WarningCode.VPN_CAPTURES_RELAY, swallowed)
-                    if (swallowed) {
-                        LocalLog.add(
-                            "This phone's VPN is routing replies to $client into itself; " +
-                                "the tunnel will not answer"
-                        )
-                    }
+                    LocalLog.add(
+                        if (swallowed) "Reply path to $client: would leave by the VPN, not by $host"
+                        else "Reply path to $client: leaves by $host, as it should"
+                    )
                 }
                 if (keys == null || host == null) null
                 else PairingServer.Configuration(
@@ -424,10 +435,35 @@ class SharingService : Service() {
         peerWatcher?.cancel()
         peerWatcher = scope.launch {
             var present = false
+            var saidNoReply = false
             while (isActive) {
                 delay(PEER_POLL_MS)
                 val handshake = forwarder.lastHandshakeUnix()
                 val age = System.currentTimeMillis() / 1000 - handshake
+
+                // The one fault the phone can see that the laptop can only
+                // guess at: a PC asked for the settings and the endpoint was
+                // never handshaked, so the replies are not getting out. The
+                // laptop reaches its own verdict at the same moment and its
+                // message promises this banner is here, so it has to be.
+                val noReply = HandshakeWatch.replyLost(
+                    configuredAtMs = configuredAtMs,
+                    lastHandshakeUnix = handshake,
+                    nowMs = System.currentTimeMillis(),
+                )
+                // Raised on the edge, not every tick. Pushing it once a second
+                // would put the banner back a second after anyone dismissed it,
+                // which is the whole of the dismiss button's job.
+                if (noReply != saidNoReply) {
+                    saidNoReply = noReply
+                    ConnectionRepository.setWarning(WarningCode.PC_GOT_NO_REPLY, noReply)
+                    if (noReply) {
+                        LocalLog.add(
+                            "A PC took the settings ${HandshakeWatch.GRACE_MS / 1000} s ago and " +
+                                "the tunnel never handshaked; replies are not leaving this phone"
+                        )
+                    }
+                }
                 // Three minutes is what wg(8)'s own tooling treats as alive:
                 // rekeying happens at two, so this leaves a minute of margin
                 // without holding "connected" on screen long after the laptop
@@ -603,6 +639,8 @@ class SharingService : Service() {
         runCatching { wgForwarder?.stop() }
         wgKeys = null
         currentHost = null
+        // Nobody is owed a handshake once there is no endpoint to give them one.
+        configuredAtMs = null
         releaseWakeLock()
         ConnectionRepository.clearWarnings()
     }

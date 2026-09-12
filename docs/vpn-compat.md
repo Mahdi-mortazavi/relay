@@ -46,20 +46,63 @@ cannot produce it.**
 
 Since 2.8.1 the diagnostic log carries a `Reply path check:` line written when
 sharing starts, before any PC is involved, so a report from a group-3 phone
-still says which way replies would leave. It is log-only on purpose — the same
-probe has said "swallowed" on a link that then carried 35 MB without trouble, so
-it is trustworthy enough to triage with and not to alarm anyone with.
+still says which way replies would leave.
+
+### The probe predicts; it does not observe
+
+A log from a 2.8.1 phone settled what that line is worth. In one session the
+probe flipped its verdict **four times**, and at 4999 s said:
+
+```
+4999.58  Reply path check: a reply to 192.168.1.1 would leave by the VPN, not by 192.168.1.5
+5063.84  A PC at 192.168.1.4 asked to pair
+5068.53  Sent the configuration to 192.168.1.4
+5073.74  Clients: 1
+```
+
+Sixty-four seconds after announcing that replies were lost, that phone paired a
+PC and carried its traffic. The probe asks the kernel which interface a datagram
+*would* take; it cannot ask whether the packet arrives. So it is kept for triage
+and it is **log-only** — a banner that fires on a connection which is working is
+the reason the next real warning is not believed.
+
+### What raises the banner instead
+
+From 2.8.2 the warning is `PC_GOT_NO_REPLY`, and it is built out of two things
+the phone actually observes:
+
+1. a PC took a configuration — which only happens when someone pressed Connect;
+2. the WireGuard endpoint has recorded **no completed handshake** in the
+   20 seconds since.
+
+Inbound still arrives under a capture; what a capture eats is the reply. "It
+asked and nothing came back" is therefore the exact signature of this fault and
+of nothing else. The 20 seconds are `handshakeTimeout` in
+`wg/cmd/relaywg-client/main.go`, so the phone's banner appears at the same
+moment the laptop shows `ERR_WG_NO_HANDSHAKE` — whose text tells the user the
+phone is saying so on its own screen. `HandshakeWatchTest` asserts the two
+numbers stay equal.
+
+This still does not help group 3, where `accept()` never returns and so no
+configuration is ever taken. Nothing inside the app can: the fix there is one of
+the two settings below.
 
 ### Two settings worth trying before anything else
 
-Both are on the VPN app's side, and either one alone can produce group 3:
+Either one alone can produce group 3. **They live in different places, and
+asking about the wrong one gets a confident wrong answer** — a user asked about
+lockdown looked inside FlClash X and NekoBox, because that is where a setting
+called "block connections" sounds like it would be:
 
-- **"Block connections without VPN"** (Android's lockdown mode, in
-  *Settings → Network → VPN → ⚙*). It drops everything that is not the tunnel,
-  **including replies to your own LAN**. Turn it off and retry.
-- **Per-app / split tunnelling** — exclude Relay in the VPN app's own app list.
-  This is what the in-app warning already tells people to do, and it is the
-  reliable fix when it is available.
+- **"Block connections without VPN"** — Android's lockdown mode. **Not in the
+  VPN app.** It is in *Settings → Network & internet → VPN → the ⚙ beside the
+  app's name*, and the toggle only appears at all once **Always-on VPN** is on,
+  so an app that does not support always-on shows nothing there. It drops
+  everything that is not the tunnel, **including replies to your own LAN**.
+  Turn it off and retry.
+- **Per-app / split tunnelling** — this one *is* in the VPN app's own app list;
+  exclude Relay there. It is what the in-app warning tells people to do, and it
+  is the reliable fix when the app offers it.
 
 Neither is a Relay setting; Android gives an app inside a VPN no way to opt out
 of either (`Network.bindSocket` fails `EPERM`, `SO_BINDTODEVICE` needs
