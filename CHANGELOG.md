@@ -9,6 +9,114 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.2] — 2026-09-12
+
+Every item here came out of **one diagnostic log**, sent by a user on Telegram.
+The pattern in all of them is the same: Relay had the information and did not
+write it down.
+
+### Fixed — turning on USB tethering and pressing Start no longer loses a race
+
+Android takes a few seconds to give a freshly-enabled tethering interface an
+address. Relay looked exactly once, saw nothing, and said *"No usable Wi-Fi or
+hotspot interface found"* — so switching tethering on and immediately pressing
+Start failed, seven times in a row in the log this came from, and then worked
+without the user changing anything.
+
+It now looks eight times over about eight seconds. The first look still costs
+nothing, so a phone already on Wi-Fi starts exactly as fast as before.
+
+### Fixed — the message now says which link is missing
+
+That one sentence covered four different situations, and told three of those
+users to do something they had already done. It is now four messages:
+
+| What Relay found | What it says |
+|---|---|
+| A link up with no address yet | **"Your cable is still connecting."** Wait and try again — the only one of these that does not ask you to change anything |
+| Only mobile data | Turn on Wi-Fi, the hotspot, or the cable |
+| Only the phone's own VPN | The same — and it says plainly that **your VPN stays on and Relay will share it** |
+| Nothing at all | The original message, unchanged |
+
+### Fixed — a VPN warning that fired on connections that were working
+
+*"Your VPN is blocking Relay"* was raised from a route lookup that predicts which
+interface a reply *would* take. The log settled what that is worth: the check
+flipped its verdict four times in one session, announced that replies were lost,
+and sixty-four seconds later that phone paired a PC and carried its traffic.
+
+A warning that fires on a working connection is the reason the next real one is
+not believed. It is replaced by one built on what the phone actually observes —
+a PC took the settings, and the tunnel was never handshaked in the twenty seconds
+that followed. That is the exact signature of the fault and of nothing else, and
+it appears at the same moment the PC gives up, which is what the PC's own message
+has always promised.
+
+### Fixed — Windows updates now actually install
+
+Found on the maintainer's own laptop, which was running a build from 16 August
+while 2.8.1 was published. A 48 MB installer sat in the temp folder, downloaded
+and checksum-verified, **never run**, for three days.
+
+Installing could only happen inside a single run of the app: it had to still be
+open, to have been open a while, and to be disconnected, all at the same time.
+Relay is opened in order to be *connected* to, so someone who opens it, connects,
+and closes it when they are done never met that. Every launch started again from
+nothing and downloaded the same fifty megabytes.
+
+A verified download is now remembered, and goes in **when you close Relay** —
+which costs you nothing — or at the next launch if the app never got a clean
+exit. Its hash is checked again before it runs. The daily check no longer
+re-downloads something already on disk, and the first check happens 30 seconds
+after launch rather than two minutes, which is longer than many whole sessions.
+
+Separately: an update now installs **over the copy that is running**. Windows
+remembers the previous install's folder, and a silent install accepts it with no
+dialog for anyone to correct — on that laptop it still pointed at a directory
+deleted months earlier, so the update would have installed itself perfectly
+somewhere nobody launches Relay from, and reported success.
+
+### Changed — the diagnostic report is worth reading
+
+Every line now carries a level (INFO / WARN / ERROR), an area, and named fields
+instead of values buried in prose. A failure records **every network interface
+the phone had at that moment**, and why each one was refused:
+
+```
+ERROR link  No usable Wi-Fi, hotspot or USB link  code=LINK_NEGOTIATING
+            links="rndis0(no-ipv4) wlan0(192.168.1.5 wifi score-3) tun0(10.8.0.2 vpn)"
+```
+
+`rndis0(no-ipv4)` is the answer that previously took a message to the user, in
+another country, and a day. The report ends with a count of its own errors and
+warnings. [How to read one](docs/diagnostics.md).
+
+Two things were wrong in it and are fixed. Its header claimed the clock started
+when sharing did; it started when the app did, so a report from a phone open for
+ninety minutes began at `4999.58` and read like it came from another machine. And
+timestamps followed the phone's language setting — on a Persian phone every
+number in a shared report came out in Persian-Indic digits. A report the
+maintainer cannot read is a report that was not sent.
+
+## [2.8.1] — 2026-09-10
+
+### Fixed — the phone tells the laptop which way it reached it
+
+A phone with a cable in *and* Wi-Fi on sends its beacon out of both, and the
+laptop had no way to tell which copy came by which route. Each datagram now
+carries the address of the interface it left by.
+
+### Added — the reply path is recorded before a PC ever knocks
+
+The phone writes a `Reply path checked` line into its diagnostic log when sharing
+starts, so a report from a phone whose VPN swallows Relay's replies says so even
+when the pairing never got far enough to produce a warning. **Log-only on
+purpose** — and 2.8.2 explains why that was the right call.
+
+### Changed
+
+The cable offer says the cable exists where people actually look for it.
+
 ## [2.8.0] — 2026-09-07
 
 ### Added — connect over the USB cable
