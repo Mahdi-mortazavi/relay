@@ -9,6 +9,8 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.3] — 2026-09-13
+
 ### Added — Relay names the setting that is blocking it
 
 When a PC takes Relay's settings and the tunnel never handshakes, the phone now
@@ -26,6 +28,13 @@ The reading is three-valued, and **"unknown" is never shown as "off"** — a
 full-tunnel VPN with no always-on configured causes the identical fault while
 this setting reads off, so a clear reading never means nothing is wrong. Every
 diagnostic report's header now carries it, on every start.
+
+**Not yet confirmed on a phone.** The `@Readable` annotation that makes the read
+legal is verified in AOSP source for API 31/33/35/36, and no device has been
+asked. Nothing else depends on it — a failed read is `unknown` and falls back to
+the message 2.8.2 already shipped — but until a phone has answered, treat the
+banner as unproven rather than as a feature. `docs/testing.md` carries the four
+checks that would settle it.
 
 ## [2.8.2] — 2026-09-12
 

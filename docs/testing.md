@@ -109,6 +109,24 @@ after uninstall.
 | Windows sleep/resume | Not available on a hosted runner | **BLOCKED — infrastructure** |
 | Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |
 | A native arm64 device | GitHub's arm64 runners expose no `/dev/kvm`; arm64 coverage is binary translation on x86_64 | **BLOCKED — infrastructure** |
+| **That `Settings.Secure.always_on_vpn_lockdown` is actually readable from Relay's own UID** (`VpnLockdown`, shipped 2.8.3) | The `@Readable` annotation is confirmed in AOSP source for API 31/33/35/36, and an emulator image is not an OEM ROM — which is exactly where a `@hide` key's behaviour differs. A JVM test cannot reach a `ContentResolver`, and there is no Robolectric here | **UNVERIFIED — needs a phone.** The four checks are below |
+
+#### The four checks that would settle `VpnLockdown` (2.8.3)
+
+`adb shell settings get secure always_on_vpn_lockdown` **does not answer this**:
+the shell holds permissions an app does not, and the `@Readable` gate keys off the
+*calling package's* `targetSdk`. It has to be read from inside Relay.
+
+1. `adb shell settings put secure always_on_vpn_lockdown 1`, start sharing, and
+   confirm the in-app log line says `lockdown=on`. `0` must give `lockdown=off`.
+   Restore whatever the value was.
+2. `adb logcat -s RelayVpnLockdown` stays **empty** across both — the class only
+   logs when the read throws, so a line there means the key is closed on this ROM
+   and the state is `unknown`.
+3. The same on a second manufacturer's ROM (Samsung, Xiaomi). One phone proves
+   one phone.
+4. The banner and its button lay out in **both languages** — the Persian body is
+   materially longer than the English and sits beside a button.
 
 ## Rung 5 — the install matrix (`install-matrix.yml`)
 
