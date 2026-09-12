@@ -45,6 +45,12 @@
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">No Wi-Fi or hotspot</string>
     <string name="error_hotspot_off_body">Connect the phone to Wi-Fi, turn on its hotspot, or plug in a USB cable and turn on USB tethering, then try again.</string>
+    <string name="error_link_negotiating_title">Your cable is still connecting</string>
+    <string name="error_link_negotiating_body">A link is coming up but has no address yet — USB tethering can take a few seconds. Wait a moment and tap Try again.</string>
+    <string name="error_only_mobile_data_title">Only mobile data is available</string>
+    <string name="error_only_mobile_data_body">Your PC cannot reach the phone over mobile data. Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable and turn on USB tethering.</string>
+    <string name="error_only_vpn_title">Only your VPN is connected</string>
+    <string name="error_only_vpn_body">The VPN\'s own tunnel is the only network with an address, and your PC cannot reach the phone through it. Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable — your VPN keeps working, and Relay will share it.</string>
     <string name="error_port_in_use_title">Ports are busy</string>
     <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
     <string name="error_service_failed_title">Something went wrong</string>

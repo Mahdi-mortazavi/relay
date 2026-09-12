@@ -51,7 +51,27 @@ sealed interface ConnectionState {
 
 /** Android-side error codes; the full cross-platform taxonomy is docs/errors.md. */
 enum class ErrorCode {
+    /**
+     * Nothing to share on at all: no Wi-Fi, no hotspot, no cable.
+     *
+     * Kept as the name it has always had — codes are never renamed — but it is
+     * now the *last* answer rather than the only one. The three below are the
+     * cases it used to swallow, each with a different next action.
+     */
     HOTSPOT_OFF,
+
+    /**
+     * A link is up and has no address yet, even after [LinkWait]'s eight
+     * seconds. Almost always USB tethering that is taking its time.
+     */
+    LINK_NEGOTIATING,
+
+    /** The only links are the carrier's. A PC cannot route to mobile data. */
+    ONLY_MOBILE_DATA,
+
+    /** The only link with an address is the phone's own VPN tunnel. */
+    ONLY_VPN,
+
     HOTSPOT_LOST,
     PORT_IN_USE,
     SERVICE_FAILED,

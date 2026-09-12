@@ -540,6 +540,11 @@ private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Un
     val glass = LocalGlass.current
     val (title, body) = when (code) {
         ErrorCode.HOTSPOT_OFF -> R.string.error_hotspot_off_title to R.string.error_hotspot_off_body
+        ErrorCode.LINK_NEGOTIATING ->
+            R.string.error_link_negotiating_title to R.string.error_link_negotiating_body
+        ErrorCode.ONLY_MOBILE_DATA ->
+            R.string.error_only_mobile_data_title to R.string.error_only_mobile_data_body
+        ErrorCode.ONLY_VPN -> R.string.error_only_vpn_title to R.string.error_only_vpn_body
         ErrorCode.HOTSPOT_LOST -> R.string.error_hotspot_lost_title to R.string.error_hotspot_lost_body
         ErrorCode.PORT_IN_USE -> R.string.error_port_in_use_title to R.string.error_port_in_use_body
         ErrorCode.SERVICE_FAILED -> R.string.error_service_failed_title to R.string.error_service_failed_body
