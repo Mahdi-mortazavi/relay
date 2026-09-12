@@ -245,7 +245,12 @@ public partial class App : Application
                 // already down. It still goes through the ordinary tray exit
                 // rather than Environment.Exit, so the proxy rollback and the
                 // three-second backstop both still apply.
-                if (notice == UpdateNotice.Installing)
+                //
+                // Not when the exit is already under way: the install-on-close
+                // path below raises this same notice from inside
+                // ExitFromTrayAsync, and re-entering it there would have the
+                // app trying to close itself twice.
+                if (notice == UpdateNotice.Installing && Volatile.Read(ref _exiting) == 0)
                 {
                     _window?.DispatcherQueue.TryEnqueue(() => _ = ExitFromTrayAsync());
                 }
@@ -342,8 +347,16 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Non-zero once <see cref="ExitFromTrayAsync"/> has begun, so the update
+    /// notification handler does not ask it to begin again.
+    /// </summary>
+    private int _exiting;
+
     private async Task ExitFromTrayAsync()
     {
+        Interlocked.Exchange(ref _exiting, 1);
+
         var clean = await DisconnectWithTimeoutAsync();
 
         // Exiting after a failed rollback would strand the system proxy pointing
@@ -353,8 +366,32 @@ public partial class App : Application
         // to close on "we know nothing" is how the app became unclosable.
         if (clean && AppController.Instance.ErrorCode == "ERR_ROLLBACK_INCOMPLETE")
         {
+            // Staying, so this is not an exit after all — and an update that
+            // lands later still needs to be able to close the app.
+            Interlocked.Exchange(ref _exiting, 0);
             _window?.DispatcherQueue.TryEnqueue(() => _window?.ShowNearTray());
             return;
+        }
+
+        // Going anyway, so this is the free moment: an update that was already
+        // downloaded and verified goes in now, and the next launch is current.
+        //
+        // Closing is the half of the fix that costs the user nothing. The other
+        // half runs at start-up, for the times this is never reached — a crash,
+        // a sign-out, a laptop that simply loses power. Before either existed,
+        // installing needed the app to be open, to have been open a while, and
+        // to be idle, all at once; the machine this was written on had a
+        // verified 48 MB installer sitting unrun in %TEMP% for three days while
+        // the app went on reporting a version four months old.
+        //
+        // No relaunch: they asked for it to close.
+        try
+        {
+            if (_updates is not null) await _updates.InstallPendingAsync(relaunch: false);
+        }
+        catch (Exception)
+        {
+            // An update must never be the reason the app cannot be closed.
         }
 
         _window?.DispatcherQueue.TryEnqueue(() =>

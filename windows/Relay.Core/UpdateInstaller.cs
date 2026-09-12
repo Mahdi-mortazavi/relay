@@ -65,7 +65,7 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         Action<string>? run = null,
         CancellationToken token = default)
     {
-        var (outcome, path) = await DownloadAsync(update, downloadDirectory, token)
+        var (outcome, path, _) = await DownloadAsync(update, downloadDirectory, token)
             .ConfigureAwait(false);
         return path is null ? outcome : Run(path, run);
     }
@@ -87,19 +87,22 @@ public sealed class UpdateInstaller(HttpClient? http = null)
     /// better of the two mistakes.
     /// </summary>
     /// <returns>
-    /// The verified installer's path, or null with the reason it is not there.
+    /// The verified installer's path and the hash it matched, or nulls with the
+    /// reason it is not there. The hash comes back so the caller can write it
+    /// down — see <see cref="PendingUpdate"/> — and check the file again before
+    /// running it on some later launch.
     /// </returns>
-    public async Task<(Outcome Outcome, string? Path)> DownloadAsync(
+    public async Task<(Outcome Outcome, string? Path, string? Sha256)> DownloadAsync(
         UpdateCheck.Available update,
         string? downloadDirectory = null,
         CancellationToken token = default)
     {
-        if (string.IsNullOrWhiteSpace(update.ChecksumsUrl)) return (Outcome.Unverifiable, null);
+        if (string.IsNullOrWhiteSpace(update.ChecksumsUrl)) return (Outcome.Unverifiable, null, null);
 
         var name = FileName(update.Url);
-        if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return (Outcome.Unavailable, null);
+        if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return (Outcome.Unavailable, null, null);
 
-        var directory = downloadDirectory ?? Path.Combine(Path.GetTempPath(), "Relay-update");
+        var directory = downloadDirectory ?? PendingUpdate.DefaultDirectory;
         var target = Path.Combine(directory, name);
         // Downloaded under a name nothing will run, then renamed once the hash
         // matches. A rejected or half-finished download must never be left on
@@ -113,7 +116,7 @@ public sealed class UpdateInstaller(HttpClient? http = null)
             Directory.CreateDirectory(directory);
             var sums = await _http.GetStringAsync(update.ChecksumsUrl, token).ConfigureAwait(false);
             var found = HashFor(sums, name);
-            if (found is null) return (Outcome.Unverifiable, null);
+            if (found is null) return (Outcome.Unverifiable, null, null);
             expected = found;
 
             actual = await DownloadAndHashAsync(update.Url, partial, token).ConfigureAwait(false);
@@ -121,14 +124,13 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         catch (Exception)
         {
             Discard(partial);
-            return (Outcome.Unavailable, null);
+            return (Outcome.Unavailable, null, null);
         }
 
-        if (!CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(actual), Convert.FromHexString(expected)))
+        if (!Matches(actual, expected))
         {
             Discard(partial);
-            return (Outcome.ChecksumMismatch, null);
+            return (Outcome.ChecksumMismatch, null, null);
         }
 
         try
@@ -138,23 +140,78 @@ public sealed class UpdateInstaller(HttpClient? http = null)
         catch (Exception)
         {
             Discard(partial);
-            return (Outcome.Unavailable, null);
+            return (Outcome.Unavailable, null, null);
         }
 
-        return (Outcome.Started, target);
+        return (Outcome.Started, target, expected);
     }
 
-    /// <summary>Runs an installer that <see cref="DownloadAsync"/> already verified.</summary>
-    public Outcome Run(string path, Action<string>? run = null)
+    /// <summary>
+    /// Runs an installer whose hash has been checked.
+    /// </summary>
+    /// <param name="relaunch">
+    /// Whether Setup should start Relay again when it finishes. True for an
+    /// update that closed a running app — leaving the tray empty reads as a
+    /// crash. False when the app is already on its way out because the user
+    /// asked it to close: reopening it then is not an update, it is a refusal
+    /// to quit.
+    /// </param>
+    public Outcome Run(string path, Action<string>? run = null, bool relaunch = true)
     {
         try
         {
-            (run ?? Launch)(path);
+            if (run is not null) run(path);
+            else Launch(path, relaunch);
             return Outcome.Started;
         }
         catch (Exception)
         {
             return Outcome.Unavailable;
+        }
+    }
+
+    /// <summary>
+    /// The SHA-256 of a file already on disk, lower-case hex.
+    ///
+    /// Used to check a download again before running it. Between being verified
+    /// and being run it may have sat in a temp directory across a reboot, and
+    /// that directory is writable by anything running as this user. Re-reading
+    /// fifty megabytes costs a fraction of a second, once, and only when there
+    /// is something pending; running unverified bytes that replace a program
+    /// which routes a phone's entire connection costs rather more.
+    /// </summary>
+    public static async Task<string> HashFileAsync(string path, CancellationToken token = default)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        await using var file = new FileStream(
+            path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 128 * 1024, useAsync: true);
+
+        var buffer = new byte[128 * 1024];
+        int read;
+        while ((read = await file.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+        }
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Constant-time comparison of two hex hashes, false for anything that is
+    /// not a pair of well-formed hex strings of the same length.
+    /// </summary>
+    public static bool Matches(string? actual, string? expected)
+    {
+        if (actual is null || expected is null) return false;
+        if (actual.Length != expected.Length || actual.Length == 0) return false;
+        try
+        {
+            return CryptographicOperations.FixedTimeEquals(
+                Convert.FromHexString(actual), Convert.FromHexString(expected));
+        }
+        catch (FormatException)
+        {
+            return false;
         }
     }
 
@@ -214,15 +271,48 @@ public sealed class UpdateInstaller(HttpClient? http = null)
     /// itself would have sat on a dialog nobody was there to answer. The caller
     /// has to leave, and <see cref="Relaunch"/> is how it gets to come back.
     /// </summary>
-    private static void Launch(string installer) =>
+    private static void Launch(string installer, bool relaunch) =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installer)
         {
-            // Not /VERYSILENT: a person who did not press anything should still
-            // see that something is installing. /SILENT shows progress and no
-            // questions, which is the honest middle.
-            Arguments = $"/SILENT /NORESTART {Relaunch}",
+            Arguments = ArgumentsFor(InstallDirectory, relaunch),
             UseShellExecute = true,
         });
+
+    /// <summary>
+    /// Where this build of Relay is installed — the folder the running
+    /// executable sits in, with no trailing separator.
+    /// </summary>
+    public static string InstallDirectory =>
+        AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    /// <summary>
+    /// The command line an update is run with. Pure, so the decisions in it can
+    /// be asserted without starting anything.
+    ///
+    /// <c>/DIR</c> is the one that is not obvious, and it is here because of a
+    /// failure seen on a real machine. Inno remembers the previous install's
+    /// location in <c>{AppId}_is1</c> and, under <c>/SILENT</c>, silently
+    /// accepts it as the default — there is no dialog for anyone to correct.
+    /// On the laptop this was found on, that registry entry still read
+    /// <c>InstallLocation=C:\RelayTest\</c> from a test install whose folder had
+    /// long since been deleted, while the real Relay lived somewhere else
+    /// entirely and the Start Menu shortcut pointed there. A silent update would
+    /// have recreated <c>C:\RelayTest</c>, installed 2.8.1 into it perfectly,
+    /// and left every way the user actually starts Relay pointing at the old
+    /// build. It would have reported success and changed nothing.
+    ///
+    /// Naming the running app's own folder makes an update land on the app being
+    /// updated, whatever the registry remembers.
+    ///
+    /// Not <c>/VERYSILENT</c>: a person who did not press anything should still
+    /// see that something is installing. <c>/SILENT</c> shows progress and asks
+    /// no questions, which is the honest middle.
+    /// </summary>
+    public static string ArgumentsFor(string installDirectory, bool relaunch)
+    {
+        var arguments = $"/SILENT /NORESTART /DIR=\"{installDirectory}\"";
+        return relaunch ? $"{arguments} {Relaunch}" : arguments;
+    }
 
     /// <summary>
     /// Asks Setup to start Relay again when it is done.

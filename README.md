@@ -216,7 +216,7 @@ Nothing else to install, and no account to make.
 | **Follows a moving phone** | A changed address — DHCP renewal, Wi-Fi change, NAT rebinding — re-points the tunnel instead of killing it |
 | **Survives a bad network** | Tested against 5% packet loss, a full outage, and a mid-transfer path change |
 | **Leak protection** | DNS and IPv6 cannot leave outside the tunnel. Costs 22 µs per connection and nothing per byte |
-| **Updates itself** | Windows installs quietly at the next idle moment; Android offers, because the platform forbids more |
+| **Updates itself** | Windows installs quietly when you close it, or at the next idle moment; Android offers, because the platform forbids more |
 
 <details>
 <summary><b>Pairing, in detail</b></summary>
@@ -289,8 +289,14 @@ if it is killed. A dead Relay cannot leave your machine unable to resolve names.
 
 **Windows updates itself.** It checks shortly after launch and then daily, tells
 you what it found, and installs at the next moment the tunnel is down — because
-installing means stopping Relay, and doing that mid-call would drop the call. It
-closes, updates, and comes back.
+installing means stopping Relay, and doing that mid-call would drop the call.
+
+If that moment does not arrive while you are using it, the verified download is
+kept and goes in **when you close Relay**, or **the next time you open it** if
+the app never got a clean exit. Nothing is downloaded twice, and there is no
+session you have to remember to leave running. Closing costs you nothing, so
+that is the one it prefers; an update applied at start-up closes Relay and
+brings it straight back.
 
 **Android checks when you open it and when sharing starts**, so the tile and the
 widget reach you too, then offers the update. Android does not let a sideloaded
