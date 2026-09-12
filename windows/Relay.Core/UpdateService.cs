@@ -39,13 +39,33 @@ public sealed class UpdateService(
     Action<UpdateNotice, string> notify,
     Func<UpdateCheck>? checkFactory = null,
     UpdateInstaller? installer = null,
-    TimeSpan? idleWait = null)
+    TimeSpan? idleWait = null,
+    string? downloadDirectory = null,
+    Action<string>? runInstaller = null)
 {
     /// <summary>
-    /// Long enough that launching Relay never waits on GitHub, short enough
-    /// that someone who opens it and leaves it running finds out today.
+    /// Long enough that launching Relay is not competing with a download while
+    /// someone is trying to connect, short enough that a session which lasts a
+    /// couple of minutes still checks at all.
+    ///
+    /// It was two minutes, and that turned out to be most of a bug. Relay is
+    /// opened to be connected to, and plenty of sessions are shorter than two
+    /// minutes end to end — for those the check never ran once, on any launch,
+    /// ever. The delay is not what keeps the launch fast; the check has always
+    /// been on a background thread.
     /// </summary>
-    public static readonly TimeSpan FirstCheckDelay = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan FirstCheckDelay = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How long to let a launch settle before installing something that was
+    /// downloaded on an earlier one.
+    ///
+    /// Short, because this is the moment the whole design turns on. Not zero,
+    /// because the app closing itself before its window has finished appearing
+    /// looks like a crash rather than an update, and the toast that explains it
+    /// needs somewhere to land.
+    /// </summary>
+    public static readonly TimeSpan PendingInstallDelay = TimeSpan.FromSeconds(3);
 
     /// <summary>
     /// A day. Relay is a tray app that can run for weeks, so checking only at
@@ -68,6 +88,7 @@ public sealed class UpdateService(
     private const string Idle = "Idle";
 
     private readonly UpdateInstaller _installer = installer ?? new UpdateInstaller();
+    private readonly string _directory = downloadDirectory ?? PendingUpdate.DefaultDirectory;
     private CancellationTokenSource? _loop;
 
     /// <summary>The version already announced, so a daily check does not nag.</summary>
@@ -92,6 +113,19 @@ public sealed class UpdateService(
     {
         try
         {
+            // Before anything is checked or fetched: an installer this app
+            // already downloaded and verified on some earlier launch.
+            //
+            // This is the moment the previous design never had. Installing was
+            // only ever attempted inside one run of the process — start, wait,
+            // check, download, wait for Idle — so it depended on a coincidence:
+            // the app had to still be open, long enough, and idle at the right
+            // time. Someone who opens Relay, connects immediately and closes it
+            // when they are done satisfies that never. Start-up satisfies it by
+            // definition, because nothing is connected yet.
+            await Task.Delay(PendingInstallDelay, token).ConfigureAwait(false);
+            if (await InstallPendingAsync(relaunch: true, token).ConfigureAwait(false)) return;
+
             await Task.Delay(FirstCheckDelay, token).ConfigureAwait(false);
             while (!token.IsCancellationRequested)
             {
@@ -131,6 +165,20 @@ public sealed class UpdateService(
             notify(UpdateNotice.Available, update.Version);
         }
 
+        // Already on disk, from this launch or an earlier one.
+        //
+        // Without this the daily check pulls fifty megabytes again to arrive at
+        // exactly the bytes already sitting in the download directory — every
+        // day, for as long as the install has nowhere to happen. On the
+        // connections Relay is built for, that traffic is the user's phone data.
+        var pending = PendingUpdate.Load(_directory);
+        if (pending is not null && pending.Version == update.Version &&
+            File.Exists(Path.Combine(_directory, pending.Installer)))
+        {
+            await InstallPendingAsync(relaunch: true, token).ConfigureAwait(false);
+            return;
+        }
+
         // Fetch first, connected or not.
         //
         // This used to wait for idle before downloading, and on the networks
@@ -141,8 +189,8 @@ public sealed class UpdateService(
         // api.github.com in under a second and cannot open the asset host at
         // all. Only running the installer has to wait, because only running it
         // costs someone their connection.
-        var (outcome, installer) = await _installer
-            .DownloadAsync(update, token: token).ConfigureAwait(false);
+        var (outcome, installer, sha256) = await _installer
+            .DownloadAsync(update, _directory, token).ConfigureAwait(false);
 
         if (installer is null)
         {
@@ -156,6 +204,16 @@ public sealed class UpdateService(
             // and neither is worth interrupting anyone about.
             return;
         }
+
+        // Write down what is on disk before trying to use it.
+        //
+        // Everything below can fail to install for perfectly ordinary reasons —
+        // a tunnel that stays up all day, the app being closed mid-wait — and
+        // before this line those bytes were simply forgotten, then fetched
+        // again on the next launch and forgotten again. Recording them is what
+        // lets the app closing, or opening, be the thing that finishes the job.
+        PendingUpdate.Save(_directory, new PendingUpdate(
+            update.Version, Path.GetFileName(installer), sha256 ?? string.Empty));
 
         // Now wait for a moment where replacing the app costs nothing —
         // bounded, so a machine that stays connected all day tries again next
@@ -175,9 +233,100 @@ public sealed class UpdateService(
         }
         if (currentState() != Idle) return;
 
-        if (_installer.Run(installer) == UpdateInstaller.Outcome.Started)
+        // Cleared first: if Run fails, the next cycle should find out for itself
+        // rather than a later launch retrying bytes that already would not go.
+        PendingUpdate.Clear(_directory);
+        if (_installer.Run(installer, runInstaller) == UpdateInstaller.Outcome.Started)
         {
             notify(UpdateNotice.Installing, update.Version);
         }
+    }
+
+    /// <summary>
+    /// Runs an update that an earlier session downloaded and verified, if there
+    /// is one and this is a moment where running it costs nothing.
+    ///
+    /// Called at two points, both chosen because they are certain to happen
+    /// rather than likely to: when the app starts, and when the app is closing.
+    /// Between them they cover the case this was written for — a person who
+    /// opens Relay, connects straight away, and quits when they are finished,
+    /// who under the old design never updated at all.
+    ///
+    /// Public so the app can call it on the way out, and so a test can drive it
+    /// without a launch.
+    /// </summary>
+    /// <param name="relaunch">
+    /// Whether Setup should start Relay again afterwards. True at start-up, so
+    /// the app the user just opened comes back. False on the way out: they
+    /// asked it to close.
+    /// </param>
+    /// <returns>True when an installer was actually started.</returns>
+    public async Task<bool> InstallPendingAsync(bool relaunch, CancellationToken token = default)
+    {
+        var pending = PendingUpdate.Load(_directory);
+        if (pending is null) return false;
+
+        var path = Path.Combine(_directory, pending.Installer);
+
+        // Already current. The ordinary way here is the happy one: the update
+        // installed, this build *is* that version, and the note is stale. Also
+        // covers someone who installed a newer build by hand in the meantime.
+        var pendingVersion = UpdateCheck.Parse(pending.Version);
+        var current = UpdateCheck.Parse(currentVersion);
+        if (pendingVersion is null || current is null ||
+            UpdateCheck.Compare(pendingVersion, current) <= 0)
+        {
+            Forget(path);
+            return false;
+        }
+
+        if (!File.Exists(path))
+        {
+            // A temp directory that Windows swept, most likely. Nothing is
+            // wrong; the next check downloads it again.
+            PendingUpdate.Clear(_directory);
+            return false;
+        }
+
+        // Verified once at download time, and again here. In between it has sat
+        // in a directory anything running as this user can write to, across at
+        // least one launch and possibly a reboot, and what it does when run is
+        // replace the program that carries the user's whole connection.
+        string actual;
+        try
+        {
+            actual = await UpdateInstaller.HashFileAsync(path, token).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            return false; // unreadable right now; say nothing, try next launch
+        }
+
+        if (!UpdateInstaller.Matches(actual, pending.Sha256))
+        {
+            // Never quietly retried: these are not the bytes the release
+            // published, whatever the reason.
+            Forget(path);
+            notify(UpdateNotice.Refused, pending.Version);
+            return false;
+        }
+
+        // Start-up is Idle by construction and so is a close that has already
+        // disconnected, but neither is worth assuming — an auto-connect at login
+        // would make the first one false.
+        if (currentState() != Idle) return false;
+
+        PendingUpdate.Clear(_directory);
+        if (_installer.Run(path, runInstaller, relaunch) != UpdateInstaller.Outcome.Started) return false;
+
+        notify(UpdateNotice.Installing, pending.Version);
+        return true;
+    }
+
+    /// <summary>Drops the record and the installer it names. Never throws.</summary>
+    private void Forget(string installerPath)
+    {
+        PendingUpdate.Clear(_directory);
+        try { if (File.Exists(installerPath)) File.Delete(installerPath); } catch (Exception) { }
     }
 }

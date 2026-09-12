@@ -83,7 +83,26 @@ public class UpdateServiceTests
     private static UpdateService Connected(Notices notices) =>
         new("1.0.0", () => "Connected", notices.Add, Check,
             new UpdateInstaller(new HttpClient(new Servable())),
-            idleWait: TimeSpan.Zero);
+            idleWait: TimeSpan.Zero,
+            downloadDirectory: Isolated());
+
+    /// <summary>
+    /// A download directory of this test's own.
+    ///
+    /// These used to share the app's real one. That was untidy and became
+    /// dangerous the moment a verified download started leaving a note behind
+    /// for the next launch to act on: a test run would have written a note
+    /// claiming version 99.0.0, pointing at seventeen bytes reading "pretend
+    /// installer", into the exact directory the installed Relay reads at
+    /// start-up.
+    /// </summary>
+    private static string Isolated()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(), "relay-service-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
 
     [Fact]
     public async Task AnnouncesAnUpdateAsSoonAsItIsFound()
@@ -132,10 +151,17 @@ public class UpdateServiceTests
     [Fact]
     public async Task FetchesTheUpdateEvenWhileTheTunnelIsUp()
     {
-        var target = Path.Combine(Path.GetTempPath(), "Relay-update", "Relay-Setup-x64.exe");
+        // The one test that deliberately uses the app's real download
+        // directory, because where the bytes land is what it is asserting.
+        var directory = PendingUpdate.DefaultDirectory;
+        var target = Path.Combine(directory, "Relay-Setup-x64.exe");
         if (File.Exists(target)) File.Delete(target);
+        PendingUpdate.Clear(directory);
 
-        await Connected(new Notices()).CheckAndMaybeInstallAsync();
+        await new UpdateService(
+            "1.0.0", () => "Connected", new Notices().Add, Check,
+            new UpdateInstaller(new HttpClient(new Servable())),
+            idleWait: TimeSpan.Zero).CheckAndMaybeInstallAsync();
 
         // The reason this matters is not speed. Relay is used where the tunnel
         // is the only working route to GitHub's release CDN, so waiting for
@@ -143,7 +169,11 @@ public class UpdateServiceTests
         // which the bytes cannot be reached — and the update never landed at
         // all. Installing still waits; fetching must not.
         Assert.True(File.Exists(target));
+
+        // Both halves: the note left here would otherwise tell an installed
+        // Relay, on its next launch, that "pretend installer" is version 99.0.0.
         File.Delete(target);
+        PendingUpdate.Clear(directory);
     }
 
     [Fact]
