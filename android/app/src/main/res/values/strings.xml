@@ -18,6 +18,10 @@
     <string name="or_type_code">or enter this code on your PC</string>
     <string name="code_unavailable">No manual code on this network — scan the QR</string>
     <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
+    <string name="traffic_gb">%1$s GB</string>
+    <string name="traffic_mb">%1$s MB</string>
+    <string name="traffic_kb">%1$s KB</string>
+    <string name="traffic_b">%1$s B</string>
     <string name="status_reconnecting">Reconnecting…</string>
 
     <!-- Transport modes -->
@@ -56,12 +60,12 @@
     <string name="error_only_vpn_body">The VPN\'s own tunnel is the only network with an address, and your PC cannot reach the phone through it. Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable — your VPN keeps working, and Relay will share it.</string>
     <string name="error_port_in_use_title">Ports are busy</string>
     <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
-    <string name="error_service_failed_title">Something went wrong</string>
-    <string name="error_service_failed_body">Sharing stopped unexpectedly. Try starting it again.</string>
+    <string name="error_service_failed_title">Android stopped the sharing service</string>
+    <string name="error_service_failed_body">This is usually battery optimisation, or Relay being swiped away from recent apps. In Advanced, allow Relay to ignore battery optimisation, then start sharing again.</string>
     <string name="error_hotspot_lost_title">Hotspot connection lost</string>
     <string name="error_hotspot_lost_body">The hotspot dropped and didn\'t come back. Check it\'s still on, then start sharing again.</string>
-    <string name="error_wg_start_title">Couldn\'t start Full Mode</string>
-    <string name="error_wg_start_body">The WireGuard tunnel couldn\'t start on this phone. Try Fast Mode, or start sharing again.</string>
+    <string name="error_wg_start_title">The tunnel didn\'t start</string>
+    <string name="error_wg_start_body">Relay\'s WireGuard endpoint couldn\'t start on this phone — usually a port another app is holding. Start sharing again; if it keeps failing, close other VPN or proxy apps and try once more.</string>
     <string name="action_retry">Try Again</string>
     <string name="action_dismiss">Dismiss</string>
 

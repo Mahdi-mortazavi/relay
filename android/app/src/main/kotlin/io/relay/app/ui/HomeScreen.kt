@@ -917,9 +917,27 @@ private fun SubtleButton(text: String, enabled: Boolean = true, onClick: () -> U
 private fun formatTraffic(up: Long, down: Long): String =
     stringResource(R.string.traffic_format, formatBytes(up), formatBytes(down))
 
+/**
+ * A byte count in the reader's own language.
+ *
+ * The units used to be Kotlin string literals — `"%.1f GB"` — so "GB", "MB",
+ * "KB" and "B" were the four user-facing words in the app that had no Persian
+ * and no way to get one: they never reached `strings.xml`, so the parity test
+ * could not see them and a translator had nothing to translate. They are
+ * parameterised resources now.
+ *
+ * The *number* is still formatted with [Locale.US] on purpose. It is set beside
+ * an address and a port in a line that is already pinned LTR, and a decimal
+ * separator that changes with the locale would put a Persian comma inside a run
+ * of Latin digits.
+ */
+@Composable
 private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1_000_000_000 -> String.format(Locale.US, "%.1f GB", bytes / 1e9)
-    bytes >= 1_000_000 -> String.format(Locale.US, "%.1f MB", bytes / 1e6)
-    bytes >= 1_000 -> String.format(Locale.US, "%.0f KB", bytes / 1e3)
-    else -> "$bytes B"
+    bytes >= 1_000_000_000 ->
+        stringResource(R.string.traffic_gb, String.format(Locale.US, "%.1f", bytes / 1e9))
+    bytes >= 1_000_000 ->
+        stringResource(R.string.traffic_mb, String.format(Locale.US, "%.1f", bytes / 1e6))
+    bytes >= 1_000 ->
+        stringResource(R.string.traffic_kb, String.format(Locale.US, "%.0f", bytes / 1e3))
+    else -> stringResource(R.string.traffic_b, bytes.toString())
 }
