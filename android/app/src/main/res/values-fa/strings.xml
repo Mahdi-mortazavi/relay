@@ -45,6 +45,12 @@
     <!-- Errors (codes: docs/errors.md) -->
     <string name="error_hotspot_off_title">وای‌فای یا هات‌اسپات نیست</string>
     <string name="error_hotspot_off_body">گوشی را به وای‌فای وصل کنید، هات‌اسپات را روشن کنید، یا کابل USB را بزنید و اشتراک اینترنت با USB را روشن کنید، سپس دوباره تلاش کنید.</string>
+    <string name="error_link_negotiating_title">کابل هنوز در حال اتصال است</string>
+    <string name="error_link_negotiating_body">یک اتصال دارد بالا می‌آید ولی هنوز نشانی نگرفته — اشتراک اینترنت با USB چند ثانیه طول می‌کشد. کمی صبر کنید و «تلاش دوباره» را بزنید.</string>
+    <string name="error_only_mobile_data_title">فقط دیتای همراه در دسترس است</string>
+    <string name="error_only_mobile_data_body">کامپیوترتان از راه دیتای همراه به گوشی نمی‌رسد. گوشی را به وای‌فای وصل کنید، هات‌اسپات را روشن کنید، یا کابل را بزنید و اشتراک اینترنت با USB را روشن کنید.</string>
+    <string name="error_only_vpn_title">فقط وی‌پی‌ان وصل است</string>
+    <string name="error_only_vpn_body">تنها شبکه‌ای که نشانی دارد، خودِ تونل وی‌پی‌ان است و کامپیوترتان از آن راه به گوشی نمی‌رسد. گوشی را به وای‌فای وصل کنید، هات‌اسپات را روشن کنید، یا کابل را بزنید — وی‌پی‌ان‌تان روشن می‌ماند و رله همان را به اشتراک می‌گذارد.</string>
     <string name="error_port_in_use_title">پورت‌ها در اشغال‌اند</string>
     <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
     <string name="error_service_failed_title">مشکلی پیش آمد</string>

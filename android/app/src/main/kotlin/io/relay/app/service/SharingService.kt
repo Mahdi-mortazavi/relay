@@ -242,14 +242,21 @@ class SharingService : Service() {
             // from one whose tethering is off from one that is still getting an
             // address -- three faults, three different things to tell someone,
             // and answering that used to take a message to the user and a day.
+            // Taken once and used twice: the same look at the phone's links
+            // decides both what the log records and which of the four failures
+            // this is. Two looks could disagree, and a message that contradicts
+            // the log underneath it is worse than either alone.
+            val links = LinkSnapshot.take()
+            val code = LinkSnapshot.diagnose(links)
             LocalLog.error(
                 LocalLog.Area.LINK, "No usable Wi-Fi, hotspot or USB link",
+                "code" to code.name,
                 "waited_ms" to LinkWait.totalBoundMs.toString(),
                 "looks" to LinkWait.looks.toString(),
                 "vpn" to VpnStatus.isVpnActive(this).toString(),
-                "links" to LinkSnapshot.summarise(LinkSnapshot.take()),
+                "links" to LinkSnapshot.summarise(links),
             )
-            fail(ErrorCode.HOTSPOT_OFF)
+            fail(code)
             return
         }
 

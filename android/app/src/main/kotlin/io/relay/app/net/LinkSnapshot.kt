@@ -1,5 +1,6 @@
 package io.relay.app.net
 
+import io.relay.app.core.ErrorCode
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
@@ -109,8 +110,45 @@ object LinkSnapshot {
             if (detail.isEmpty()) link.name else "${link.name}($detail)"
         }
 
+    /**
+     * Which failure this is, once [LocalAddress.findAdvertisableIpv4] has come
+     * back with nothing.
+     *
+     * There is only one way to fail and four reasons for it, and they need four
+     * different sentences. "Connect the phone to Wi-Fi, turn on its hotspot, or
+     * plug in a cable" is the honest thing to say when there is genuinely
+     * nothing there. Said to somebody whose cable *is* plugged in and whose
+     * tethering *is* on, it is the app telling them to do the thing they have
+     * just done — which is how a user concludes the app is broken, and they are
+     * not being unreasonable.
+     *
+     * Ordered by how specific the answer is. A phone can easily have mobile data
+     * and a VPN and a cable coming up all at once, and the cable is the one
+     * worth talking about.
+     */
+    fun diagnose(links: List<Link>): ErrorCode = when {
+        // Up, no address yet: it is already working, it just is not finished.
+        // Worth its own message because the action is "wait", and every other
+        // message here asks the person to go and change something.
+        links.any { it.verdict == NO_IPV4 } -> ErrorCode.LINK_NEGOTIATING
+
+        // Something has an address and we refused all of them. Which refusal it
+        // was decides what to say, so ask about the more actionable one first:
+        // turning Wi-Fi on fixes mobile-data-only, and there is nothing to
+        // "turn on" about a VPN.
+        links.any { it.verdict == CELLULAR } -> ErrorCode.ONLY_MOBILE_DATA
+        links.any { it.verdict == VPN } -> ErrorCode.ONLY_VPN
+
+        // Nothing up, nothing addressed, nothing refused.
+        else -> ErrorCode.HOTSPOT_OFF
+    }
+
     /** Advertisable, and of a kind [LocalAddress.linkKind] has no name for. */
     private const val USABLE = "usable"
+
+    /** [LocalAddress.rejection]'s own answers, not copies of them. */
+    private const val CELLULAR = LocalAddress.REJECTED_CELLULAR
+    private const val VPN = LocalAddress.REJECTED_VPN
 
     /**
      * Up, and no site-local IPv4 yet. The one that mattered: a cable whose

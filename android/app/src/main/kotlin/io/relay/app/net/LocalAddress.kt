@@ -130,10 +130,18 @@ object LocalAddress {
      * is the same fact in a form somebody can act on. See [LinkSnapshot].
      */
     internal fun rejection(interfaceName: String): String? = when {
-        CELLULAR_HINTS.any { interfaceName.contains(it) } -> "cellular"
-        VPN_HINTS.any { interfaceName.contains(it) } -> "vpn"
+        CELLULAR_HINTS.any { interfaceName.contains(it) } -> REJECTED_CELLULAR
+        VPN_HINTS.any { interfaceName.contains(it) } -> REJECTED_VPN
         else -> null
     }
+
+    /**
+     * The two answers [rejection] gives, named because [LinkSnapshot] matches on
+     * them to decide which error to show. Written out in two places once, which
+     * is once too many.
+     */
+    internal const val REJECTED_CELLULAR = "cellular"
+    internal const val REJECTED_VPN = "vpn"
 
     /** Substrings of the carrier's own links. 464XLAT names one `v4-rmnet_data0`. */
     private val CELLULAR_HINTS = listOf("rmnet", "ccmni", "pdp", "seth", "wwan", "qmi", "ppp")
