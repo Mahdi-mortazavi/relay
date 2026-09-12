@@ -14,7 +14,7 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 
 | Code | Severity | Condition | Next action shown to user |
 |---|---|---|---|
-| `HOTSPOT_OFF` | Error | No usable IPv4 interface when starting. A shared Wi-Fi/LAN and a USB tethering link both count, not only the phone's hotspot. Mobile-data and VPN interfaces don't — the client cannot route to them | Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable and turn on USB tethering, then try again |
+| `HOTSPOT_OFF` | Error | No usable IPv4 interface **after waiting ~8 s for one to appear** (`LinkWait`). A shared Wi-Fi/LAN and a USB tethering link both count, not only the phone's hotspot. Mobile-data and VPN interfaces don't — the client cannot route to them. Before 2.8.2 this failed on the first look, so turning USB tethering on and opening Relay raced the interface coming up | Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable and turn on USB tethering, then try again |
 | `HOTSPOT_LOST` | Transient → Error | Hotspot interface dropped and did not return within the reconnect bound | Check the hotspot is still on, then start sharing again |
 | `PORT_IN_USE` | Error | Every candidate SOCKS port is bound by another app | Close the other app using those ports, then try again |
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly | Start sharing again |

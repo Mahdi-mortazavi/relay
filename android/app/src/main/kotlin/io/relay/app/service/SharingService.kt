@@ -20,6 +20,7 @@ import io.relay.app.core.ShouldRetarget
 import io.relay.app.core.UpdateCheck
 import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
+import io.relay.app.core.LinkWait
 import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
 import io.relay.app.core.WarningCode
@@ -212,7 +213,7 @@ class SharingService : Service() {
         )
     }
 
-    private fun startSharing() {
+    private suspend fun startSharing() {
         if (!ConnectionRepository.dispatch("start") { ConnectionState.Preparing }) return
         LocalLog.add("Starting sharing")
         ConnectionRepository.clearWarnings()
@@ -223,10 +224,13 @@ class SharingService : Service() {
             WarningCode.NO_VPN_ACTIVE, !VpnStatus.isVpnActive(this),
         )
 
-        // Works on the phone's hotspot OR a shared Wi-Fi/LAN the laptop is also on.
-        val host = LocalAddress.findAdvertisableIpv4()
+        // Works on the phone's hotspot, a shared Wi-Fi/LAN, or a USB cable.
+        val host = awaitAdvertisableIpv4()
         if (host == null) {
-            LocalLog.add("No usable Wi-Fi/hotspot interface found")
+            LocalLog.add(
+                "No usable Wi-Fi, hotspot or USB link after ${LinkWait.totalBoundMs} ms " +
+                    "(${LinkWait.looks} looks)"
+            )
             fail(ErrorCode.HOTSPOT_OFF)
             return
         }
@@ -302,6 +306,33 @@ class SharingService : Service() {
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
         )
+    }
+
+    /**
+     * Looks for an advertisable address, giving a link that is still coming up
+     * a few seconds to appear. See [LinkWait] for why, and for the report that
+     * showed what failing instantly felt like.
+     *
+     * The first look is immediate, so a phone already on Wi-Fi pays nothing.
+     * Only a phone that would previously have failed waits at all — and waiting
+     * is what it should have been doing.
+     */
+    private suspend fun awaitAdvertisableIpv4(): String? {
+        var waited = 0L
+        for (delayMs in LinkWait.lookDelaysMs) {
+            if (delayMs > 0) {
+                delay(delayMs)
+                waited += delayMs
+            }
+            val host = LocalAddress.findAdvertisableIpv4()
+            if (host != null) {
+                // Only worth a line when waiting actually did something. On the
+                // common path this says nothing at all.
+                if (waited > 0) LocalLog.add("A usable link appeared after $waited ms")
+                return host
+            }
+        }
+        return null
     }
 
     /**
