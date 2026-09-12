@@ -9,6 +9,46 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.4] — 2026-09-13
+
+### Added — each side now says what only it can see
+
+Seven issues say the same thing in different words: *it will not connect and I
+cannot tell why*. The cause is structural — a failure is spread across two
+devices, neither can see the other's half, and the person is left joining up the
+fragments. Both halves of that gap are addressed here.
+
+**The phone tells the PC, on the one channel that survives.** When a phone's own
+VPN captures Relay its unicast answers are routed into the tunnel and never
+arrive, while its link-scoped broadcast bypasses the tunnel and does. The beacon
+now carries an optional `blocked: "replies"` when the phone knows a pairing
+cannot complete — either the lockdown setting reads on, which drops LAN replies
+by definition, or a PC took a configuration and never handshaked.
+
+This reaches the case that was otherwise unreachable: a capture severe enough to
+stop the TCP handshake means `accept()` never returns, so the phone shows no
+prompt and no warning at all. On the PC the phone stays listed and clickable —
+it is genuinely there — but clicking it explains at once instead of spending
+twenty seconds reaching a message whose advice ("scan the QR") is wrong here.
+
+The wire value is deliberately `replies` and **not** `lockdown` or `vpn`: the
+beacon is unauthenticated and read by everything on the link, and naming the
+cause would tell a whole café that this phone's owner runs a VPN. The
+explanation lives on the PC, shown to one person. An unreadable setting sets
+nothing at all.
+
+**The PC says which empty its empty list is.** Discovery could fail to start —
+port 47654 taken, or a policy forbidding the bind — and that was a log line and
+nothing else, on the reasoning that the QR and the eight-character code both
+still work. True about the severity, wrong about the silence: a fallback only
+helps somebody who knows to reach for it, and what they saw was an empty list
+telling them to start sharing on a phone that already was. It now distinguishes
+three cases: could not listen, not on a network at all, or listening and nothing
+has answered yet.
+
+**Not yet on hardware.** The phone half needs a real capture to observe end to
+end, the PC half needs port 47654 held by another program. CI covers the units.
+
 ## [2.8.3] — 2026-09-13
 
 ### Added — Relay names the setting that is blocking it
