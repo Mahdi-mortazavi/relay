@@ -64,10 +64,10 @@ enum class WarningCode {
     BATTERY_UNRESTRICTED_DENIED,
 
     /**
-     * The phone's own VPN is routing Relay's replies into itself, so a PC can
-     * reach this phone but never hear back. See [io.relay.app.net.VpnCapture].
+     * A PC took Relay's settings and the tunnel never handshaked, so replies
+     * are not leaving this phone. See [io.relay.app.core.HandshakeWatch].
      */
-    VPN_CAPTURES_RELAY,
+    PC_GOT_NO_REPLY,
 }
 
 /**

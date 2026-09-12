@@ -337,7 +337,15 @@ the whole installer buffered in memory under one deadline).
 
 Closing it needs a route on the laptop that can carry fifty megabytes, which on
 that network means going through Relay itself. That attempt was blocked by a
-third thing: the phone had another VPN holding `tun0`, so Relay's replies would
-have left by the wrong interface. Relay detected exactly that and said so —
-`VPN_CAPTURES_RELAY`, correct, and still unfixable from inside the app. So the
-last leg of the Windows update waits on a phone whose VPN slot is free.
+third thing: the phone had another VPN holding `tun0`, and Relay said its
+replies would leave by the wrong interface.
+
+**That reading has since been withdrawn.** A diagnostic log from a 2.8.1 phone
+shows the same probe flipping its verdict four times in one session, announcing
+that a reply "would leave by the VPN", and sixty-four seconds later pairing a PC
+and carrying traffic. The probe is a prediction, not an observation, and it was
+wrong here too. The banner it drove is gone; what took its place watches for a
+PC that took the settings and never handshaked, which is a fact — see
+[`vpn-compat.md`](vpn-compat.md). So the last leg of the Windows update is not
+waiting on a free VPN slot; it is waiting on a laptop that can pull fifty
+megabytes from GitHub.
