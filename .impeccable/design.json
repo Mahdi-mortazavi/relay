@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-12T00:00:00Z",
+  "title": "Design System: Relay",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Relay Teal",
+        "canonical": "#4ADFBF",
+        "note": "Resolved 2.8.5. Was #45D6B8 in /shared and Compose while Windows, the README badges and every release asset shipped #4ADFBF, plus a third hardcoded copy in MainWindow.ThemeBrush. Settled on the value users had actually seen; /shared changed first, both clients follow, the private fallback table deleted.",
+        "tonalRamp": ["#08241F", "#0D3D34", "#135949", "#197762", "#22967C", "#2FB798", "#4ADFBF", "#BAF2E7"]
+      },
+      "accent-brand": {
+        "role": "primary",
+        "displayName": "Signal Teal",
+        "canonical": "#4ADFBF",
+        "note": "Now identical to accent. The name survives because the brand assets refer to it, not because it is a second colour.",
+        "tonalRamp": ["#08241F", "#0D3D34", "#135949", "#197762", "#22967C", "#2FB798", "#4ADFBF", "#BAF2E7"]
+      },
+      "error": {
+        "role": "tertiary",
+        "displayName": "Muted Coral",
+        "canonical": "#E5645F",
+        "tonalRamp": ["#2C0E0D", "#4A1917", "#6B2622", "#8D342F", "#B0443E", "#CE544E", "#E5645F", "#F6BFBC"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Amber Caution",
+        "canonical": "#E0A458",
+        "tonalRamp": ["#2A1B08", "#472D0F", "#664117", "#875620", "#A96D2B", "#C78A3F", "#E0A458", "#F4DCBB"]
+      },
+      "bg-void": {
+        "role": "neutral",
+        "displayName": "Void",
+        "canonical": "#0A0C10",
+        "tonalRamp": ["#0A0C10", "#12151C", "#1C202A", "#2A2F3B", "#3E4452", "#5C6473", "#8B93A1", "#D6DAE1"]
+      },
+      "light-accent": {
+        "role": "primary",
+        "displayName": "Deep Teal (light theme)",
+        "canonical": "#0F7A63",
+        "note": "Darkened from #17A98C so white labels reach ~5.3:1 instead of ~3.0:1.",
+        "tonalRamp": ["#04231C", "#063A2F", "#085042", "#0B6653", "#0F7A63", "#19A184", "#37C7A7", "#B2EBDD"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The one number or headline a screen is about." },
+      "pairing-code": { "displayName": "Pairing Code", "purpose": "The two digits the PC needs; tabular numerals, widely tracked so they cannot be misread." },
+      "win-code": { "displayName": "Code (Windows)", "purpose": "The manual code field, Cascadia Mono at 25px with +150 character spacing." },
+      "win-caption": { "displayName": "Caption (Windows)", "purpose": "Status chip and column headers; tracking goes positive so it does not clot." }
+    },
+    "persianTypeface": {
+      "incumbent": "None bundled. shared/design-tokens.json declares typography.family.persian = 'Vazirmatn', but no font file exists in either app and no code path loads it; Persian renders in the platform system face today.",
+      "decidedTarget": "Estedad (aminabedi68/Estedad, OFL-1.1, variable, Arabic + Latin) - DECIDED, NOT YET IMPLEMENTED."
+    },
+    "shadows": [],
+    "elevation": [
+      { "name": "glass-rest", "value": "rgba(255,255,255,0.06) fill + 1px vertical-gradient stroke (0.22 to 0.12)", "purpose": "The material at rest. No shadow exists in this system." },
+      { "name": "glass-raised", "value": "rgba(255,255,255,0.09) fill + same stroke", "purpose": "The surface that is currently the subject." },
+      { "name": "glass-solid-fallback", "value": "#12161D", "purpose": "Windows: the opaque stand-in when transparency effects are off. Darker than the scrim so foreground pairs keep contrast." }
+    ],
+    "motion": [
+      { "name": "spring-standard", "value": "response 0.42, damping ratio 1.0", "purpose": "Windows workhorse spring (Services/Motion.cs)." },
+      { "name": "spring-snappy", "value": "response 0.25, damping ratio 1.0", "purpose": "Direct-manipulation feedback; button dips to scale 0.97 on pointer-down." },
+      { "name": "spring-gentle", "value": "response 0.55, damping ratio 1.0", "purpose": "Larger surfaces that feel frantic at standard rate." },
+      { "name": "duration-instant", "value": "100ms", "purpose": "Compose token (shared/design-tokens.json)." },
+      { "name": "duration-fast", "value": "180ms", "purpose": "Compose token." },
+      { "name": "duration-base", "value": "260ms", "purpose": "Compose token." },
+      { "name": "duration-gentle", "value": "420ms", "purpose": "Compose token." },
+      { "name": "ease-standard", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Default easing." },
+      { "name": "ease-decelerate", "value": "cubic-bezier(0.0, 0.0, 0.2, 1)", "purpose": "Entrances." },
+      { "name": "spring-compose-default", "value": "stiffness 380, damping 32", "purpose": "Compose spring." },
+      { "name": "spring-compose-settle", "value": "stiffness 220, damping 26", "purpose": "Compose settle spring." },
+      { "name": "reduced-motion", "value": "SystemPreferences.AnimationsEnabled == false becomes an instant state change", "purpose": "Reduced motion is a code path, not a tuning." }
+    ],
+    "blur": [
+      { "name": "subtle", "value": "12px" },
+      { "name": "panel", "value": "24px" },
+      { "name": "overlay", "value": "40px" }
+    ],
+    "breakpoints": [
+      { "name": "popover-width", "value": "380dip" },
+      { "name": "popover-min-height", "value": "340dip" },
+      { "name": "popover-max-height", "value": "640dip (clamped to the display work area)" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one thing to do on this screen. Exactly one per screen.",
+      "html": "<button class=\"ds-btn-primary\">Scan QR</button>",
+      "css": ".ds-btn-primary { background: #4ADFBF; color: #05201B; border: none; border-radius: 24px; height: 46px; width: 100%; font-family: 'Segoe UI Variable Text', system-ui, sans-serif; font-size: 14.5px; font-weight: 600; transition: filter 0.15s, transform 0.12s; } .ds-btn-primary:hover { filter: brightness(1.08); } .ds-btn-primary:active { transform: scale(0.97); filter: brightness(0.92); } .ds-btn-primary:focus-visible { outline: 2px solid rgba(74,223,191,0.8); outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The way out, or the lesser of two paths. Visibly recessive.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.96); border: 1px solid rgba(255,255,255,0.18); border-radius: 24px; height: 46px; width: 100%; font-family: 'Segoe UI Variable Text', system-ui, sans-serif; font-size: 14.5px; font-weight: 400; transition: background 0.15s, transform 0.12s; } .ds-btn-secondary:hover { background: rgba(255,255,255,0.2); } .ds-btn-secondary:active { transform: scale(0.97); } .ds-btn-secondary:focus-visible { outline: 2px solid rgba(74,223,191,0.8); outline-offset: 3px; }"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Text-weight action with no fill, so it cannot compete with the other two roles.",
+      "html": "<button class=\"ds-btn-quiet\">Enter code manually</button>",
+      "css": ".ds-btn-quiet { background: transparent; color: rgba(255,255,255,0.72); border: none; border-radius: 24px; height: 44px; font-family: 'Segoe UI Variable Text', system-ui, sans-serif; font-size: 13.5px; font-weight: 400; transition: color 0.15s; } .ds-btn-quiet:hover { color: rgba(255,255,255,0.96); } .ds-btn-quiet:focus-visible { outline: 2px solid rgba(74,223,191,0.8); outline-offset: 3px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Dot plus word. Colour reinforces the label; it never carries state alone.",
+      "html": "<span class=\"ds-chip\"><span class=\"ds-chip-dot\"></span>Connected</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.05); border-radius: 24px; padding: 5px 12px 5px 10px; color: rgba(255,255,255,0.36); font-family: 'Segoe UI Variable Text', system-ui, sans-serif; font-size: 11.5px; letter-spacing: 0.012em; } .ds-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ADFBF; }"
+    },
+    {
+      "name": "Code Field",
+      "kind": "input",
+      "refersTo": "code-field",
+      "description": "Two characters wide because the phone shows two digits. Validates on every keystroke; a valid code connects with no click.",
+      "html": "<input class=\"ds-input-code\" placeholder=\"00\" maxlength=\"2\" inputmode=\"numeric\">",
+      "css": ".ds-input-code { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.96); border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; height: 64px; width: 100%; text-align: center; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 25px; letter-spacing: 0.15em; transition: border-color 0.15s; } .ds-input-code::placeholder { color: rgba(255,255,255,0.36); } .ds-input-code:focus { outline: none; border-color: rgba(74,223,191,0.8); }"
+    },
+    {
+      "name": "Glass Panel",
+      "kind": "card",
+      "refersTo": "glass-panel",
+      "description": "The material itself: translucent fill, light-from-above gradient, specular top edge. No shadow.",
+      "html": "<div class=\"ds-glass\">Connected - 4.2 GB up</div>",
+      "css": ".ds-glass { position: relative; border-radius: 24px; padding: 16px; color: rgba(255,255,255,0.96); background: linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.06)); font-family: system-ui, sans-serif; font-size: 15px; line-height: 22px; } .ds-glass::before { content: ''; position: absolute; inset: 0; border-radius: 24px; padding: 1px; background: linear-gradient(to bottom, rgba(255,255,255,0.22), rgba(255,255,255,0.12) 40%, rgba(255,255,255,0.12)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }"
+    },
+    {
+      "name": "Caption Button",
+      "kind": "button",
+      "refersTo": "button-caption",
+      "description": "Minimise and close. The deliberate exception to the 44px target rule - pointer-only affordances on a pointer-only surface.",
+      "html": "<button class=\"ds-btn-caption\" aria-label=\"Close\">X</button>",
+      "css": ".ds-btn-caption { background: transparent; border: none; border-radius: 7px; width: 32px; height: 28px; padding: 0; color: rgba(255,255,255,0.54); font-size: 11px; transition: background 0.15s, color 0.15s; } .ds-btn-caption:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.96); } .ds-btn-caption:focus-visible { outline: 2px solid rgba(74,223,191,0.8); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Liquid Glass",
+    "overview": "Relay's interface is a single translucent pane held over a deep, near-black field, with exactly one colour alive on it. The material does the work that shadows usually do: depth is communicated by translucency, a light-from-above gradient fill and a specular top edge, never by a hard drop shadow. The personality is deferent and quiet - state is the content, and everything else recedes behind it. The two implementations speak their own platform's dialect of the same material: Android carries a full dark and light glass set; the Windows tray popover is deliberately dark-only, because it floats over an arbitrary wallpaper and must read as one consistent object.",
+    "keyCharacteristics": [
+      "Dark-first, near-monochrome; colour carried almost entirely by alpha over white or black.",
+      "One teal accent, reserved for the single most important interactive thing on screen.",
+      "Depth from translucency and a 1px gradient stroke; no drop shadows anywhere.",
+      "4pt spacing grid; concentric radii (child radius = parent radius minus padding).",
+      "Spring motion described by response and damping ratio, never hand-picked durations.",
+      "Contrast always beats the glass effect - several token alphas exist at their current values because the prettier value failed AA."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "One accent per screen. If two elements on a screen are accented, one of them is wrong.", "section": "colors" },
+      { "name": "The No Nested Glass Rule", "body": "There is exactly one glass layer. Nothing drawn on it is translucent over anything else.", "section": "colors" },
+      { "name": "The Contrast-Wins Rule", "body": "Legibility beats translucency, every time. Dark tertiary text sits at 60% alpha, light tertiary at 62%, and the light accent is #0F7A63 - these are the AA floor made visible, and as of 2.8.5 they are the values in /shared rather than a local Android correction the contract disagreed with. Do not restore the prettier values.", "section": "colors" },
+      { "name": "The Redundant-Channel Rule", "body": "Colour is never the only carrier of state. The status chip pairs its dot with the word.", "section": "colors" },
+      { "name": "The Optical-Size Rule", "body": "Large text uses the Display cut and small text the Text cut; tracking goes negative as size grows and positive as it shrinks.", "section": "typography" },
+      { "name": "The Two-Digit Rule", "body": "The manual code field is two characters wide because the phone shows two digits.", "section": "typography" },
+      { "name": "The Flat-Material Rule", "body": "No box-shadow, ever. If something needs to feel lifted, raise its fill alpha and let the stroke highlight do the rest.", "section": "elevation" },
+      { "name": "The One Glass Rule", "body": "One translucent layer per app. Everything on it is opaque enough to read over an arbitrary backdrop.", "section": "elevation" },
+      { "name": "The Reduced-Motion Rule", "body": "The system animation-effects switch is a code path, not a preference to read and ignore: with it off, every animation becomes an instant state change.", "section": "elevation" },
+      { "name": "The Concentricity Rule", "body": "A child's radius is the parent's radius minus the padding between them, so curves stay parallel instead of drifting.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do change shared/design-tokens.json first. Both apps map it to platform constructs and both are asserted against /shared.",
+      "Do reference tokens, never literals.",
+      "Do give exactly one element per screen the accent.",
+      "Do pair colour with a word or shape whenever it carries state.",
+      "Do keep the concentricity relationship when nesting: child radius = parent radius minus padding.",
+      "Do describe motion as response + damping ratio, and start every animation from the property's current value.",
+      "Do honour reduced motion as a branch, not a tuning.",
+      "Do keep every interactive target at 44px or larger, with 46px as the button height.",
+      "Do provide a solid fallback for any glass surface, darker than its scrim.",
+      "Do design RTL as a mirror, and pin flow direction on anything that is content rather than UI (camera frames)."
+    ],
+    "donts": [
+      "Don't add a box-shadow. Elevation is translucency in this system.",
+      "Don't nest glass on glass. There is one translucent layer per app.",
+      "Don't accent two things on one screen.",
+      "Don't lower the tertiary-text alphas or lighten the light-mode accent back toward their prettier originals - those exact values are what clears 4.5:1.",
+      "Don't let translucency win an argument against legibility.",
+      "Don't hand-pick an animation duration.",
+      "Don't introduce a light theme for the Windows popover; it is dark-only on purpose.",
+      "Don't describe Estedad as the Persian face in use. It is the decided target; the system face is what renders today.",
+      "Don't add a fourth button role, or give two roles the same visual weight.",
+      "Don't introduce any surface that implies an account, a paid tier, or an upgrade - commercialization is an open decision and the product is free and open source today."
+    ]
+  }
+}

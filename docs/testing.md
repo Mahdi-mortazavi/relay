@@ -109,6 +109,7 @@ after uninstall.
 | Windows sleep/resume | Not available on a hosted runner | **BLOCKED — infrastructure** |
 | Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |
 | A native arm64 device | GitHub's arm64 runners expose no `/dev/kvm`; arm64 coverage is binary translation on x86_64 | **BLOCKED — infrastructure** |
+| **That the accent change actually renders** (`#45D6B8` → `#4ADFBF`, 2.8.5) | CI builds and tests both clients but nobody looks at the result. The change is one hex value in three places and the Windows client was already shipping the new one, so the risk is low — but "the tests pass" is not "somebody saw it" | **UNVERIFIED — needs a screen.** One glance at the Android home screen in both themes settles it |
 | **That `Settings.Secure.always_on_vpn_lockdown` is actually readable from Relay's own UID** (`VpnLockdown`, shipped 2.8.3) | The `@Readable` annotation is confirmed in AOSP source for API 31/33/35/36, and an emulator image is not an OEM ROM — which is exactly where a `@hide` key's behaviour differs. A JVM test cannot reach a `ContentResolver`, and there is no Robolectric here | **UNVERIFIED — needs a phone.** The four checks are below |
 
 #### The four checks that would settle `VpnLockdown` (2.8.3)
