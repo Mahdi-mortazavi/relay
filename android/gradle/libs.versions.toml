@@ -1,9 +1,9 @@
 [versions]
 agp = "9.4.0"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 coreKtx = "1.19.0"
 activityCompose = "1.13.0"
-composeBom = "2026.08.00"
+composeBom = "2026.09.00"
 lifecycle = "2.11.0"
 junit = "4.13.2"
 androidxTest = "1.7.0"
