@@ -55,6 +55,21 @@ public class UpdateServiceTests
         }
     }
 
+    /// <summary>
+    /// A transport that fails the way an unreachable one does.
+    ///
+    /// Synchronously, and from the handler, because that is where the real
+    /// failures come from — DNS, a refused connection, a body that is not the
+    /// JSON it claims to be. What the failure *is* does not matter here; that
+    /// it is distinguishable from "nothing new" is the whole point.
+    /// </summary>
+    private sealed class Offline : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken token) =>
+            throw new HttpRequestException("no such host is known");
+    }
+
     /// <summary>A release far newer than any build could be.</summary>
     private const string NewerRelease = """
         {"tag_name":"v99.0.0","draft":false,"prerelease":false,
@@ -186,9 +201,62 @@ public class UpdateServiceTests
             () => new UpdateCheck("1.0.0", new HttpClient(new Canned(current))),
             idleWait: TimeSpan.Zero);
 
-        await service.CheckAndMaybeInstallAsync();
+        var cycle = await service.CheckAndMaybeInstallAsync();
 
         // Silence is the whole contract when there is nothing to say.
         Assert.Empty(notices.Kinds);
+
+        // And this is the half that keeps the failure test below honest: a
+        // check that completed says so, whatever it found.
+        Assert.Equal(UpdateCycle.Checked, cycle);
+    }
+
+    [Fact]
+    public async Task AFailedCheckIsNeitherSilentNorMistakenForNothingToDo()
+    {
+        var notices = new Notices();
+        var log = new List<string>();
+
+        var cycle = await new UpdateService(
+            "1.0.0", () => "Idle", notices.Add,
+            () => new UpdateCheck("1.0.0", new HttpClient(new Offline())),
+            idleWait: TimeSpan.Zero,
+            downloadDirectory: Isolated(),
+            log: log.Add).CheckAndMaybeInstallAsync();
+
+        // "I could not find out" used to arrive here as "there is nothing
+        // new" — the check swallowed its own exception and returned null, the
+        // same null a current build produces. The loop then waited a full day
+        // on a tray app that stays open, so one transient failure cost that
+        // launch its update entirely.
+        Assert.Equal(UpdateCycle.Failed, cycle);
+
+        // The rule that does not move: a failed check still tells the person
+        // nothing and interrupts nothing.
+        Assert.Empty(notices.Kinds);
+
+        // But it is no longer invisible. This was observed on hardware with
+        // 2.8.5 installed and 2.8.6 published, and the cause could not be
+        // established afterwards because there was nothing written down at all.
+        Assert.Contains(log, line => line.StartsWith("Update check failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AFailedCheckIsTriedAgainInMinutesNotTomorrow()
+    {
+        // A day is the cadence for "nothing new", not for "no answer".
+        Assert.Equal(UpdateService.Interval, UpdateService.NextDelay(0));
+        Assert.True(
+            UpdateService.NextDelay(1) <= TimeSpan.FromMinutes(10),
+            $"a failed check waits {UpdateService.NextDelay(1)} before trying again");
+
+        // It still backs off: a laptop that is offline all week must not ask
+        // every five minutes for a week.
+        Assert.True(UpdateService.NextDelay(5) > UpdateService.NextDelay(1));
+
+        // And it stops at the ordinary interval instead of overflowing. The
+        // counter climbs for as long as the app is open, which on this app is
+        // measured in weeks.
+        Assert.Equal(UpdateService.Interval, UpdateService.NextDelay(int.MaxValue));
     }
 }

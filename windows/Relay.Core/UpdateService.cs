@@ -14,6 +14,24 @@ public enum UpdateNotice
 }
 
 /// <summary>
+/// What one cycle managed to do, so the loop knows when to come back.
+///
+/// The distinction did not exist, and that was the bug: a check that threw and
+/// a check that found nothing both returned from
+/// <see cref="UpdateService.CheckAndMaybeInstallAsync"/> the same way, so both
+/// were followed by a full <see cref="UpdateService.Interval"/>. On a tray app
+/// that stays open, one transient failure meant that launch never updated.
+/// </summary>
+public enum UpdateCycle
+{
+    /// <summary>The check completed. Either nothing was due, or it was done.</summary>
+    Checked,
+
+    /// <summary>The check did not complete, so nothing is known either way.</summary>
+    Failed,
+}
+
+/// <summary>
 /// Keeps Relay current on its own.
 ///
 /// <see cref="UpdateCheck"/> and <see cref="UpdateInstaller"/> existed and were
@@ -41,7 +59,8 @@ public sealed class UpdateService(
     UpdateInstaller? installer = null,
     TimeSpan? idleWait = null,
     string? downloadDirectory = null,
-    Action<string>? runInstaller = null)
+    Action<string>? runInstaller = null,
+    Action<string>? log = null)
 {
     /// <summary>
     /// Long enough that launching Relay is not competing with a download while
@@ -72,6 +91,40 @@ public sealed class UpdateService(
     /// startup would never fire for the people most likely to fall behind.
     /// </summary>
     public static readonly TimeSpan Interval = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// How soon to look again after a check that did not complete.
+    ///
+    /// A day is the right cadence for "nothing new". It is the wrong one for "I
+    /// could not tell", and until <see cref="UpdateCycle"/> existed the loop
+    /// could not tell the two apart. Seen on a laptop with 2.8.5 installed and
+    /// 2.8.6 published: the check at launch failed, left nothing behind, and
+    /// the next one was twenty-four hours away — so that launch was simply
+    /// never going to update. A relaunch seven minutes later downloaded all
+    /// 48 MB and installed it in thirty-seven seconds, over the same network
+    /// that answered api.github.com in under a second either side.
+    /// </summary>
+    public static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long to wait after a cycle, given how many checks in a row have now
+    /// failed. Doubles from <see cref="RetryDelay"/> and stops at
+    /// <see cref="Interval"/>: a transient failure is retried in minutes, while
+    /// a laptop that is offline for a week is not asking every five minutes for
+    /// a week.
+    ///
+    /// Public and pure so the schedule can be asserted without waiting it out.
+    /// </summary>
+    public static TimeSpan NextDelay(int consecutiveFailures)
+    {
+        if (consecutiveFailures <= 0) return Interval;
+        // Capped before it is doubled, not after. The counter climbs for as
+        // long as the app is open — weeks, on a tray app — and five minutes
+        // doubled enough times stops fitting in a TimeSpan at all, which
+        // throws rather than saturating.
+        var wait = RetryDelay * Math.Pow(2, Math.Min(consecutiveFailures - 1, 10));
+        return wait < Interval ? wait : Interval;
+    }
 
     /// <summary>How often to look for an idle moment once an update is waiting.</summary>
     public static readonly TimeSpan IdlePoll = TimeSpan.FromMinutes(1);
@@ -127,10 +180,12 @@ public sealed class UpdateService(
             if (await InstallPendingAsync(relaunch: true, token).ConfigureAwait(false)) return;
 
             await Task.Delay(FirstCheckDelay, token).ConfigureAwait(false);
+            var failures = 0;
             while (!token.IsCancellationRequested)
             {
-                await CheckAndMaybeInstallAsync(token).ConfigureAwait(false);
-                await Task.Delay(Interval, token).ConfigureAwait(false);
+                var cycle = await CheckAndMaybeInstallAsync(token).ConfigureAwait(false);
+                failures = cycle == UpdateCycle.Failed ? failures + 1 : 0;
+                await Task.Delay(NextDelay(failures), token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -144,7 +199,19 @@ public sealed class UpdateService(
     }
 
     /// <summary>One cycle. Public so a test can drive it without waiting a day.</summary>
-    public async Task CheckAndMaybeInstallAsync(CancellationToken token = default)
+    /// <returns>
+    /// Whether the check itself completed. <see cref="UpdateCycle.Failed"/> is
+    /// not "no update", it is "no answer", and the loop comes back in minutes
+    /// rather than tomorrow.
+    ///
+    /// A download that fails is deliberately <em>not</em> counted as a failed
+    /// cycle. There is nothing cheap to retry: a partial download is discarded
+    /// rather than resumed, so trying again means fifty megabytes again, and on
+    /// the connections Relay is built for those are the user's phone data. The
+    /// check is a single small request, and it is the one that was observed
+    /// silently costing a launch its update.
+    /// </returns>
+    public async Task<UpdateCycle> CheckAndMaybeInstallAsync(CancellationToken token = default)
     {
         var check = checkFactory?.Invoke() ?? new UpdateCheck(currentVersion);
 
@@ -153,11 +220,21 @@ public sealed class UpdateService(
         {
             update = await check.CheckAsync(token).ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return; // offline is not news
+            // Exiting mid-check is not a failure, and logging it on every close
+            // would put a line nobody should read in front of everyone.
+            if (token.IsCancellationRequested) throw;
+
+            // Offline is still not news to the person: nothing is shown and
+            // nothing is interrupted. It is now written down, which it was not
+            // — the one time this was caught happening on real hardware there
+            // was no record of it at all, and no way to tell afterwards which
+            // of the two silent paths the app had taken.
+            log?.Invoke($"Update check failed: {ex.GetType().Name}: {ex.Message}");
+            return UpdateCycle.Failed;
         }
-        if (update is null) return;
+        if (update is null) return UpdateCycle.Checked;
 
         if (_announced != update.Version)
         {
@@ -176,7 +253,7 @@ public sealed class UpdateService(
             File.Exists(Path.Combine(_directory, pending.Installer)))
         {
             await InstallPendingAsync(relaunch: true, token).ConfigureAwait(false);
-            return;
+            return UpdateCycle.Checked;
         }
 
         // Fetch first, connected or not.
@@ -201,8 +278,11 @@ public sealed class UpdateService(
                 notify(UpdateNotice.Refused, update.Version);
             }
             // Unverifiable and Unavailable both mean "try again next cycle",
-            // and neither is worth interrupting anyone about.
-            return;
+            // and neither is worth interrupting anyone about. Written down
+            // now, though: it is the other way a cycle can quietly achieve
+            // nothing, and it was just as invisible.
+            log?.Invoke($"Update {update.Version} not fetched: {outcome}");
+            return UpdateCycle.Checked;
         }
 
         // Write down what is on disk before trying to use it.
@@ -228,10 +308,10 @@ public sealed class UpdateService(
             }
             catch (OperationCanceledException)
             {
-                return;
+                return UpdateCycle.Checked;
             }
         }
-        if (currentState() != Idle) return;
+        if (currentState() != Idle) return UpdateCycle.Checked;
 
         // Cleared first: if Run fails, the next cycle should find out for itself
         // rather than a later launch retrying bytes that already would not go.
@@ -240,6 +320,7 @@ public sealed class UpdateService(
         {
             notify(UpdateNotice.Installing, update.Version);
         }
+        return UpdateCycle.Checked;
     }
 
     /// <summary>

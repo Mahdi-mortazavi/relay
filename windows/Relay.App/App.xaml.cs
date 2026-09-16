@@ -254,7 +254,13 @@ public partial class App : Application
                 {
                     _window?.DispatcherQueue.TryEnqueue(() => _ = ExitFromTrayAsync());
                 }
-            });
+            },
+            // Separate from the notice above, and deliberately so: this one
+            // never shows anything. A check that fails is not worth a toast,
+            // but until it went here it left no trace whatsoever — a launch
+            // that quietly did not update looked exactly like one that had
+            // nothing to update to, in the log and everywhere else.
+            log: LocalLog.Add);
         _updates.Start();
 
         var previousState = AppController.Instance.StateName;
