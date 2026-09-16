@@ -45,6 +45,10 @@
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
+    <string name="advanced_upstream">Send the PC\'s traffic through a proxy</string>
+    <string name="advanced_upstream_hint">Leave empty to use this phone\'s own connection. If a VPN app on this phone offers a local SOCKS5 port, putting it here is what lets the PC use that VPN.</string>
+    <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
+    <string name="advanced_upstream_invalid">That needs to be a port, or an address and a port — like 127.0.0.1:10808 or :10808.</string>
     <string name="advanced_logs">Activity log (stays on this device)</string>
     <string name="advanced_logs_clear">Clear</string>
     <string name="advanced_logs_empty">No activity yet</string>

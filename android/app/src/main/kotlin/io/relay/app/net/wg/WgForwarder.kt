@@ -9,9 +9,20 @@ package io.relay.app.net.wg
 interface WgForwarder {
     /**
      * Brings up the endpoint from a server [config] (see [io.relay.app.core.WgConfig]).
+     *
+     * @param upstreamProxy a SOCKS5 `host:port` to forward the PC's traffic
+     *   through — in practice a VPN client's own local port — or empty for the
+     *   phone's default route, which is what every release before 2.8.6 did.
+     *
+     *   It exists because of a trade measured on hardware: an Android VPN
+     *   captures by UID, so with Relay inside the tunnel the phone cannot
+     *   answer the PC at all, and with Relay excluded the PC gets the phone's
+     *   connection instead of the phone's VPN. Sending through the VPN's own
+     *   proxy is the only arrangement that gives both.
+     *
      * @throws WgForwarderException if the endpoint could not start.
      */
-    fun start(config: String)
+    fun start(config: String, upstreamProxy: String = "")
 
     fun stop()
 

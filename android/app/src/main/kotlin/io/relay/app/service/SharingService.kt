@@ -352,7 +352,17 @@ class SharingService : Service() {
         }
         val keys = WgKeys.generate()
         try {
-            forwarder.start(WgConfig.serverConfig(keys))
+            // The upstream is read at start, not captured: someone who fixes a
+            // typo in it and starts sharing again gets the corrected value
+            // without restarting the app.
+            val upstream = settings.upstreamProxy.takeIf { Settings.isUsableProxy(it) }.orEmpty()
+            if (upstream.isNotEmpty()) {
+                LocalLog.info(
+                    LocalLog.Area.TUNNEL, "Forwarding the PC's traffic through a local proxy",
+                    "proxy" to upstream,
+                )
+            }
+            forwarder.start(WgConfig.serverConfig(keys), upstream)
         } catch (e: WgForwarderException) {
             LocalLog.error(
                 LocalLog.Area.TUNNEL, "The WireGuard endpoint would not start",

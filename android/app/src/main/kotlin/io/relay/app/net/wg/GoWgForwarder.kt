@@ -19,6 +19,7 @@ import java.lang.reflect.Method
 class GoWgForwarder : WgForwarder {
 
     private val startEndpoint: Method
+    private val startEndpointVia: Method?
     private val stopEndpoint: Method
     private val isRunning: Method
     private val lastHandshakeUnix: Method
@@ -34,6 +35,13 @@ class GoWgForwarder : WgForwarder {
             )
         }
         startEndpoint = relaywg.getMethod("startEndpoint", String::class.java)
+        // Optional on purpose. The AAR is built by CI from /wg, and an app
+        // built against an older one must keep working rather than refuse to
+        // start Full Mode at all — so a missing method means "this library
+        // cannot proxy", not "this library is broken".
+        startEndpointVia = runCatching {
+            relaywg.getMethod("startEndpointVia", String::class.java, String::class.java)
+        }.getOrNull()
         stopEndpoint = relaywg.getMethod("stopEndpoint")
         isRunning = relaywg.getMethod("isRunning")
         lastHandshakeUnix = relaywg.getMethod("lastHandshakeUnix")
@@ -41,9 +49,16 @@ class GoWgForwarder : WgForwarder {
         bytesSent = relaywg.getMethod("bytesSent")
     }
 
-    override fun start(config: String) {
+    override fun start(config: String, upstreamProxy: String) {
         try {
-            startEndpoint.invoke(null, config)
+            if (upstreamProxy.isEmpty()) {
+                startEndpoint.invoke(null, config)
+            } else {
+                val via = startEndpointVia ?: throw WgForwarderException(
+                    "This build's tunnel library is too old to forward through a proxy",
+                )
+                via.invoke(null, config, upstreamProxy)
+            }
         } catch (e: Throwable) {
             // Reflection wraps whatever Go returned; the cause is the message
             // worth showing, and the wrapper says nothing useful.

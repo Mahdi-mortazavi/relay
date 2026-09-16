@@ -178,6 +178,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _themeMode = MutableStateFlow(settings.themeMode)
     val themeMode: StateFlow<String> = _themeMode
 
+    private val _upstreamProxy = MutableStateFlow(settings.upstreamProxy)
+    val upstreamProxy: StateFlow<String> = _upstreamProxy
+
+    /**
+     * Persisted on every keystroke, valid or not.
+     *
+     * Refusing to store a half-typed address would erase what someone was in
+     * the middle of writing the moment the field lost focus. The service reads
+     * it back through [io.relay.app.service.Settings.isUsableProxy] and ignores
+     * anything that is not usable, so a stored typo costs nothing but the
+     * message under the field.
+     */
+    fun setUpstreamProxy(value: String) {
+        settings.upstreamProxy = value
+        _upstreamProxy.value = value.trim()
+    }
+
     /**
      * Whether this build shipped the WireGuard forwarder at all.
      *
