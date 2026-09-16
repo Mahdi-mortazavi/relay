@@ -109,7 +109,7 @@ after uninstall.
 | Windows sleep/resume | Not available on a hosted runner | **BLOCKED — infrastructure** |
 | Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |
 | A native arm64 device | GitHub's arm64 runners expose no `/dev/kvm`; arm64 coverage is binary translation on x86_64 | **BLOCKED — infrastructure** |
-| **That forwarding through a VPN's local proxy carries real traffic** (`upstream.go`, ADR-0010, shipped 2.8.6) | The Go suite drives CONNECT, UDP ASSOCIATE, datagram framing and every refusal against a fake SOCKS5 server, so the protocol is covered. What is not covered is a real VPN client's port: whether it grants UDP ASSOCIATE at all, what it does under load, and whether the PC's public address actually becomes the VPN's exit | **UNVERIFIED — needs a phone with a VPN client that exposes a SOCKS5 port.** One check settles it: set the proxy, connect, and compare the PC's public address against the VPN's exit |
+| **That forwarding through a VPN's local proxy carries real traffic** (`upstream.go`, ADR-0010, shipped 2.8.6) | The Go suite drives CONNECT, UDP ASSOCIATE, datagram framing and every refusal against a fake SOCKS5 server, so the protocol is covered. A real VPN client's port is not something CI has | **VERIFIED on hardware, 2026-09-16.** Measurements below: [Forwarding through a VPN's own proxy](#forwarding-through-a-vpns-own-proxy--proved-on-hardware-2026-09-16) |
 | **That the accent change actually renders** (`#45D6B8` → `#4ADFBF`, 2.8.5) | CI builds and tests both clients but nobody looks at the result. The change is one hex value in three places and the Windows client was already shipping the new one, so the risk is low — but "the tests pass" is not "somebody saw it" | **UNVERIFIED — needs a screen.** One glance at the Android home screen in both themes settles it |
 | **That `Settings.Secure.always_on_vpn_lockdown` survives the `@Readable` gate** (`VpnLockdown`, shipped 2.8.3) | Read successfully from Relay's own UID on a Samsung SM-A307FN, 2026-09-16: forcing the key to `1` put `blocked: "replies"` on the beacon within a second and `logcat -s RelayVpnLockdown` stayed empty, so nothing threw. **But that phone is Android 11 — API 30 — and the gate only exists from API 31.** The read was never actually gated, so the interesting half is untested | **PARTIALLY VERIFIED.** Needs one phone on Android 12+, ideally a second manufacturer. Checks 1, 2 below pass; 3 is the open one |
 
@@ -267,6 +267,71 @@ one touching the phone — which minted fresh WireGuard keys and a fresh pairing
 code. Any QR already scanned is silently dead at that moment. That is the
 mechanism behind "Full Mode worked once and never again"; it is now surfaced as
 `ERR_WG_NO_HANDSHAKE` rather than reported as a successful connection.
+
+### Forwarding through a VPN's own proxy — proved on hardware (2026-09-16)
+
+ADR-0010 shipped in 2.8.6 with the protocol tested against a fake SOCKS5 server
+and the one thing that mattered untested: whether a **real** VPN client grants
+UDP ASSOCIATE, what it does under load, and whether the PC's public address
+actually becomes the VPN's exit. All three were measured on an SM-A307FN
+(Android 11) cabled to a Windows 11 laptop, with Oblivion — `org.bepass.oblivion`,
+Cloudflare WARP — full-tunnelling the phone and Relay excluded from it.
+
+**The phone's arrangement, measured rather than assumed:**
+
+```
+ip route get 1.1.1.1        uid 10698 -> dev wlan0  via 192.168.1.1  (Relay, excluded)
+ip route get 192.168.163.44 uid 10698 -> dev rndis0 src 192.168.163.131
+ip route get 1.1.1.1        uid 10103 -> dev tun0   src 198.18.0.1   (anything else)
+```
+
+**The VPN's proxy, probed directly** over `adb forward` so the client answering
+is the real one:
+
+```
+127.0.0.1:1819  SOCKS5, no authentication
+                CONNECT        -> OK, exit 104.28.214.161 (warp=on)
+                UDP ASSOCIATE  -> GRANTED, relay at 127.0.0.1:42113
+127.0.0.1:1820  never answered a SOCKS5 greeting — not every listening port is one
+```
+
+`adb forward` carries TCP only, so the datagram half could not be sent from the
+laptop; the grant was read off the control connection, and the datagram path is
+proved by the DNS lookups below instead.
+
+**The A/B that settles it.** Same phone, same VPN running, same cable, minutes
+apart. The only thing changed is **Advanced → "Send the PC's traffic through a
+proxy"**:
+
+| Relay's proxy setting | the laptop's public address | `warp` | `loc` |
+|---|---|---|---|
+| empty | `109.125.167.170` | **off** | IR |
+| `127.0.0.1:1819` | `104.28.192.178` | **on** | AZ |
+
+The laptop's own exit, with no tunnel at all, is `31.171.101.58` — so neither row
+is the laptop talking to the internet by itself. Empty gives the phone's own
+connection, which is what every release before 2.8.6 could do. Set gives the
+phone's **VPN**, which is what none of them could.
+
+**Under load, and carrying UDP:**
+
+```
+10,000,000 bytes  at 1,570,724 B/s   (speed.cloudflare.com, through tunnel + proxy)
+tunnel latency    4–6 ms             (USB, reported by the Windows client)
+UDP DNS           1.1.1.1 and 8.8.8.8 both answered through the tunnel
+```
+
+The DNS lookups are the point of the hand-written client: `golang.org/x/net/proxy`
+speaks only TCP, and this is the traffic a TCP-only proxy mode would have
+dropped in silence.
+
+**Observed in passing, not yet explained.** On the last of four reconnects the
+phone raised `PC_GOT_NO_REPLY` at its 20-second mark (`HandshakeWatch.GRACE_MS`)
+and the Windows client went on to complete the handshake anyway; the banner
+cleared itself as soon as it did. So the phone's grace window can be shorter than
+the Windows client's willingness to retry, and someone watching the phone sees
+"Your PC is not getting an answer" over a connection that then works. Seen once,
+self-corrected, timing not captured.
 
 ### The probe cannot be answered from inside the phone's VPN — undecided
 

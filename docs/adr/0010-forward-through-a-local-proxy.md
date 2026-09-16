@@ -105,7 +105,10 @@ empty by default, and the phones that never see a VPN capture never need it.
 is still a phone where you choose between the connection and the VPN. Relay can
 now say which arrangements exist; it cannot add a port to somebody else's app.
 
-**Unproven at the time of writing.** The Go suite covers CONNECT, UDP ASSOCIATE,
-header framing and the refusals against a fake proxy. Carrying real traffic
-through a real VPN client's port has not been done on hardware yet, and
-`docs/testing.md` records that.
+**Proven on hardware, 2026-09-16.** The Go suite covers CONNECT, UDP ASSOCIATE,
+header framing and the refusals against a fake proxy. The part that needed a
+real phone has since been measured against Oblivion's own SOCKS5 port on an
+SM-A307FN: it grants UDP ASSOCIATE, it carried 10 MB at 1.5 MB/s, and the
+laptop's public address moved from `109.125.167.170` (`warp=off`) to
+`104.28.192.178` (`warp=on`) on that setting alone. `docs/testing.md` →
+"Forwarding through a VPN's own proxy" has the full A/B.
