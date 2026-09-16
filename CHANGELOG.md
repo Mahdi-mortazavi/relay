@@ -9,6 +9,52 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.6] — 2026-09-16
+
+Everything here came out of one hardware session: a Samsung SM-A307FN over USB,
+with a full-tunnel VPN live on the phone.
+
+### Added — the PC can get the phone's VPN again
+
+Relay had two states and neither was the one people wanted. With Relay inside
+the phone's VPN, the VPN swallows Relay's replies and the PC cannot connect at
+all. With Relay excluded — which is what every VPN's own support tells you to do
+— the PC connects and gets the phone's **internet** rather than the phone's
+**VPN**, because Relay cannot send through a tunnel it has been shut out of.
+
+Excluding Relay is what makes the connection possible and what takes the VPN
+away, and those are the same act. So the traffic has to go back into the tunnel
+by another door, and nearly every VPN client already has one: a local SOCKS5
+port, there to serve the apps it is not routing.
+
+**Advanced → "Send the PC's traffic through a proxy."** Empty by default, which
+is what every release so far did. Set it to the VPN's local port and Relay stays
+outside the tunnel so it can answer the PC, while what it forwards goes in
+through the proxy. Both at once.
+
+It carries **UDP**, not only TCP — the SOCKS5 client is written by hand for that
+reason, because a proxy mode that silently dropped datagrams would turn Relay
+into a browser tunnel with nothing on screen to say so. Calls and games keep
+working. See [ADR-0010](docs/adr/0010-forward-through-a-local-proxy.md).
+
+This does not help a VPN with no local port and no local-network exemption.
+There, the choice between the connection and the VPN still stands — Relay can
+describe the arrangements that exist, not add a port to somebody else's app.
+
+### Fixed — Relay said the VPN was shared when it was not
+
+The advice to exclude Relay ended with *"the VPN keeps running — Relay shares
+it."* It does keep running, for everything except the PC, which is the one thing
+the person is looking at.
+
+Both apps now lead with **"local network access"** where the VPN offers it —
+the only setting that keeps the connection *and* the VPN without a proxy — and
+state the trade plainly where it does not.
+
+Also written down, because it cost half an hour to find: Android reads a VPN's
+per-app exclusion list when the tunnel is **built**, so changing that setting
+does nothing until the VPN is turned off and on again.
+
 ## [2.8.5] — 2026-09-16
 
 Tested against a real phone — a Samsung SM-A307FN on Android 11, over USB
