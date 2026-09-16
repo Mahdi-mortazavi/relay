@@ -110,7 +110,7 @@ after uninstall.
 | Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |
 | A native arm64 device | GitHub's arm64 runners expose no `/dev/kvm`; arm64 coverage is binary translation on x86_64 | **BLOCKED — infrastructure** |
 | **That the accent change actually renders** (`#45D6B8` → `#4ADFBF`, 2.8.5) | CI builds and tests both clients but nobody looks at the result. The change is one hex value in three places and the Windows client was already shipping the new one, so the risk is low — but "the tests pass" is not "somebody saw it" | **UNVERIFIED — needs a screen.** One glance at the Android home screen in both themes settles it |
-| **That `Settings.Secure.always_on_vpn_lockdown` is actually readable from Relay's own UID** (`VpnLockdown`, shipped 2.8.3) | The `@Readable` annotation is confirmed in AOSP source for API 31/33/35/36, and an emulator image is not an OEM ROM — which is exactly where a `@hide` key's behaviour differs. A JVM test cannot reach a `ContentResolver`, and there is no Robolectric here | **UNVERIFIED — needs a phone.** The four checks are below |
+| **That `Settings.Secure.always_on_vpn_lockdown` survives the `@Readable` gate** (`VpnLockdown`, shipped 2.8.3) | Read successfully from Relay's own UID on a Samsung SM-A307FN, 2026-09-16: forcing the key to `1` put `blocked: "replies"` on the beacon within a second and `logcat -s RelayVpnLockdown` stayed empty, so nothing threw. **But that phone is Android 11 — API 30 — and the gate only exists from API 31.** The read was never actually gated, so the interesting half is untested | **PARTIALLY VERIFIED.** Needs one phone on Android 12+, ideally a second manufacturer. Checks 1, 2 below pass; 3 is the open one |
 
 #### The four checks that would settle `VpnLockdown` (2.8.3)
 
@@ -365,6 +365,28 @@ that a reply "would leave by the VPN", and sixty-four seconds later pairing a PC
 and carrying traffic. The probe is a prediction, not an observation, and it was
 wrong here too. The banner it drove is gone; what took its place watches for a
 PC that took the settings and never handshaked, which is a fact — see
-[`vpn-compat.md`](vpn-compat.md). So the last leg of the Windows update is not
-waiting on a free VPN slot; it is waiting on a laptop that can pull fifty
-megabytes from GitHub.
+[`vpn-compat.md`](vpn-compat.md).
+
+### Settled, 2026-09-16: the Windows update installs itself
+
+The whole leg above is now proven on the maintainer's laptop, on the same
+network. 2.8.4 was launched and left alone:
+
+```
+11:02:07  2.8.4 started
+11:02:55  installer downloaded — 48,540,114 bytes, the published 2.8.5 asset
+11:03:03  version is 2.8.5, and the app has relaunched itself
+```
+
+**Fifty-six seconds, no interaction.** So the download does complete on this
+network after all — what changed is not the network but `ResponseHeadersRead`
+and the per-release retry, and the "zero bytes in five minutes" reading above
+belongs to 2.6.0's buffered fetch, not to the link.
+
+The sweep added in 2.8.5 was proven in the same run: the installing app (2.8.4)
+had no sweep, so it left its spent installer behind, and the relaunched 2.8.5
+deleted it three seconds after start. The directory was empty by 11:03:46.
+
+What this run did **not** cover: install-on-close. This was the start-up path,
+because the app was killed rather than asked to quit. Closing Relay from the
+tray with an update pending is still unproven.
