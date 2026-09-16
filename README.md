@@ -287,9 +287,10 @@ if it is killed. A dead Relay cannot leave your machine unable to resolve names.
 
 <br>
 
-**Windows updates itself.** It checks shortly after launch and then daily, tells
-you what it found, and installs at the next moment the tunnel is down — because
-installing means stopping Relay, and doing that mid-call would drop the call.
+**Windows updates itself.** It checks shortly after launch and then daily — or
+within minutes, if a check could not be made at all — tells you what it found,
+and installs at the next moment the tunnel is down, because installing means
+stopping Relay and doing that mid-call would drop the call.
 
 If that moment does not arrive while you are using it, the verified download is
 kept and goes in **when you close Relay**, or **the next time you open it** if

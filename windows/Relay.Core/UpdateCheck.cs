@@ -41,44 +41,44 @@ public sealed class UpdateCheck
     }
 
     /// <summary>
-    /// Returns the newer release, or null when this build is current — or when
-    /// the check could not be made at all. A failed check is not news: someone
-    /// on a plane should not be told their app is broken because GitHub was
-    /// unreachable.
+    /// Returns the newer release, or null when this build is current.
+    ///
+    /// Throws when the check could not be made at all — offline, rate-limited,
+    /// DNS-poisoned, a body that is not the JSON it claims to be. That used to
+    /// be caught here and returned as null, which made "there is nothing new"
+    /// and "I could not find out" the same answer — and meant the caller's own
+    /// catch around this call was unreachable, because nothing ever got past
+    /// the one in here.
+    ///
+    /// A failed check is still not news, and nobody on a plane is told their
+    /// app is broken — deciding that is <see cref="UpdateService"/>'s job, and
+    /// its answer is still to say nothing. But it cannot come back sooner than
+    /// tomorrow, or write down what happened, for a failure it cannot see.
     /// </summary>
     public async Task<Available?> CheckAsync(CancellationToken token = default)
     {
-        try
-        {
-            var release = await _http.GetFromJsonAsync<GitHubRelease>(LatestUrl, token).ConfigureAwait(false);
-            if (release?.TagName is null) return null;
-            if (release.Draft || release.Prerelease) return null;
+        var release = await _http.GetFromJsonAsync<GitHubRelease>(LatestUrl, token).ConfigureAwait(false);
+        if (release?.TagName is null) return null;
+        if (release.Draft || release.Prerelease) return null;
 
-            var latest = Parse(release.TagName);
-            var current = Parse(_currentVersion);
-            if (latest is null || current is null) return null;
-            if (Compare(latest, current) <= 0) return null;
+        var latest = Parse(release.TagName);
+        var current = Parse(_currentVersion);
+        if (latest is null || current is null) return null;
+        if (Compare(latest, current) <= 0) return null;
 
-            var asset = release.Assets?.FirstOrDefault(a =>
-                a.Name is not null &&
-                a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
-                a.Name.Contains(Environment.Is64BitOperatingSystem ? "x64" : "x86", StringComparison.OrdinalIgnoreCase));
+        var asset = release.Assets?.FirstOrDefault(a =>
+            a.Name is not null &&
+            a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+            a.Name.Contains(Environment.Is64BitOperatingSystem ? "x64" : "x86", StringComparison.OrdinalIgnoreCase));
 
-            var sums = release.Assets?.FirstOrDefault(a =>
-                string.Equals(a.Name, "SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase));
+        var sums = release.Assets?.FirstOrDefault(a =>
+            string.Equals(a.Name, "SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase));
 
-            return new Available(
-                release.TagName.TrimStart('v'),
-                asset?.BrowserDownloadUrl ?? release.HtmlUrl ?? LatestUrl,
-                release.Body,
-                sums?.BrowserDownloadUrl);
-        }
-        catch (Exception)
-        {
-            // Offline, rate-limited, DNS-poisoned, whatever. None of it is
-            // something to interrupt someone about.
-            return null;
-        }
+        return new Available(
+            release.TagName.TrimStart('v'),
+            asset?.BrowserDownloadUrl ?? release.HtmlUrl ?? LatestUrl,
+            release.Body,
+            sums?.BrowserDownloadUrl);
     }
 
     /// <summary>
