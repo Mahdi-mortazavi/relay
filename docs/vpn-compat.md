@@ -156,6 +156,19 @@ they are not routing. Relay can forward through it:
 > **Advanced → Send the PC's traffic through a proxy** → `127.0.0.1:10808`
 > (whatever port the VPN client reports)
 
+**The port is rarely the one you would guess, and the placeholder is only a
+placeholder.** `10808` is v2ray's default; Oblivion's turned out to be `1819`,
+and it also listens on `1820`, which never answered a SOCKS5 greeting at all.
+Read the port out of the VPN app's own settings, or list what is listening:
+
+```
+adb shell cat /proc/net/tcp | awk '$4=="0A" {print $2, "uid="$8}'
+```
+
+Field 2 is `hex-address:hex-port` — `0100007F:071B` is `127.0.0.1:1819` — and
+`uid` matches the VPN app's own (`adb shell dumpsys package <its.package> | grep userId`).
+More than one port is normal; only one of them is usually SOCKS5.
+
 With Relay excluded from the tunnel *and* pointed at that port:
 
 - Relay is outside the tunnel, so its replies reach the LAN and the PC connects;
@@ -167,7 +180,9 @@ release before 2.8.6 did.
 **It carries UDP.** The SOCKS5 client is hand-written for exactly that reason:
 `golang.org/x/net/proxy` speaks only TCP, and a proxy mode that silently dropped
 datagrams would turn Relay into a browser tunnel with nothing on screen to say
-so. RFC 1928's UDP ASSOCIATE is implemented beside CONNECT.
+so. RFC 1928's UDP ASSOCIATE is implemented beside CONNECT. Oblivion grants it —
+measured on 2026-09-16 — and DNS to `1.1.1.1` and `8.8.8.8` answered through the
+tunnel; `docs/testing.md` has the numbers.
 
 **It does not help a VPN with no local port and no LAN exemption.** There, the
 choice between the connection and the VPN still stands. Relay can describe the
