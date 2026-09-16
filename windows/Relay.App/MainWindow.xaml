@@ -413,8 +413,17 @@
                 <Border CornerRadius="{StaticResource SunkenCorner}"
                         Background="{StaticResource FillSunken}" Padding="12,10">
                     <ScrollViewer Height="116" VerticalScrollBarVisibility="Auto">
+                        <!-- Wrap, not NoWrap. The scroller above it only scrolls
+                             vertically, so a line wider than the popover was cut
+                             off with nothing to reach it: on this machine every
+                             entry read "Tunnel did not start: ERR_WG_" and
+                             "Full Mode: dialling 192.168.1" — the error code and
+                             the address, which are the only two things in a log
+                             line worth reading, were the two things missing.
+                             A 380dip popover cannot scroll sideways sensibly;
+                             wrapping is what fits the surface. -->
                         <TextBlock x:Name="LogText" FontFamily="{StaticResource FontMono}"
-                                   FontSize="11" TextWrapping="NoWrap"
+                                   FontSize="11" TextWrapping="Wrap"
                                    Foreground="{StaticResource LabelTertiary}" />
                     </ScrollViewer>
                 </Border>
