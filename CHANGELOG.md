@@ -9,6 +9,67 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.8] — 2026-09-16
+
+### Added — Relay finds the VPN's proxy port for you
+
+2.8.6 added the setting that puts the PC on the phone's VPN, and left the hardest
+part to the person: a port number nothing tells you. The field's placeholder
+suggests v2ray's `10808`. The phone this feature was built against was on
+**`1819`**. Finding that meant dumping `/proc/net/tcp` over adb — which an app
+cannot do, because Android 10 stopped showing an app any socket but its own.
+
+So Relay knocks instead. Opening **Advanced** with the field empty scans the
+loopback ports these clients are found on, and offers one that answers — one tap
+to use it. Offered, not filled in: this is the only setting in Relay that changes
+where packets go.
+
+The probe asks each port for **UDP ASSOCIATE**, not just a greeting. A proxy that
+grants `CONNECT` and refuses datagrams would pass a politer check and then break
+every name lookup the PC makes, so nothing would work at all while the setting
+read correctly. Tor's SocksPort is that proxy, and it is in the candidate list so
+the scan has to meet one and turn it down.
+
+Nothing leaves the phone: every probe is a loopback connection to another process
+on the same device.
+
+**Excluding Relay from the VPN still cannot be automated, and this is not a
+"not yet".** That list belongs to the VPN app, which hands it to
+`VpnService.Builder.addDisallowedApplication` when it builds its tunnel; no
+public API reaches another app's list and the settings key that would hold it
+throws. [`vpn-compat.md`](docs/vpn-compat.md) now records it as a refusal with
+its reason — along with the part people lose half an hour to: Android reads that
+list when the tunnel is **built**, so changing it does nothing until the VPN is
+turned off and on.
+
+### Fixed — the Windows busy screen described a feature removed three ADRs ago
+
+While connecting, Relay said it was *"checking the network and applying your
+proxy settings."* It has changed no system-wide setting since ADR-0009 removed
+Fast Mode. So the one screen someone stares at while nothing visibly happens
+described a thing the app does not do — and left out the thing that does.
+
+Starting the tunnel needs a network adapter, the adapter needs elevation, and
+Windows' `runas` blocks with no timeout until the prompt is answered. That prompt
+appears on the secure desktop, behind whatever window is in front. Unanswered, it
+looks exactly like a hang — and the phone, twenty seconds after sending the
+configuration, reports that no reply left it, which is a guess and the wrong one:
+nothing left the PC. The line now names the prompt.
+
+### Corrected — an A/B in the docs had one row of evidence, not two
+
+2.8.7's notes and `docs/testing.md` presented both rows of the proxy measurement
+as proof. Re-measured with no tunnel up at all, the laptop's own exit reads
+`109.125.167.170` from Cloudflare and `31.171.100.141` from ipify — the same
+egress, two services, two addresses. The "control" had come from one and the
+table from the other, and the phone was on the same Wi-Fi as the laptop, so an
+excluded Relay's egress and the laptop's own are the same connection.
+
+The feature's claim is unaffected: `warp=on` is a Cloudflare WARP egress, the
+laptop cannot produce one by itself, and it appears only with the proxy set. But
+half of what was offered as evidence was not evidence, and is now marked as such
+wherever it was published.
+
 ## [2.8.7] — 2026-09-16
 
 A release about the release before it. 2.8.6's proxy forwarding shipped with the
