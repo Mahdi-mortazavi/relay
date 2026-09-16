@@ -6,6 +6,7 @@ import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.WarningCode
+import io.relay.app.net.ProxyScan
 import io.relay.app.net.UsbLink
 import io.relay.app.net.VpnLockdown
 import io.relay.app.net.wg.WgForwarderProvider
@@ -193,6 +194,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setUpstreamProxy(value: String) {
         settings.upstreamProxy = value
         _upstreamProxy.value = value.trim()
+    }
+
+    private val _proxyScan = MutableStateFlow<ProxyScan.State>(ProxyScan.State.Idle)
+    val proxyScan: StateFlow<ProxyScan.State> = _proxyScan.asStateFlow()
+
+    /**
+     * Knocks on the loopback ports a VPN client's proxy is found on.
+     *
+     * The setting above needs a port number that nothing tells the person, and
+     * finding the one on the phone this feature was built against meant dumping
+     * `/proc/net/tcp` over adb — which an app cannot do. So the app knocks
+     * instead. See [ProxyScan].
+     *
+     * The result is *offered*, never applied: this is the only setting in Relay
+     * that changes where packets go, and a scan filling it in unasked would
+     * reroute someone's traffic because they opened a section.
+     *
+     * Re-entrant calls are dropped rather than queued. The screen runs this on
+     * its own when Advanced opens with the field empty, and a recomposition
+     * must not start a second scan on top of the first.
+     */
+    fun scanForProxy() {
+        if (_proxyScan.value is ProxyScan.State.Looking) return
+        _proxyScan.value = ProxyScan.State.Looking
+        viewModelScope.launch {
+            val found = ProxyScan.find()
+            _proxyScan.value =
+                if (found == null) ProxyScan.State.NotFound
+                else ProxyScan.State.Found(found)
+            LocalLog.info(
+                LocalLog.Area.LINK,
+                "Looked for a local proxy on this phone",
+                "found" to (found ?: "none"),
+            )
+        }
+    }
+
+    /** Takes what the scan offered. Nothing moves until this is called. */
+    fun useFoundProxy() {
+        val found = _proxyScan.value as? ProxyScan.State.Found ?: return
+        setUpstreamProxy(found.address)
     }
 
     /**

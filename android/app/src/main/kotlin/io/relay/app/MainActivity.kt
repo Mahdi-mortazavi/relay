@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
                 RelayBackground {
                     val state by viewModel.state.collectAsState()
                     val upstreamProxy by viewModel.upstreamProxy.collectAsState()
+                    val proxyScan by viewModel.proxyScan.collectAsState()
                     val batteryExempt by viewModel.batteryExempt.collectAsState()
                     val warnings by viewModel.warnings.collectAsState()
                     val logs by viewModel.logs.collectAsState()
@@ -148,6 +149,9 @@ class MainActivity : ComponentActivity() {
                         onSetTheme = viewModel::setThemeMode,
                         upstreamProxy = upstreamProxy,
                         onSetUpstreamProxy = viewModel::setUpstreamProxy,
+                        proxyScan = proxyScan,
+                        onScanForProxy = viewModel::scanForProxy,
+                        onUseFoundProxy = viewModel::useFoundProxy,
                         onClearLogs = viewModel::clearLogs,
                         // The banner used to offer an update it had no way to
                         // deliver: HomeScreen took this lambda, nothing passed
