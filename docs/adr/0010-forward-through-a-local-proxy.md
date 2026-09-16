@@ -109,6 +109,7 @@ now say which arrangements exist; it cannot add a port to somebody else's app.
 header framing and the refusals against a fake proxy. The part that needed a
 real phone has since been measured against Oblivion's own SOCKS5 port on an
 SM-A307FN: it grants UDP ASSOCIATE, it carried 10 MB at 1.5 MB/s, and the
-laptop's public address moved from `109.125.167.170` (`warp=off`) to
-`104.28.192.178` (`warp=on`) on that setting alone. `docs/testing.md` →
-"Forwarding through a VPN's own proxy" has the full A/B.
+laptop's exit became a Cloudflare WARP address — `104.28.192.178`, `warp=on` —
+which appears only with the proxy set and is gone when it is cleared. The
+`warp` flag is the probative half; the address on the empty side is not, and
+`docs/testing.md` → "Forwarding through a VPN's own proxy" records why.

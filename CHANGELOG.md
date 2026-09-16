@@ -39,9 +39,16 @@ taken.
 
 Measured against Oblivion's own SOCKS5 port on an SM-A307FN, with the VPN
 full-tunnelling the phone: it grants UDP ASSOCIATE, 10 MB crossed at 1.5 MB/s,
-and the laptop's public address moved from `109.125.167.170` (`warp=off`) to
-`104.28.192.178` (`warp=on`) on that setting alone. Nothing changed in the app;
-this is the claim 2.8.6 made now standing on numbers.
+and the laptop's exit became a Cloudflare WARP address — `104.28.192.178`,
+`warp=on` — which appears only with the proxy set and is gone when it is
+cleared. Nothing changed in the app; this is the claim 2.8.6 made now standing
+on numbers.
+
+*Corrected after publication:* this release originally cited the empty-proxy
+address as the other half of an A/B. It is not evidence — the phone was on the
+same Wi-Fi as the laptop, so an excluded Relay's egress and the laptop's own are
+the same connection, and the two readings had come from different services.
+`docs/testing.md` has the correction. The `warp=on` half stands.
 
 The port is rarely the one you would guess — Oblivion's is `1819`, not the
 `10808` the field's placeholder suggests — so

@@ -309,10 +309,32 @@ proxy"**:
 | empty | `109.125.167.170` | **off** | IR |
 | `127.0.0.1:1819` | `104.28.192.178` | **on** | AZ |
 
-The laptop's own exit, with no tunnel at all, is `31.171.101.58` — so neither row
-is the laptop talking to the internet by itself. Empty gives the phone's own
-connection, which is what every release before 2.8.6 could do. Set gives the
-phone's **VPN**, which is what none of them could.
+**The second row is the proof. The first row is not, and was published as though
+it were.** Corrected on 2026-09-16, a few hours later, by measuring with no
+tunnel up at all:
+
+```
+laptop, no tunnel, cloudflare/cdn-cgi/trace  ->  109.125.167.170
+laptop, no tunnel, api.ipify.org             ->  31.171.100.141
+```
+
+The same egress, reported as two different addresses by two services — so
+`31.171.101.58`, which the first version of this section offered as "the
+laptop's own exit", came from `api.ipify.org` while both table rows came from
+Cloudflare. Comparing them was comparing two things that were never comparable,
+and the phone was on the same home Wi-Fi as the laptop, so an excluded Relay's
+egress and the laptop's own egress are **the same connection and the same public
+address**. The empty row is true and tells you nothing: it cannot distinguish
+"through the phone" from "not through the tunnel".
+
+What the table does establish is the claim the feature makes. `104.28.192.178`
+with `warp=on` is a Cloudflare WARP egress, and the laptop cannot produce one on
+its own — it appears only with the proxy set, and it is gone when the proxy is
+cleared. Set gives the phone's **VPN**, which no release before 2.8.6 could do.
+
+The lesson is cheap and worth keeping: **read both sides of an A/B off the same
+service.** Two "what is my IP" endpoints do not have to agree, and here they did
+not.
 
 **Under load, and carrying UDP:**
 
@@ -333,6 +355,44 @@ cleared itself as soon as it did. So the phone's grace window can be shorter tha
 the Windows client's willingness to retry, and someone watching the phone sees
 "Your PC is not getting an answer" over a connection that then works. Seen once,
 self-corrected, timing not captured.
+
+### An unanswered UAC prompt is indistinguishable from a hang — 2026-09-16
+
+Worth writing down because it cost a diagnosis twice in one day, and because it
+reads as a broken connection from both ends at once.
+
+`WgTunnelSession.Connect` starts the tunnel process through ShellExecute with
+`Verb = "runas"`, which **blocks until the person answers the prompt** — there is
+no timeout on that call, and none can easily be added, since abandoning the wait
+would leave an orphaned prompt that can still elevate. Meanwhile:
+
+- the PC sits on **Preparing** with its busy line showing, and no adapter exists;
+- the phone has already sent the configuration, so twenty seconds later it raises
+  `PC_GOT_NO_REPLY` — *"no reply ever left this phone"* — which is a guess, and
+  in this case the wrong one. Nothing left the **PC**;
+- the prompt itself is on the secure desktop, behind whatever window is in
+  front, and neither app can see or mention it.
+
+The tell is cheap and unambiguous:
+
+```
+Get-Process consent -ErrorAction SilentlyContinue
+```
+
+`consent.exe` runs only for UAC. Two of them were waiting, one per connect
+attempt.
+
+Two things were changed rather than reasoned about. `BusyDetail` now names the
+prompt instead of claiming Relay is *"applying your proxy settings"* — which it
+has not done since ADR-0009 removed Fast Mode, so the one screen someone stares
+at while nothing happens was describing a thing the app does not do. And this
+section exists so the next occurrence is a lookup rather than a diagnosis.
+
+**Still open:** the phone's `PC_GOT_NO_REPLY` text states as fact something it
+cannot know. It can prove its own reply path leaves by the link — it logs
+`verdict=leaves-by-the-link` while saying replies are not leaving — and it
+cannot see the PC at all. Rewording it is a copy decision, not a bug fix, and it
+is not being done by guesswork here.
 
 ### The probe cannot be answered from inside the phone's VPN — undecided
 
