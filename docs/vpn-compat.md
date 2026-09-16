@@ -103,8 +103,46 @@ called "block connections" sounds like it would be:
 
   **Since 2.8.3 Relay reads this itself** and says so — see below.
 - **Per-app / split tunnelling** — this one *is* in the VPN app's own app list;
-  exclude Relay there. It is what the in-app warning tells people to do, and it
-  is the reliable fix when the app offers it.
+  exclude Relay there. It reliably restores the connection, **and it costs the
+  VPN.** See below.
+
+### Excluding Relay works, and it is not free
+
+Measured on hardware, 2026-09-16, with Oblivion (Cloudflare WARP) full-tunnelling
+a Samsung SM-A307FN. Before the exclusion, the kernel routed Relay's replies into
+the tunnel and the PC timed out every time:
+
+```
+ip route get 192.168.198.44 uid 10698   ->  dev tun0    src 198.18.0.1
+```
+
+After adding Relay to the VPN's bypass list and reconnecting the tunnel — the
+list is read when the tunnel is *built*, so the change does nothing until then —
+it routed correctly and the PC connected in seconds:
+
+```
+ip route get 192.168.198.44 uid 10698   ->  dev rndis0  src 192.168.198.4
+ip route get 1.1.1.1        uid 10698   ->  dev wlan0   via 192.168.1.1
+ip route get 1.1.1.1        uid 10103   ->  dev tun0    src 198.18.0.1   (a normal app)
+```
+
+That second line is the whole point. **Relay excluded from the VPN forwards over
+the phone's ordinary connection, so the PC gets the phone's internet and not the
+phone's VPN.** Relay cannot send through a tunnel it has been shut out of. Every
+other app on the phone keeps the VPN; the PC does not.
+
+So the honest order of preference is:
+
+1. **"Allow local network access" / "LAN access"**, if the VPN app has it. Relay's
+   replies escape, its forwarded traffic still goes through the tunnel, and the
+   PC gets the VPN. This is the only setting that keeps both.
+2. **Turn off lockdown**, which has the same shape: it restores the local-route
+   exemption without taking Relay out of the tunnel.
+3. **Exclude Relay per-app**, which always restores the connection and always
+   costs the VPN.
+
+Relay's own copy said "the VPN keeps running — Relay shares it" under option 3
+until 2.8.6. It does keep running, for everything except the PC.
 
 ### Relay reads the lockdown switch, and only that one
 
