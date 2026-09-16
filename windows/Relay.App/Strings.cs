@@ -117,7 +117,15 @@ public static class Strings
         ["BusyConnecting"] = "Setting up the connection",
         ["BusyPairing"] = "Check your phone",
         ["BusyPairingDetail"] = "Your phone is asking whether to let this computer in. Tap Allow.",
-        ["BusyDetail"] = "Checking the network and applying your proxy settings",
+        // Said what Fast Mode used to do. That transport was removed in
+        // ADR-0009 and Relay has changed no system-wide setting since — so the
+        // one screen someone stares at while nothing happens was describing a
+        // thing the app does not do, and leaving out the one thing that does:
+        // the tunnel needs an adapter, the adapter needs elevation, and
+        // ShellExecute's runas verb blocks with no timeout until the prompt is
+        // answered. An unanswered prompt lives on the secure desktop, behind
+        // whatever window is in front, and looks exactly like a hang.
+        ["BusyDetail"] = "Starting the tunnel. Windows may ask for permission — answer Yes to let it create its network adapter.",
         ["ErrTitleNoPhone"] = "Can't reach your phone",
         ["ErrTitleNetwork"] = "Different networks",
         ["ErrTitleCode"] = "That code didn't work",
@@ -233,7 +241,7 @@ public static class Strings
         ["BusyConnecting"] = "در حال برقراری اتصال",
         ["BusyPairing"] = "گوشی‌تان را ببینید",
         ["BusyPairingDetail"] = "گوشی می‌پرسد که آیا این کامپیوتر اجازه دارد. «اجازه» را بزنید.",
-        ["BusyDetail"] = "بررسی شبکه و اعمال تنظیمات پراکسی",
+        ["BusyDetail"] = "در حال راه‌اندازی تونل. ممکن است ویندوز اجازه بخواهد — «بله» را بزنید تا آداپتور شبکه‌اش را بسازد.",
         ["ErrTitleNoPhone"] = "گوشی در دسترس نیست",
         ["ErrTitleNetwork"] = "شبکه‌ها یکی نیستند",
         ["ErrTitleCode"] = "این کد کار نکرد",
