@@ -49,6 +49,11 @@
     <string name="advanced_upstream_hint">خالی بگذارید تا از اتصال خودِ این گوشی استفاده شود. اگر برنامهٔ وی‌پی‌انی روی این گوشی پورت SOCKS5 محلی دارد، نوشتن آن اینجا همان چیزی است که اجازه می‌دهد کامپیوتر از آن وی‌پی‌ان استفاده کند.</string>
     <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
     <string name="advanced_upstream_invalid">باید یک پورت باشد، یا یک نشانی و یک پورت — مثل 127.0.0.1:10808 یا :10808.</string>
+    <string name="advanced_upstream_looking">دنبال پروکسیِ وی‌پی‌ان روی این گوشی…</string>
+    <string name="advanced_upstream_found">یکی روی %1$s پیدا شد — برای استفاده لمس کنید.</string>
+    <string name="advanced_upstream_found_action">استفاده از پروکسی‌ای که پیدا شد</string>
+    <string name="advanced_upstream_none">هیچ پروکسی‌ای روی این گوشی جواب نداد. پورت را از تنظیمات خودِ برنامهٔ وی‌پی‌ان بخوانید و بالا بنویسید. برای جست‌وجوی دوباره لمس کنید.</string>
+    <string name="advanced_upstream_again">جست‌وجوی دوبارهٔ پروکسی</string>
     <string name="advanced_logs">گزارش فعالیت (روی همین دستگاه می‌ماند)</string>
     <string name="advanced_logs_clear">پاک‌کردن</string>
     <string name="advanced_logs_empty">هنوز فعالیتی نیست</string>

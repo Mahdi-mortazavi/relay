@@ -51,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +80,7 @@ import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.WarningCode
+import io.relay.app.net.ProxyScan
 import io.relay.app.net.UsbLink
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
@@ -119,6 +121,10 @@ fun HomeScreen(
     /** SOCKS5 `host:port` the PC's traffic is forwarded through, or empty. */
     upstreamProxy: String = "",
     onSetUpstreamProxy: (String) -> Unit = {},
+    /** Where the search for a local proxy got to. See [ProxyScan]. */
+    proxyScan: ProxyScan.State = ProxyScan.State.Idle,
+    onScanForProxy: () -> Unit = {},
+    onUseFoundProxy: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -201,6 +207,7 @@ fun HomeScreen(
             AdvancedSection(
                 state, themeMode, logs, onSetTheme, onClearLogs, onShareLogs,
                 upstreamProxy, onSetUpstreamProxy,
+                proxyScan, onScanForProxy, onUseFoundProxy,
             )
         }
 
@@ -725,9 +732,21 @@ private fun AdvancedSection(
     onShareLogs: () -> Unit,
     upstreamProxy: String,
     onSetUpstreamProxy: (String) -> Unit,
+    proxyScan: ProxyScan.State,
+    onScanForProxy: () -> Unit,
+    onUseFoundProxy: () -> Unit,
 ) {
     val glass = LocalGlass.current
     var expanded by rememberSaveable { mutableStateOf(false) }
+
+    // Look for the VPN's proxy port the moment this section is opened with the
+    // field empty, because that is the only moment the answer is useful and
+    // nobody would think to ask for it. Keyed so it runs once per opening and
+    // not on every recomposition, and skipped entirely once something is set —
+    // a scan is cheap, but overwriting what someone typed would not be.
+    LaunchedEffect(expanded, upstreamProxy.isEmpty()) {
+        if (expanded && upstreamProxy.isEmpty()) onScanForProxy()
+    }
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = (if (expanded) "▾  " else "▸  ") + stringResource(R.string.advanced),
@@ -832,6 +851,59 @@ private fun AdvancedSection(
                             style = MaterialTheme.typography.labelSmall,
                             color = glass.error,
                         )
+                    }
+
+                    // What the search found. Only while the field is empty:
+                    // once there is an address, the person has decided, and a
+                    // line suggesting a different port is second-guessing them.
+                    //
+                    // A found port is *offered*, not filled in. This is the one
+                    // setting that changes where packets go, and opening a
+                    // section is not consent to reroute a connection.
+                    if (upstreamProxy.isEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        when (proxyScan) {
+                            is ProxyScan.State.Idle -> Unit
+
+                            is ProxyScan.State.Looking -> Text(
+                                stringResource(R.string.advanced_upstream_looking),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = glass.textTertiary,
+                            )
+
+                            is ProxyScan.State.Found -> Text(
+                                stringResource(
+                                    R.string.advanced_upstream_found,
+                                    proxyScan.address,
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = glass.accent,
+                                modifier = Modifier
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClickLabel = stringResource(
+                                            R.string.advanced_upstream_found_action,
+                                        ),
+                                        onClick = onUseFoundProxy,
+                                    )
+                                    .minimumInteractiveComponentSize(),
+                            )
+
+                            is ProxyScan.State.NotFound -> Text(
+                                stringResource(R.string.advanced_upstream_none),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = glass.textTertiary,
+                                modifier = Modifier
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClickLabel = stringResource(
+                                            R.string.advanced_upstream_again,
+                                        ),
+                                        onClick = onScanForProxy,
+                                    )
+                                    .minimumInteractiveComponentSize(),
+                            )
+                        }
                     }
                 }
 

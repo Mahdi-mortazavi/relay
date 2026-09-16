@@ -49,6 +49,11 @@
     <string name="advanced_upstream_hint">Leave empty to use this phone\'s own connection. If a VPN app on this phone offers a local SOCKS5 port, putting it here is what lets the PC use that VPN.</string>
     <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
     <string name="advanced_upstream_invalid">That needs to be a port, or an address and a port — like 127.0.0.1:10808 or :10808.</string>
+    <string name="advanced_upstream_looking">Looking for a VPN\'s proxy on this phone…</string>
+    <string name="advanced_upstream_found">Found one at %1$s — tap to use it.</string>
+    <string name="advanced_upstream_found_action">Use the proxy that was found</string>
+    <string name="advanced_upstream_none">No proxy on this phone answered. Read the port from your VPN app\'s own settings, then type it above. Tap to look again.</string>
+    <string name="advanced_upstream_again">Look for a proxy again</string>
     <string name="advanced_logs">Activity log (stays on this device)</string>
     <string name="advanced_logs_clear">Clear</string>
     <string name="advanced_logs_empty">No activity yet</string>

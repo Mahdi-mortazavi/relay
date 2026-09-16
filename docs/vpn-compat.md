@@ -156,10 +156,25 @@ they are not routing. Relay can forward through it:
 > **Advanced → Send the PC's traffic through a proxy** → `127.0.0.1:10808`
 > (whatever port the VPN client reports)
 
-**The port is rarely the one you would guess, and the placeholder is only a
-placeholder.** `10808` is v2ray's default; Oblivion's turned out to be `1819`,
-and it also listens on `1820`, which never answered a SOCKS5 greeting at all.
-Read the port out of the VPN app's own settings, or list what is listening:
+**Relay looks for the port itself.** Opening Advanced with the field empty
+starts a scan of the loopback ports these clients are found on, and a port that
+answers is offered on the line under the field — one tap to use it. It is
+offered rather than filled in: this is the only setting in Relay that changes
+where packets go, and opening a section is not consent to reroute a connection.
+
+The scan asks each port for **UDP ASSOCIATE**, not just a greeting. A proxy that
+grants `CONNECT` and refuses datagrams would pass a politer check and then break
+every DNS lookup the PC makes — so nothing would work at all while the setting
+read correctly. Tor's SocksPort is exactly that proxy, and it is in the
+candidate list so the scan has to meet one and turn it down.
+
+Nothing leaves the phone: every probe is a loopback connection to another
+process on the same device.
+
+**If nothing answers, the port has to come from the VPN app's own settings** —
+and it is rarely the one you would guess. `10808` is v2ray's default; Oblivion's
+turned out to be `1819`, and it also listens on `1820`, which never answered a
+SOCKS5 greeting at all. From a computer with adb you can list what is listening:
 
 ```
 adb shell cat /proc/net/tcp | awk '$4=="0A" {print $2, "uid="$8}'
@@ -167,7 +182,27 @@ adb shell cat /proc/net/tcp | awk '$4=="0A" {print $2, "uid="$8}'
 
 Field 2 is `hex-address:hex-port` — `0100007F:071B` is `127.0.0.1:1819` — and
 `uid` matches the VPN app's own (`adb shell dumpsys package <its.package> | grep userId`).
-More than one port is normal; only one of them is usually SOCKS5.
+More than one port is normal; only one of them is usually SOCKS5. **The app
+cannot do this for you:** Android 10 stopped showing an app any socket but its
+own, which is why Relay knocks on ports instead of reading that file.
+
+### Excluding Relay cannot be automated
+
+It gets asked, and the answer is no — not "not yet".
+
+The per-app exclusion list belongs to **the VPN app**, which passes it to
+`VpnService.Builder.addDisallowedApplication` when it builds its tunnel. There
+is no public API for another app to read or change another app's list, and the
+settings key that would hold it is closed: `always_on_vpn_lockdown_whitelist`
+throws `SecurityException` for any modern `targetSdk` — see the section below,
+where the one neighbouring key that *is* readable is described.
+
+So Relay does the three things it can: it detects the condition from real
+evidence rather than guessing, it names the setting and puts the best
+arrangement first, and it finds the proxy port for you. The tap in the VPN app
+is yours, and after it, **turn the VPN off and on** — Android reads that list
+when the tunnel is built, so changing it does nothing until the tunnel is
+rebuilt.
 
 With Relay excluded from the tunnel *and* pointed at that port:
 
