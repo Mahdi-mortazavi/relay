@@ -9,6 +9,69 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.5] — 2026-09-16
+
+Tested against a real phone — a Samsung SM-A307FN on Android 11, over USB
+tethering, with a full-tunnel VPN live on it. That is the configuration
+[`vpn-compat.md`](docs/vpn-compat.md) describes and no CI job can assemble, and
+it produced three findings.
+
+### Fixed — the activity log cut off the only part worth reading
+
+The Windows log did not wrap, inside a box that only scrolls vertically, so
+every line wider than the popover lost its tail. On the test machine that meant
+`Tunnel did not start: ERR_WG_` and `Full Mode: dialling 192.168.1` — the error
+code and the address, which are the two things a log line exists to carry.
+
+### Fixed — the "that phone can't answer" message named the wrong fix
+
+It worked exactly as designed: the phone advertised that its replies were not
+getting out, the PC marked the row **can't answer** before it was clicked, and
+clicking refused in four seconds instead of spending twenty-three.
+
+Then it told the user to turn off *"Block connections without VPN"* — while the
+phone had just reported that setting was **off**. That is the commoner case: an
+ordinary full-tunnel VPN swallows replies just as thoroughly and has no such
+switch to find. The message now leads with the fix that works — excluding Relay
+in the VPN app's own per-app or split-tunnel list — and mentions the other
+second. The PC cannot know which cause it is, on purpose: what the phone
+broadcasts says only *"replies are not leaving"* and never names a VPN.
+
+### Fixed — a spent installer no longer lives in `%TEMP%` forever
+
+A 48 MB `Relay-Setup-x64.exe` was found sitting in the update directory with no
+record beside it, its hash matching the published release exactly: a real
+download that did its job and was then abandoned.
+
+The *successful* path left it, which is why no failure test caught it.
+Installing clears the record before starting the installer, then the app exits so
+Setup can replace it; the relaunched app finds no record and returns at the first
+line, and the only thing that deletes an installer needs a record to be
+reachable. So every successful self-update leaked fifty megabytes, permanently,
+and the next one leaked fifty more.
+
+### Changed — the shared tokens and the design files agree with the code again
+
+The accent existed as **three** values at once: `#45D6B8` in
+`shared/design-tokens.json` and the Compose theme, `#4ADFBF` in the Windows
+tokens, and `#4ADFBF` a third time as a private byte table inside the Windows
+client. The colour users have actually seen for the life of the product was
+written down in no authoritative place. It is `#4ADFBF` everywhere now,
+`/shared` first, and the private table is gone.
+
+`/shared` also still carried contrast values Android had already corrected, and
+declared a light theme the Windows popover does not have. Both reconciled.
+
+### Fixed — copy that described things that do not exist
+
+- The Full Mode error told the user to *"Try Fast Mode"*. ADR-0009 removed Fast
+  Mode; there is no other mode to try, in either language.
+- *"Something went wrong. Sharing stopped unexpectedly."* now names battery
+  optimisation and points at the exemption Relay already offers.
+- `GB`, `MB`, `KB` and `B` were Kotlin string literals — four user-facing words
+  that never reached `strings.xml`, so the translation test could not see them
+  and a translator had nothing to translate.
+
 ## [2.8.4] — 2026-09-13
 
 ### Added — each side now says what only it can see
