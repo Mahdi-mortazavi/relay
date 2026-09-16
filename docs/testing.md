@@ -110,7 +110,7 @@ after uninstall.
 | Play Protect blocking a sideloaded install | Emulator images carry no Play Store | **BLOCKED — infrastructure** |
 | A native arm64 device | GitHub's arm64 runners expose no `/dev/kvm`; arm64 coverage is binary translation on x86_64 | **BLOCKED — infrastructure** |
 | **That forwarding through a VPN's local proxy carries real traffic** (`upstream.go`, ADR-0010, shipped 2.8.6) | The Go suite drives CONNECT, UDP ASSOCIATE, datagram framing and every refusal against a fake SOCKS5 server, so the protocol is covered. A real VPN client's port is not something CI has | **VERIFIED on hardware, 2026-09-16.** Measurements below: [Forwarding through a VPN's own proxy](#forwarding-through-a-vpns-own-proxy--proved-on-hardware-2026-09-16) |
-| **That the accent change actually renders** (`#45D6B8` → `#4ADFBF`, 2.8.5) | CI builds and tests both clients but nobody looks at the result. The change is one hex value in three places and the Windows client was already shipping the new one, so the risk is low — but "the tests pass" is not "somebody saw it" | **UNVERIFIED — needs a screen.** One glance at the Android home screen in both themes settles it |
+| **That the accent change actually renders** (`#45D6B8` → `#4ADFBF`, 2.8.5) | CI builds and tests both clients but nobody looks at the result | **VERIFIED on hardware, 2026-09-16.** Sampled off `adb shell screencap` of an SM-A307FN running 2.8.6, not inferred from the passing tests: the status dot is **`#4ADFBF`** in dark (164 of 169 pixels exact, the rest antialiasing) and **`#0F7A63`** in light — the AA-corrected light value in `Theme.kt`, matching both themes as written. No trace of `#45D6B8` |
 | **That `Settings.Secure.always_on_vpn_lockdown` survives the `@Readable` gate** (`VpnLockdown`, shipped 2.8.3) | Read successfully from Relay's own UID on a Samsung SM-A307FN, 2026-09-16: forcing the key to `1` put `blocked: "replies"` on the beacon within a second and `logcat -s RelayVpnLockdown` stayed empty, so nothing threw. **But that phone is Android 11 — API 30 — and the gate only exists from API 31.** The read was never actually gated, so the interesting half is untested | **PARTIALLY VERIFIED.** Needs one phone on Android 12+, ideally a second manufacturer. Checks 1, 2 below pass; 3 is the open one |
 
 #### The four checks that would settle `VpnLockdown` (2.8.3)
@@ -456,3 +456,36 @@ deleted it three seconds after start. The directory was empty by 11:03:46.
 What this run did **not** cover: install-on-close. This was the start-up path,
 because the app was killed rather than asked to quit. Closing Relay from the
 tray with an update pending is still unproven.
+
+### Settled, 2026-09-16: it really does wait for the tunnel to go down
+
+The rule the whole design turns on — *never install while connected* — had not
+been watched happen. It has now, by downgrading the laptop to 2.8.5 with 2.8.6
+published and connecting to the phone before the check fired:
+
+```
+13:32:38  Relay-Setup-x64.exe + pending-update.json on disk, verified
+          state: Connected, tunnel carrying traffic
+13:41:54  still 2.8.5, same process since 13:31:32  -- 9m16s of holding back
+13:42:22  Disconnect clicked
+13:43:51  version is 2.8.6, running again
+13:44:00  staging directory swept clean
+```
+
+**Eighty-nine seconds from Disconnect to installed**, which is `IdlePoll` (one
+minute) plus the install. So the bounded idle wait works, and it is the
+`_idleWait` deadline rather than a coincidence that decides it.
+
+One thing in that trace is **not explained**: at 13:42:40 the process id changed
+while the version was still 2.8.5 and `pending-update.json` had already gone.
+Sampling was every eight seconds, which is too coarse to say what happened
+between the record being consumed and the installer running. Recorded as seen,
+not reasoned about.
+
+**Install-on-close remains unproven, and cannot be driven from here.** Its only
+trigger is the tray icon's **Exit** item — `AppWindow.Closing` cancels an
+ordinary close and hides to the tray instead, so Alt+F4 and the window's own
+button do not reach it. The item lives in a WinUI `MenuFlyout` on an
+`H.NotifyIcon`, and a synthesised right-click on the Windows 11 notification
+overflow does not open it; clicking by coordinate hit the neighbouring app's
+icon instead. Same blocker as the window's own controls, one row up.

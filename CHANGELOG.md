@@ -9,6 +9,50 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.7] — 2026-09-16
+
+A release about the release before it. 2.8.6's proxy forwarding shipped with the
+part that mattered untested; it has since been measured on hardware, and the
+measuring turned up a bug in how Relay keeps itself current.
+
+### Fixed — one failed update check cost a whole day
+
+Seen on the maintainer's laptop with 2.8.5 installed and 2.8.6 published: the
+check at launch did not complete, left nothing behind, and the next one was
+twenty-four hours away — so that launch was never going to update. A relaunch
+seven minutes later downloaded all 48 MB and installed it in thirty-seven
+seconds, over the same network that answered `api.github.com` in under a second
+either side.
+
+The cause was that "there is nothing new" and "I could not find out" arrived at
+the loop as the same answer, so both were followed by a full day's wait. They are
+now distinguishable: a check that could not be made is retried in **five
+minutes**, doubling and stopping at the ordinary daily interval, so a laptop
+offline for a week is not asking every five minutes for a week.
+
+A failed check still shows nothing and interrupts nothing — but it is now
+written to the activity log. It was not, which is why the one time it happened
+there was no way to tell afterwards which of the two silent paths the app had
+taken.
+
+### Verified — 2.8.6's proxy forwarding carries real traffic
+
+Measured against Oblivion's own SOCKS5 port on an SM-A307FN, with the VPN
+full-tunnelling the phone: it grants UDP ASSOCIATE, 10 MB crossed at 1.5 MB/s,
+and the laptop's public address moved from `109.125.167.170` (`warp=off`) to
+`104.28.192.178` (`warp=on`) on that setting alone. Nothing changed in the app;
+this is the claim 2.8.6 made now standing on numbers.
+
+The port is rarely the one you would guess — Oblivion's is `1819`, not the
+`10808` the field's placeholder suggests — so
+[`vpn-compat.md`](docs/vpn-compat.md) now says how to read the real one off the
+phone.
+
+### Verified — the accent colour, on a real screen
+
+`#4ADFBF` in dark and `#0F7A63` in light, sampled off screenshots from the
+phone rather than inferred from the tests that were already passing.
+
 ## [2.8.6] — 2026-09-16
 
 Everything here came out of one hardware session: a Samsung SM-A307FN over USB,
