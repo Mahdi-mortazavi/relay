@@ -264,7 +264,11 @@ public sealed class UpdateService(
     public async Task<bool> InstallPendingAsync(bool relaunch, CancellationToken token = default)
     {
         var pending = PendingUpdate.Load(_directory);
-        if (pending is null) return false;
+        if (pending is null)
+        {
+            SweepSpentInstallers();
+            return false;
+        }
 
         var path = Path.Combine(_directory, pending.Installer);
 
@@ -321,6 +325,45 @@ public sealed class UpdateService(
 
         notify(UpdateNotice.Installing, pending.Version);
         return true;
+    }
+
+    /// <summary>
+    /// Deletes installers left behind by an update that has already run.
+    ///
+    /// Found on a real machine: a 48 MB <c>Relay-Setup-x64.exe</c> sitting in
+    /// <c>%TEMP%\Relay-update</c> with no <c>pending-update.json</c> beside it,
+    /// and nothing that would ever remove it.
+    ///
+    /// It is left by the successful path, not a failing one. Installing clears
+    /// the record *before* starting the installer — deliberately, so a launcher
+    /// that will not start is not retried forever — and then the app exits so
+    /// Setup can replace it. The relaunched app finds no record, returns at the
+    /// first line of <see cref="InstallPendingAsync"/>, and never looks at the
+    /// directory again. <see cref="Forget"/> is the only thing that deletes an
+    /// installer and it is unreachable without a record. So **every** successful
+    /// self-update leaked fifty megabytes, permanently.
+    ///
+    /// No record means nothing is pending, which means any installer still here
+    /// is spent. A file Windows still has open — Setup may be running this very
+    /// exe — refuses to delete, which is fine: the next launch gets it.
+    /// </summary>
+    private void SweepSpentInstallers()
+    {
+        try
+        {
+            if (!Directory.Exists(_directory)) return;
+            foreach (var file in Directory.EnumerateFiles(_directory))
+            {
+                var name = Path.GetFileName(file);
+                if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                    !name.EndsWith(".part", StringComparison.OrdinalIgnoreCase)) continue;
+                try { File.Delete(file); } catch (Exception) { }
+            }
+        }
+        catch (Exception)
+        {
+            // Sweeping is tidiness, never a reason to fail a launch.
+        }
     }
 
     /// <summary>Drops the record and the installer it names. Never throws.</summary>

@@ -186,6 +186,48 @@ public class UpdateAcrossLaunchesTests
     }
 
     [Fact]
+    public async Task ASpentInstallerDoesNotLiveInTempForever()
+    {
+        // Found on a real machine, not here: a 48 MB Relay-Setup-x64.exe in
+        // %TEMP%\Relay-update with no pending-update.json beside it.
+        //
+        // It is the *successful* path that leaves it. Installing clears the
+        // record before starting the installer, then the app exits so Setup can
+        // replace it; the relaunched app finds no record and returns at the
+        // first line, and Forget -- the only thing that deletes an installer --
+        // needs a record to be reachable. So every successful self-update leaked
+        // fifty megabytes, permanently, and the next one leaked fifty more.
+        var directory = Fresh();
+        var spent = Path.Combine(directory, Installer);
+        await File.WriteAllBytesAsync(spent, Payload);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Relay-Setup-x64.exe.part"), "half a download");
+        Assert.Null(PendingUpdate.Load(directory)); // the state a finished update leaves
+
+        await Launch(directory, "Idle", [], new Notices()).InstallPendingAsync(relaunch: true);
+
+        Assert.False(File.Exists(spent), "the spent installer is still there");
+        Assert.Empty(Directory.EnumerateFiles(directory));
+    }
+
+    [Fact]
+    public async Task TheSweepLeavesAPendingUpdateAlone()
+    {
+        // The sweep runs only when there is no record, so an update that is
+        // genuinely waiting must survive it. Getting this wrong would delete the
+        // download between fetching it and installing it -- turning a leak into
+        // an update that can never land.
+        var directory = Fresh();
+        await Launch(directory, "Connected", [], new Notices()).CheckAndMaybeInstallAsync();
+
+        Assert.NotNull(PendingUpdate.Load(directory));
+        Assert.True(File.Exists(Path.Combine(directory, Installer)));
+
+        await Launch(directory, "Connected", [], new Notices()).InstallPendingAsync(relaunch: true);
+
+        Assert.True(File.Exists(Path.Combine(directory, Installer)), "the sweep ate a pending update");
+    }
+
+    [Fact]
     public async Task NothingPendingIsNotAnError()
     {
         var notices = new Notices();
