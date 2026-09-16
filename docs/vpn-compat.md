@@ -135,11 +135,43 @@ So the honest order of preference is:
 
 1. **"Allow local network access" / "LAN access"**, if the VPN app has it. Relay's
    replies escape, its forwarded traffic still goes through the tunnel, and the
-   PC gets the VPN. This is the only setting that keeps both.
+   PC gets the VPN. This is the only *VPN* setting that keeps both.
 2. **Turn off lockdown**, which has the same shape: it restores the local-route
    exemption without taking Relay out of the tunnel.
-3. **Exclude Relay per-app**, which always restores the connection and always
-   costs the VPN.
+3. **Exclude Relay per-app, and point Relay at the VPN's local proxy** — see
+   below. This is the arrangement that works when the VPN offers no exemption.
+4. **Exclude Relay per-app alone**, which always restores the connection and
+   always costs the VPN.
+
+### Getting the connection *and* the VPN (2.8.6, ADR-0010)
+
+Excluding Relay is what makes the connection possible and what takes the VPN
+away, and those are the same act — so the only way to have both is to put the
+traffic back into the tunnel by another door.
+
+Nearly every client this product's users run — v2ray, sing-box, Hiddify,
+Oblivion — exposes a **local SOCKS5 port**, because that is how they serve apps
+they are not routing. Relay can forward through it:
+
+> **Advanced → Send the PC's traffic through a proxy** → `127.0.0.1:10808`
+> (whatever port the VPN client reports)
+
+With Relay excluded from the tunnel *and* pointed at that port:
+
+- Relay is outside the tunnel, so its replies reach the LAN and the PC connects;
+- what it forwards goes in through the proxy, so the PC gets the VPN.
+
+Empty is the default and means the phone's own route, which is what every
+release before 2.8.6 did.
+
+**It carries UDP.** The SOCKS5 client is hand-written for exactly that reason:
+`golang.org/x/net/proxy` speaks only TCP, and a proxy mode that silently dropped
+datagrams would turn Relay into a browser tunnel with nothing on screen to say
+so. RFC 1928's UDP ASSOCIATE is implemented beside CONNECT.
+
+**It does not help a VPN with no local port and no LAN exemption.** There, the
+choice between the connection and the VPN still stands. Relay can describe the
+arrangements that exist; it cannot add a port to somebody else's app.
 
 Relay's own copy said "the VPN keeps running — Relay shares it" under option 3
 until 2.8.6. It does keep running, for everything except the PC.

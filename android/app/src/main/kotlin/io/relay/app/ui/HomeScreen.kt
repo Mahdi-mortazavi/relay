@@ -40,6 +40,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -60,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -79,6 +81,7 @@ import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.WarningCode
 import io.relay.app.net.UsbLink
 import io.relay.app.service.LocalLog
+import io.relay.app.service.Settings
 import io.relay.app.ui.theme.LocalGlass
 import io.relay.app.ui.theme.glassPanel
 import java.util.Locale
@@ -113,6 +116,9 @@ fun HomeScreen(
     onDismissUsbOffer: () -> Unit = {},
     /** Opens Android's VPN screen, for the one warning that can name a setting. */
     onOpenVpnSettings: () -> Unit = {},
+    /** SOCKS5 `host:port` the PC's traffic is forwarded through, or empty. */
+    upstreamProxy: String = "",
+    onSetUpstreamProxy: (String) -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -192,7 +198,10 @@ fun HomeScreen(
                 BatteryBanner(onAllowBattery)
                 Spacer(Modifier.height(12.dp))
             }
-            AdvancedSection(state, themeMode, logs, onSetTheme, onClearLogs, onShareLogs)
+            AdvancedSection(
+                state, themeMode, logs, onSetTheme, onClearLogs, onShareLogs,
+                upstreamProxy, onSetUpstreamProxy,
+            )
         }
 
         // Inside the Box and after the scrolling Column, so it sits above the
@@ -714,6 +723,8 @@ private fun AdvancedSection(
     onSetTheme: (String) -> Unit,
     onClearLogs: () -> Unit,
     onShareLogs: () -> Unit,
+    upstreamProxy: String,
+    onSetUpstreamProxy: (String) -> Unit,
 ) {
     val glass = LocalGlass.current
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -765,7 +776,64 @@ private fun AdvancedSection(
                     }
                 }
 
-                // Preferred port
+                // Where the PC's traffic leaves this phone.
+                //
+                // The only setting here that changes routing, and it is last
+                // because most people never need it: it earns its place on the
+                // phones where a VPN captures Relay, where without it you can
+                // have the connection or the VPN and not both.
+                Column {
+                    Text(
+                        stringResource(R.string.advanced_upstream),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = glass.textSecondary,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        stringResource(R.string.advanced_upstream_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = glass.textTertiary,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    val usable = Settings.isUsableProxy(upstreamProxy)
+                    BasicTextField(
+                        value = upstreamProxy,
+                        onValueChange = onSetUpstreamProxy,
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = glass.textPrimary,
+                            fontFamily = FontFamily.Monospace,
+                        ),
+                        cursorBrush = SolidColor(glass.accent),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassPanel(radius = 12.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        decorationBox = { field ->
+                            if (upstreamProxy.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.advanced_upstream_placeholder),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = glass.textTertiary,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                            field()
+                        },
+                    )
+                    // Said while it is still being typed, not after sharing
+                    // fails: a bad address here produces a tunnel that comes up
+                    // and carries nothing, which looks like a broken network.
+                    if (!usable) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.advanced_upstream_invalid),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = glass.error,
+                        )
+                    }
+                }
 
                 // Local-only activity log
                 Column {

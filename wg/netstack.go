@@ -67,11 +67,28 @@ type netTun struct {
 	events   chan tun.Event
 	mtu      int
 
+	// Where forwarded traffic goes out. Nil means the phone's default route,
+	// which is what every release before upstream proxying did and what this
+	// still does unless someone configures otherwise. See upstream.go.
+	out upstream
+
 	// Cancelled by Close, so a Read blocked on an empty queue returns instead
 	// of waiting for a packet that is never coming.
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
+}
+
+// dial opens the phone-side socket for one forwarded flow.
+//
+// Nil-safe on purpose: two benchmarks build a netTun directly and have no
+// opinion about egress, and a zero value that behaves like the old code is
+// worth more than three call sites that must remember to set a field.
+func (d *netTun) dial(network, address string) (net.Conn, error) {
+	if d.out == nil {
+		return direct{}.Dial(network, address)
+	}
+	return d.out.Dial(network, address)
 }
 
 func newNetTun(mtu int) (*netTun, error) {
@@ -300,7 +317,7 @@ func (d *netTun) installForwarders() {
 		destination := net.JoinHostPort(
 			addrToString(id.LocalAddress), strconv.Itoa(int(id.LocalPort)))
 
-		outbound, err := net.DialTimeout("tcp", destination, dialTimeout)
+		outbound, err := d.dial("tcp", destination)
 		if err != nil {
 			// Refuse rather than drop: the peer learns immediately instead of
 			// waiting out its own connect timeout on a host that is not there.
@@ -326,7 +343,7 @@ func (d *netTun) installForwarders() {
 		destination := net.JoinHostPort(
 			addrToString(id.LocalAddress), strconv.Itoa(int(id.LocalPort)))
 
-		outbound, err := net.DialTimeout("udp", destination, dialTimeout)
+		outbound, err := d.dial("udp", destination)
 		if err != nil {
 			return // UDP has nothing to refuse with
 		}

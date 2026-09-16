@@ -88,14 +88,41 @@ type Endpoint struct {
 // way wg(8) takes it, so there is one source of truth for it rather than two
 // that can disagree.
 func Start(ipcConfig string) (*Endpoint, error) {
+	return StartVia(ipcConfig, "")
+}
+
+// StartVia is Start with somewhere else to send the forwarded traffic.
+//
+// upstreamProxy is a SOCKS5 address — in practice a VPN client's own local
+// port, "127.0.0.1:10808" and the like — or empty for the phone's default
+// route, which is what Start means and what every release before this did.
+//
+// It exists because of a trade the app could not otherwise escape. An Android
+// VPN captures by UID, so it swallows Relay's replies to the PC and the pairing
+// never completes; excluding Relay in the VPN's per-app list fixes that and
+// takes Relay out of the tunnel, so the PC then gets the phone's connection and
+// not the phone's VPN. Sending through the VPN's own proxy is how both fit:
+// Relay stays outside the tunnel so it can answer the LAN, and the traffic it
+// carries goes in through the front door. See upstream.go.
+//
+// Separate from Start rather than a second parameter on it because Start is
+// exported through gomobile and callers on the Kotlin side are generated
+// against its signature.
+func StartVia(ipcConfig, upstreamProxy string) (*Endpoint, error) {
 	if ipcConfig == "" {
 		return nil, errors.New("relaywg: empty configuration")
+	}
+
+	out, err := newUpstream(upstreamProxy)
+	if err != nil {
+		return nil, err
 	}
 
 	tunDevice, err := newNetTun(mtu)
 	if err != nil {
 		return nil, err
 	}
+	tunDevice.out = out
 	// Installed before the tunnel comes up, so the first packet from the peer
 	// already has somewhere to go.
 	tunDevice.installForwarders()

@@ -27,6 +27,22 @@ var (
 // change is a single call rather than a stop/start the caller has to sequence
 // correctly.
 func StartEndpoint(ipcConfig string) error {
+	return StartEndpointVia(ipcConfig, "")
+}
+
+// StartEndpointVia is StartEndpoint with somewhere else to send the traffic it
+// forwards: a SOCKS5 address, in practice a VPN client's own local port, or
+// empty for the phone's default route.
+//
+// The reason it is worth a second entry point is in upstream.go. An Android VPN
+// captures by UID, so leaving Relay inside the tunnel means the phone cannot
+// answer the PC at all, and taking Relay out of it means the PC gets the
+// phone's connection rather than the phone's VPN. Going through the VPN's own
+// proxy is the only arrangement that gives both.
+//
+// A separate function rather than a parameter on StartEndpoint because gomobile
+// generates the Kotlin binding from the signature, and the old one has callers.
+func StartEndpointVia(ipcConfig, upstreamProxy string) error {
 	activeMu.Lock()
 	defer activeMu.Unlock()
 
@@ -35,7 +51,7 @@ func StartEndpoint(ipcConfig string) error {
 		active = nil
 	}
 
-	endpoint, err := Start(ipcConfig)
+	endpoint, err := StartVia(ipcConfig, upstreamProxy)
 	if err != nil {
 		return err
 	}

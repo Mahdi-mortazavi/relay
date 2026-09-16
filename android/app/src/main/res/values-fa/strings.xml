@@ -45,6 +45,10 @@
     <string name="theme_system">سیستم</string>
     <string name="theme_dark">تیره</string>
     <string name="theme_light">روشن</string>
+    <string name="advanced_upstream">ترافیک کامپیوتر را از یک پروکسی بفرست</string>
+    <string name="advanced_upstream_hint">خالی بگذارید تا از اتصال خودِ این گوشی استفاده شود. اگر برنامهٔ وی‌پی‌انی روی این گوشی پورت SOCKS5 محلی دارد، نوشتن آن اینجا همان چیزی است که اجازه می‌دهد کامپیوتر از آن وی‌پی‌ان استفاده کند.</string>
+    <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
+    <string name="advanced_upstream_invalid">باید یک پورت باشد، یا یک نشانی و یک پورت — مثل 127.0.0.1:10808 یا :10808.</string>
     <string name="advanced_logs">گزارش فعالیت (روی همین دستگاه می‌ماند)</string>
     <string name="advanced_logs_clear">پاک‌کردن</string>
     <string name="advanced_logs_empty">هنوز فعالیتی نیست</string>
