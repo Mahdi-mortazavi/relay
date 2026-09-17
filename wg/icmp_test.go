@@ -28,6 +28,11 @@ import (
 // package: this file has to be exact about what goes on the wire, and the wire
 // format is fixed.
 
+// Written out again rather than taken from netstack.go's own copies. A test
+// that builds its packets from the same constants the filter reads them with
+// cannot notice one of those constants being wrong: both sides would move
+// together and the test would still pass. These are the values from RFC 791
+// and RFC 792, independently.
 const (
 	protoICMP        = 1
 	icmpEchoRequest  = 8
@@ -131,6 +136,64 @@ func TestRelayDoesNotAnswerPingsForAddressesItCannotCarry(t *testing.T) {
 			t.Fatalf("something came back for %s: % x", destination, answer)
 		}
 	}
+}
+
+func TestTheFilterDoesNotEatRealTraffic(t *testing.T) {
+	// The dangerous failure mode of the change above. A byte-level sniff on
+	// the hottest path in the program, one nibble away from dropping every
+	// packet the product exists to carry -- so: a TCP packet, a UDP packet and
+	// an ICMP fragment that carries no readable header all have to go through.
+	device, err := newNetTun(mtu)
+	if err != nil {
+		t.Fatalf("newNetTun: %v", err)
+	}
+	defer device.Close()
+
+	cases := []struct {
+		what   string
+		packet []byte
+	}{
+		{"a TCP SYN to a public address", transportPacket(6, "1.1.1.1")},
+		{"a UDP datagram to a public address", transportPacket(17, "8.8.8.8")},
+		{"an ICMP echo to the tunnel itself", echoRequest("10.13.37.2", tunnelAddress, 1)},
+		{"a later ICMP fragment, which has no header to read", laterFragment()},
+	}
+	for _, c := range cases {
+		n, err := device.Write([][]byte{c.packet}, 0)
+		if err != nil {
+			t.Fatalf("%s: write: %v", c.what, err)
+		}
+		if n != 1 {
+			t.Fatalf("%s was dropped by the ping filter", c.what)
+		}
+	}
+}
+
+// transportPacket is an IPv4 header carrying eight bytes of nothing under the
+// given protocol number. Enough to be accepted or dropped; not a valid segment.
+func transportPacket(protocol byte, destination string) []byte {
+	total := ipv4HeaderLength + 8
+	packet := make([]byte, total)
+	packet[0] = 0x45
+	binary.BigEndian.PutUint16(packet[2:4], uint16(total))
+	packet[8] = 64
+	packet[9] = protocol
+	copy(packet[12:16], net.ParseIP("10.13.37.2").To4())
+	copy(packet[16:20], net.ParseIP(destination).To4())
+	binary.BigEndian.PutUint16(packet[10:12], onesComplement(packet[:ipv4HeaderLength]))
+	return packet
+}
+
+// laterFragment is an ICMP packet with a non-zero fragment offset, so the byte
+// at the end of the header is payload rather than an ICMP type. Reading it as
+// a type is how a bounds-and-flags mistake would show up.
+func laterFragment() []byte {
+	packet := transportPacket(protoICMP, "1.1.1.1")
+	binary.BigEndian.PutUint16(packet[6:8], 185) // offset 185*8 bytes in
+	packet[ipv4HeaderLength] = icmpEchoRequest   // looks like a ping, is not
+	binary.BigEndian.PutUint16(packet[10:12], 0)
+	binary.BigEndian.PutUint16(packet[10:12], onesComplement(packet[:ipv4HeaderLength]))
+	return packet
 }
 
 func TestPingingTheTunnelItselfStillAnswers(t *testing.T) {
