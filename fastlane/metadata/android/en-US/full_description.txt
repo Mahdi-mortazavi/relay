@@ -35,10 +35,14 @@ that port for you.
 
 UPDATES
 
-The app checks the project's GitHub releases page for a newer version and shows
-a banner when one exists. Downloading and installing is never automatic — it
-happens only if you tap the button, and Android asks you to confirm. If you
-installed Relay from an app repository, prefer that repository's own updates.
+If you installed Relay from an app repository, that repository handles updates
+and Relay will not offer its own. It detects how it was installed and stays out
+of the way.
+
+If you downloaded the APK yourself, Relay checks the project's GitHub releases
+page and shows a banner when a newer version exists. Downloading and installing
+is never automatic — only if you tap the button, and Android asks you to
+confirm.
 
 PERMISSIONS
 
