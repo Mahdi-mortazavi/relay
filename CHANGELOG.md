@@ -9,6 +9,65 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.9.0] — 2026-09-17
+
+Relay is being prepared for the open-source app repositories. Most of that is
+metadata, but one thing in it is a real behaviour change and it is why this is a
+minor release rather than a patch.
+
+### Changed — updates belong to whoever installed Relay
+
+Relay checks GitHub for a newer APK and offers to install it. That is right for
+someone who downloaded the APK, and wrong for everybody else: an app repository
+already updates what it installed, and a banner asking you to sideload a file
+instead quietly pulls you out of the channel you chose. On a build signed by
+someone else's key it is worse than that — the sideloaded APK cannot install
+over it at all, so the banner leads to a dead end.
+
+Relay now asks the platform who installed it. If that is a repository client —
+F-Droid, F-Droid Basic, Droid-ify, Neo Store, Foxy Droid, Obtainium, or Play —
+**the update check does not run**. Nothing on screen, nothing fetched.
+
+A copy you downloaded yourself behaves exactly as before: it checks, it shows a
+banner, and it installs only if you tap the button and confirm Android's own
+prompt.
+
+It fails toward *showing* the banner. Android offers an app no way to ask whether
+an installer is a store, so the list cannot be exhaustive — and an identifier
+that is missing or misspelled has to cost a redundant banner rather than a missed
+update. A test pins that direction, because the inverse is the tempting way to
+write it and the inverse is silent.
+
+This is also what IzzyOnDroid's inclusion policy requires: fetching executable
+binaries must be opt-in. The copy such a repository serves now never fetches one.
+
+### Added — descriptions the repositories can read
+
+`fastlane/metadata/android/{en-US,fa}/` now carries the title, summary, full
+description and per-version changelogs, in English and Persian. F-Droid and
+IzzyOnDroid read that structure directly, so there is one copy of this text
+rather than one here and another pasted into a submission.
+
+Three things are in that description because leaving them out would have been a
+false claim by omission: that the Android app is one half of a pair and does
+nothing without the Windows client, that it checks GitHub for updates and what
+that means, and why each permission exists.
+
+### Added — how to get updates without checking back
+
+Both READMEs now link [Obtainium](https://github.com/ImranR98/Obtainium), which
+watches the releases page and installs each new version itself. The link goes
+through Obtainium's own redirect, because GitHub strips `obtainium://` from
+rendered pages and a direct deep link would have been dead.
+
+### Added — where Relay stands in each repository
+
+[`STORE-LISTING-STATUS.md`](STORE-LISTING-STATUS.md), with the requests and the
+metadata draft in [`docs/store/`](docs/store). Obtainium and Komi Store need no
+submission at all; the IzzyOnDroid request is written; F-Droid is not ready, and
+the file says which three toolchain problems have to be fixed first rather than
+implying it is a paperwork delay.
+
 ## [2.8.9] — 2026-09-17
 
 ### Fixed — `ping` through Relay always succeeded, and meant nothing
