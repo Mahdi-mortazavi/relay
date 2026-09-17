@@ -140,6 +140,25 @@ Thank you for the repo, and for the time it takes to review these.
    `REQUEST_INSTALL_PACKAGES` and an undisclosed self-updater is one of the
    things their policy lists as grounds for *removal*. Disclosing it with the fix
    already shipped is a much better first impression than being asked.
-3. **Post after 2.9.0 ships**, so the installer-detection commit is in a
-   published release rather than only on `main`. Linking a fix that is not yet in
-   any APK invites a reviewer to check the APK and not find it.
+3. ~~**Post after 2.9.0 ships**~~ — done. 2.9.0 is published and carries
+   `InstallSource`; the arm64 APK verifies against the same release key
+   (`d551778e…`), `versionCode 20900`.
+
+4. ⚠️ **Verify the claim on a device before posting.** The request tells Izzy
+   that the copy they serve never fetches a binary. That is unit-tested and
+   shipped, but the platform call behind it — `getInstallSourceInfo` — has not
+   run on a real phone, because the test device was unplugged before 2.9.0 was
+   published. Telling a reviewer something unproven about the very rule their
+   policy turns on is not a good way to start.
+
+   One command, and it does not need F-Droid installed:
+
+   ```
+   adb install -i org.fdroid.fdroid -r Relay-android-arm64-v8a.apk
+   ```
+
+   Launch Relay, open **Advanced**, and the activity log must read
+   `Updates are the installer's job, not ours  installer=org.fdroid.fdroid`.
+   Then reinstall without `-i` and confirm the update banner comes back — both
+   directions, or neither is proven. `docs/testing.md` carries this as the
+   open item.

@@ -86,8 +86,22 @@ repository client never runs the update check at all — so the copy they serve
 never fetches a binary. The request says this plainly rather than waiting to be
 asked.
 
-**Recommended:** send it after the release that contains `InstallSource`, so a
-reviewer checking the APK finds the behaviour the request describes.
+**2.9.0 is published** and carries `InstallSource`, so a reviewer checking the
+APK will find the behaviour the request describes.
+
+⚠️ **One thing to do before posting.** The request asserts to Izzy that the copy
+they serve never fetches a binary. That is unit-tested and shipped, but
+`getInstallSourceInfo` has not been exercised on a real phone — the test device
+was unplugged before 2.9.0 went out. One command proves it in both directions
+and needs no F-Droid install:
+
+```
+adb install -i org.fdroid.fdroid -r Relay-android-arm64-v8a.apk   # log must say the installer owns updates
+adb install -r Relay-android-arm64-v8a.apk                        # banner must come back
+```
+
+Asserting an unproven thing about the exact rule their policy turns on is a poor
+way to open. `docs/testing.md` carries it as the open item.
 
 ## F-Droid — not ready, and it is the AAR
 
