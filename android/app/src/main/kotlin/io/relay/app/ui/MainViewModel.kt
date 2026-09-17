@@ -11,6 +11,7 @@ import io.relay.app.net.UsbLink
 import io.relay.app.net.VpnLockdown
 import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.service.ConnectionRepository
+import io.relay.app.service.InstallSource
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
 import io.relay.app.service.SharingService
@@ -55,6 +56,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Not ours to offer. If Relay came from an app repository, that
+            // repository updates it, and a banner asking someone to sideload a
+            // file instead quietly pulls them out of the channel they chose.
+            // See [InstallSource]; it fails safe toward showing the banner.
+            if (!InstallSource.weOwnUpdates(getApplication())) {
+                LocalLog.info(
+                    LocalLog.Area.UPDATE,
+                    "Updates are the installer's job, not ours",
+                    "installer" to (InstallSource.installerOf(getApplication()) ?: "unknown"),
+                )
+                return@launch
+            }
+
             val latest = UpdateFetcher.latestVersion() ?: return@launch
             if (!UpdateCheck.isNewer(latest, currentVersion)) return@launch
 

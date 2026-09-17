@@ -1,0 +1,55 @@
+Relay shares your Android phone's internet connection with a Windows PC — over
+Wi-Fi, the phone's hotspot, or a USB cable.
+
+IMPORTANT: this app is one half of a pair. It does nothing on its own. The PC
+needs the free Relay companion app, which you can get from the project's
+releases page. Both are built from the same source.
+
+Tap Start Sharing on the phone, click your phone in the list on the PC, tap
+Allow. That is the whole setup — there is no account to create, no server in
+the middle, and nothing to configure.
+
+WHAT MAKES IT DIFFERENT
+
+Everything on the PC goes through the tunnel, not only the browser. The link is
+WireGuard, so calls, games and downloads work, not just web pages.
+
+Nothing leaves your two devices. No accounts, no analytics, no telemetry, no
+crash reporting. The app contains no advertising or tracking libraries of any
+kind. The diagnostic log stays on the phone until you choose to share it.
+
+No root is needed, and no VPN profile is installed on the phone.
+
+The keys are made fresh for each pairing and destroyed when you stop sharing.
+They are never broadcast: the phone announces only enough to be found, and the
+configuration travels over a short exchange that you approve on the phone, with
+the requesting computer's address shown to you first.
+
+IF YOU USE A VPN ON THE PHONE
+
+An Android VPN captures apps by identity, which stops Relay answering your PC.
+Relay detects this and explains the options. If your VPN app offers a local
+SOCKS5 proxy port, Relay can send the PC's traffic through it — so the PC gets
+the VPN too, rather than only the phone's own connection. Relay will look for
+that port for you.
+
+UPDATES
+
+If you installed Relay from an app repository, that repository handles updates
+and Relay will not offer its own. It detects how it was installed and stays out
+of the way.
+
+If you downloaded the APK yourself, Relay checks the project's GitHub releases
+page and shows a banner when a newer version exists. Downloading and installing
+is never automatic — only if you tap the button, and Android asks you to
+confirm.
+
+PERMISSIONS
+
+Internet, network and Wi-Fi state: to find the PC and carry its traffic.
+Foreground service and wake lock: so sharing survives the screen going off.
+Notifications: to show that sharing is running and let you stop it.
+Install packages: only for the optional in-app update described above.
+
+Source code, issue tracker and the Windows app: see the project website link.
+Licensed under the GNU General Public License v3.0.
