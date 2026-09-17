@@ -1,0 +1,97 @@
+# F-Droid metadata for Relay — DRAFT, not ready to submit
+#
+# Destination: gitlab.com/fdroid/fdroiddata → metadata/io.relay.app.yml
+#
+# Everything above the Builds: block is grounded and ready. Categories and
+# AntiFeatures were taken from fdroiddata's own config/categories.yml and
+# config/antiFeatures.yml rather than from memory. Builds: is the part that is
+# not ready, and the comment there says exactly why.
+#
+# Read docs/store/fdroid-metadata-notes.md before opening a merge request.
+
+Categories:
+  - Connectivity
+  - Internet
+License: GPL-3.0-only
+AuthorName: Mahdi Mortazavi
+WebSite: https://github.com/Mahdi-mortazavi/relay
+SourceCode: https://github.com/Mahdi-mortazavi/relay
+IssueTracker: https://github.com/Mahdi-mortazavi/relay/issues
+Changelog: https://github.com/Mahdi-mortazavi/relay/blob/main/CHANGELOG.md
+
+AutoName: Relay
+
+# No Summary: or Description: on purpose.
+#
+# The repository carries fastlane/metadata/android/{en-US,fa}/, which F-Droid
+# reads directly, so text here would be a second copy to drift out of date. That
+# is the same mistake this project already made once with a duplicate string
+# store, and it shipped raw keys to users for four releases.
+
+# AntiFeatures: none.
+#
+# Checked against fdroiddata's config/antiFeatures.yml, which offers Ads,
+# DisabledAlgorithm, KnownVuln, NoSourceSince, NonFreeAdd, NonFreeAssets,
+# NonFreeDep, NonFreeNet, Tracking and TetheredNet. None apply:
+#
+#   - no advertising, analytics, crash-reporting or telemetry library of any
+#     kind. The only third-party runtime dependency is
+#     com.wireguard.android:tunnel (GPL-2.0);
+#   - no non-free dependency, asset or add-on;
+#   - the app's function is device-to-device and needs no network service, so
+#     NonFreeNet does not apply. The in-app update check contacts GitHub, and
+#     in an F-Droid build it never runs at all — see the note below.
+#
+# There is deliberately no AntiFeature for a self-updater in F-Droid's
+# vocabulary, so this is stated here rather than encoded.
+
+Builds:
+  # NOT READY. Do not submit this block as it stands.
+  #
+  # Full Mode — the WireGuard forwarder that is the app's reason to exist — is a
+  # Go library in /wg, bound to an AAR with gomobile by scripts/build-wg-aar.sh
+  # and picked up by Gradle from android/app/libs. That AAR is *not* committed,
+  # so a plain `gradle assembleRelease` produces an app that honestly reports
+  # Full Mode as unavailable. Building it inside F-Droid's buildserver needs Go,
+  # an NDK, `go install golang.org/x/mobile/cmd/gomobile`, and `gomobile init`.
+  #
+  # Three specific things have to be settled first, and none of them can be
+  # settled by writing YAML:
+  #
+  #   1. scripts/build-wg-aar.sh sets GOTOOLCHAIN=auto, so the Go compiler
+  #      version is not pinned. gomobile also installs its own gobind at
+  #      @latest internally — the script says so in a comment. A build whose
+  #      compiler is chosen at build time cannot be reproducible, and on a
+  #      buildserver with restricted network it may not run at all.
+  #   2. There is no -trimpath, so absolute build paths are embedded in the
+  #      .so files. Different checkout directory, different bytes.
+  #   3. The NDK comes from ANDROID_NDK_LATEST_HOME rather than a pinned
+  #      version, and the native linker's version affects the output.
+  #
+  # Submitting a recipe that fails in their buildserver wastes a reviewer's
+  # time and gets the request closed. The honest order is: IzzyOnDroid first
+  # (they host this project's own signed APK and need none of the above), then
+  # this, after the three items are fixed.
+  #
+  # When they are, the recipe will look approximately like the block below —
+  # left commented because it has never been run and must not be mistaken for
+  # something that has.
+  #
+  # - versionName: 2.9.0
+  #   versionCode: 20900
+  #   commit: v2.9.0
+  #   subdir: android/app
+  #   sudo:
+  #     - apt-get update
+  #     - apt-get install -y golang-go
+  #   prebuild:
+  #     - ANDROID_NDK_HOME=$$NDK$$ ANDROID_HOME=$$SDK$$ ../../scripts/build-wg-aar.sh
+  #   gradle:
+  #     - yes
+  #   # and -PrelayRequireWg=true, so a build that silently lost Full Mode fails
+  #   # instead of shipping an app missing a mode it advertises.
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+CurrentVersion: 2.8.9
+CurrentVersionCode: 20809

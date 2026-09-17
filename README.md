@@ -210,7 +210,7 @@ installed:
 
 [**Add Relay to Obtainium**](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Mahdi-mortazavi/relay)
 
-<sub>Or paste <code>https://github.com/Mahdi-mortazavi/relay</code> into Obtainium by hand. The link goes through Obtainium's own redirect because GitHub strips <code>obtainium://</code> from pages.</sub>
+<sub>Or paste <code>https://github.com/Mahdi-mortazavi/relay</code> into Obtainium by hand. The link goes through Obtainium's own redirect because GitHub strips <code>obtainium://</code> from pages. A release carries six files and Obtainium lists all of them — pick <b>Relay-android-arm64-v8a.apk</b>, or set its APK filter to <code>arm64</code> once and forget it.</sub>
 
 <br>
 

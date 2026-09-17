@@ -175,7 +175,7 @@
 
 [**افزودن رله به Obtainium**](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Mahdi-mortazavi/relay)
 
-<sub>یا <code>https://github.com/Mahdi-mortazavi/relay</code> را دستی داخل Obtainium بگذار. لینک از ریدایرکت خود Obtainium می‌گذرد چون گیت‌هاب <code>obtainium://</code> را از صفحه‌ها حذف می‌کند.</sub>
+<sub>یا <code>https://github.com/Mahdi-mortazavi/relay</code> را دستی داخل Obtainium بگذار. لینک از ریدایرکت خود Obtainium می‌گذرد چون گیت‌هاب <code>obtainium://</code> را از صفحه‌ها حذف می‌کند. هر ریلیز شش فایل دارد و Obtainium همه را نشان می‌دهد — <b>Relay-android-arm64-v8a.apk</b> را انتخاب کن، یا یک‌بار فیلتر APK آن را روی <code>arm64</code> بگذار.</sub>
 
 </div>
 
