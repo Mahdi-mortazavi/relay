@@ -1,0 +1,9 @@
+Changed: updates belong to whoever installed Relay.
+
+If you got Relay from an app repository, that repository updates it — so Relay
+no longer offers its own. It asks the platform who installed it and stays out of
+the way. A copy you downloaded yourself is unchanged.
+
+Added: app descriptions and changelogs in the repository, English and Persian,
+so repositories can read them directly. Plus an Obtainium link, for updates
+without checking back.
