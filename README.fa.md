@@ -168,6 +168,15 @@
 > **ویندوز موقع اجرای اول هشدار می‌دهد** چون نصب‌کننده هنوز امضای دیجیتال ندارد — **More info ← Run anyway**.
 > **اندروید می‌گوید «App not installed»؟** [همه‌ی دلایلی که دیده‌ام این‌جاست](docs/install-troubleshooting.md).
 
+**می‌خواهی آپدیت اندروید بدون سر زدن به این صفحه بیاید؟**
+[Obtainium](https://github.com/ImranR98/Obtainium) همین مخزن را می‌پاید و هر
+ریلیز تازه را خودش نصب می‌کند — بدون فروشگاه، بدون حساب، و همان APK از همان
+بیلد. این لینک را **روی گوشی** باز کن، وقتی Obtainium نصب است:
+
+[**افزودن رله به Obtainium**](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Mahdi-mortazavi/relay)
+
+<sub>یا <code>https://github.com/Mahdi-mortazavi/relay</code> را دستی داخل Obtainium بگذار. لینک از ریدایرکت خود Obtainium می‌گذرد چون گیت‌هاب <code>obtainium://</code> را از صفحه‌ها حذف می‌کند.</sub>
+
 </div>
 
 ---

@@ -1,0 +1,8 @@
+Fixed: ping through Relay always succeeded and meant nothing.
+
+Relay carries TCP and UDP, never ICMP — but the network stack was answering
+pings for every address on the internet from inside the phone. A user spent an
+evening on a DNS problem that was not a DNS problem because of it.
+
+Pings to addresses Relay does not carry are now silent. Pinging the tunnel
+itself still works, and is the right way to ask whether it is alive.
