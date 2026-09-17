@@ -2,6 +2,7 @@ package relaywg
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -53,7 +54,22 @@ const (
 
 	// Matches conn.IdealBatchSize in wireguard-go. See [netTun.Read].
 	batchSize = 128
+
+	// Wire constants for [isEchoForElsewhere]. Written out rather than taken
+	// from gVisor's header package: this is a byte-level filter on packets that
+	// have not been parsed yet, and it runs before the stack sees them.
+	ipv4MinimumHeader = 20
+	ipv6HeaderLength  = 40
+	protocolICMPv4    = 1
+	protocolICMPv6    = 58
+	icmpv4EchoRequest = 8
+	icmpv6EchoRequest = 128
 )
+
+// Relay's own end of the tunnel as a number, so the per-packet filter compares
+// four bytes instead of parsing a string. [isEchoForElsewhere] runs on every
+// packet the peer sends.
+var tunnelIPv4 = binary.BigEndian.Uint32(net.ParseIP(tunnelAddress).To4())
 
 // netTun is a wireguard-go tun.Device backed by a gVisor stack we control.
 //
@@ -275,6 +291,28 @@ func (d *netTun) Write(bufs [][]byte, offset int) (int, error) {
 			continue // not IP; nothing sensible to do with it
 		}
 
+		// A ping for somewhere Relay does not carry traffic to.
+		//
+		// The stack has to be promiscuous, or the TCP and UDP forwarders would
+		// never see a packet addressed to the internet -- and that same setting
+		// makes gVisor treat an echo request for *any* address as locally
+		// destined and answer it. So `ping 1.1.1.1` through Relay always
+		// succeeded, from the netstack, without a byte leaving the phone.
+		//
+		// That is the first command anybody runs, and it could not fail. A user
+		// reported both ends Connected, ping answering in 50 ms and nothing
+		// else working at all; the tells were TTL=64, one hop away, and a
+		// traceroute that finished in a single hop because the responder
+		// ignored TTL. An answer that cannot fail is worth less than no answer.
+		//
+		// Dropped rather than forwarded: there is no unprivileged way to send
+		// ICMP from an Android app, and SOCKS5 -- the upstream in upstream.go --
+		// cannot carry it at all, so forwarding would work in one configuration
+		// and not the other. Not counted as written, like the non-IP case above.
+		if isEchoForElsewhere(packet) {
+			continue
+		}
+
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			Payload: buffer.MakeWithData(packet),
 		})
@@ -283,6 +321,53 @@ func (d *netTun) Write(bufs [][]byte, offset int) (int, error) {
 		written++
 	}
 	return written, nil
+}
+
+// isEchoForElsewhere reports whether a packet is an ICMP echo request for an
+// address that is not Relay's own end of the tunnel.
+//
+// Echo requests only. An echo *reply* arriving from the peer is already dropped
+// by the stack, and the other ICMP types are diagnostics gVisor does not
+// synthesise. Narrow on purpose: this is a filter on the hottest path in the
+// program, and every packet that is not a ping has to leave it untouched.
+//
+// [tunnelAddress] stays answerable. It is the one address a reply is the truth
+// about -- the peer really is talking to it -- and the Windows client pings
+// exactly it to show tunnel latency (TunnelStats.PingPeer), so a blanket refusal
+// would leave that reading blank forever.
+func isEchoForElsewhere(packet []byte) bool {
+	switch packet[0] >> 4 {
+	case 4:
+		if len(packet) < ipv4MinimumHeader {
+			return false
+		}
+		headerLength := int(packet[0]&0x0f) * 4
+		if headerLength < ipv4MinimumHeader || len(packet) < headerLength+1 {
+			return false
+		}
+		if packet[9] != protocolICMPv4 || packet[headerLength] != icmpv4EchoRequest {
+			return false
+		}
+		// A fragment other than the first carries no ICMP header to read, and
+		// the bytes at headerLength are payload. Fragment offset is the low 13
+		// bits of the flags word.
+		if binary.BigEndian.Uint16(packet[6:8])&0x1FFF != 0 {
+			return false
+		}
+		return binary.BigEndian.Uint32(packet[16:20]) != tunnelIPv4
+
+	case 6:
+		// The tunnel is IPv4-only -- the Windows client refuses IPv6 outright
+		// because nothing here carries it -- so the stack owns no IPv6 address
+		// and every echo request is for somewhere else. Extension headers are
+		// not walked: with any present, the next-header byte is not ICMPv6 and
+		// this returns false, which is the safe direction.
+		if len(packet) < ipv6HeaderLength+1 {
+			return false
+		}
+		return packet[6] == protocolICMPv6 && packet[ipv6HeaderLength] == icmpv6EchoRequest
+	}
+	return false
 }
 
 func (d *netTun) Flush() error             { return nil }

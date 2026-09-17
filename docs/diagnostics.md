@@ -64,6 +64,44 @@ sixty seconds later. Triage with it; never conclude from it. What *does* mean th
 replies are lost is the `PC_GOT_NO_REPLY` warning — see
 [`vpn-compat.md`](vpn-compat.md).
 
+## Checking whether anything crosses the tunnel
+
+**Not with `ping`.** Relay forwards TCP and UDP and nothing else — there is no
+unprivileged way for an Android app to send ICMP, and a SOCKS5 upstream
+(`upstream.go`) cannot carry it at all. So a ping to a public address is not a
+test of anything, and until 2.8.9 it was worse than that: the gVisor stack has
+to be promiscuous for the forwarders to see packets addressed to the internet,
+and that made it answer echo requests for **every address in the world** from
+inside the phone. `ping 1.1.1.1` could not fail.
+
+That cost a real user an evening. Their report read:
+
+```
+ping 1.1.1.1      ->  Reply ... time=49ms TTL=64
+tracert 1.1.1.1   ->  1   315 ms  291 ms  55 ms  one.one.one.one [1.1.1.1]
+nslookup google.com -> DNS request timed out
+```
+
+**`TTL=64` and a one-hop traceroute are the tell.** A real 1.1.1.1 is dozens of
+hops away and answers with a TTL in the forties; a responder that is one hop
+away and ignores TTL is a local stack. Since 2.8.9 those requests are dropped, so
+a ping that fails means "Relay does not carry ping", not "the internet is down".
+
+Ask the two questions separately instead, from the PC while connected:
+
+| Question | Command | A working tunnel |
+|---|---|---|
+| Is the tunnel itself alive? | `ping 10.13.37.1` | replies — this is Relay's own end, and the only address it answers for |
+| Does **TCP** cross? | `curl.exe -sS --max-time 15 -o NUL -w "%{http_code}\n" https://1.1.1.1/` | `200` |
+| Does **UDP** cross? | `nslookup google.com 8.8.8.8` | an address |
+| Whose internet is it? | `curl.exe -sS --max-time 20 https://www.cloudflare.com/cdn-cgi/trace` | `ip=` the phone's exit, and `warp=on` if the phone's VPN is being shared |
+
+Read them in that order and stop at the first failure — TCP working while UDP
+does not is a different fault from neither working, and the phone's VPN is the
+usual reason for the first. Read `ip=` and the laptop's own `ip=` from the
+**same** service or the comparison means nothing; two "what is my IP" endpoints
+do not have to agree, and one that disagreed cost a published claim a correction.
+
 ## Adding a line
 
 - Pick the **level** by what a reader should do: `ERROR` is "this is why it did
