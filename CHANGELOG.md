@@ -9,6 +9,54 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.8.9] — 2026-09-17
+
+### Fixed — `ping` through Relay always succeeded, and meant nothing
+
+Reported by a user whose phone and laptop both said **Connected** while nothing
+worked. Their output:
+
+```
+ping 1.1.1.1        ->  Reply ... time=49ms TTL=64
+tracert 1.1.1.1     ->  1   315 ms  291 ms  55 ms  one.one.one.one [1.1.1.1]
+nslookup google.com ->  DNS request timed out
+```
+
+The first two lines are the tell. A real `1.1.1.1` is dozens of hops away and
+answers with a TTL in the forties; **`TTL=64` means one hop**, and a traceroute
+that finishes in **one hop** means whatever answered ignored TTL. Something
+local was replying.
+
+That something was Relay. The gVisor stack it forwards through has to run in
+promiscuous mode — without it, the TCP and UDP forwarders never see a packet
+addressed to the internet — and with `icmp.NewProtocol4` registered, that same
+setting made gVisor treat an echo request for **any address in the world** as
+locally destined and answer it from inside the phone. Relay forwards TCP and UDP
+and nothing else, so every one of those replies was a statement about a path
+nothing had tried.
+
+So the first command anybody reaches for could not fail. It cost that user an
+evening, and it is exactly what this project says it will not do: claim a state
+it is not in.
+
+Echo requests for anything but Relay's own end of the tunnel are now dropped.
+`ping 10.13.37.1` still answers — the peer really is talking to it, and the
+Windows client measures tunnel latency with it. Everything else gets silence,
+which is the truth: **Relay does not carry ping.**
+
+Not forwarded instead, because it cannot be honestly: Android gives an app no
+unprivileged way to send ICMP, and the SOCKS5 upstream added in 2.8.6 cannot
+carry it at all, so forwarding would work in one configuration and not the other.
+
+**How to actually check a tunnel** is now written down in
+[`diagnostics.md`](docs/diagnostics.md) — four commands, in the order to read
+them, testing TCP and UDP separately, because one of them working while the
+other does not is a different fault from neither working.
+
+**This fixes the diagnosis, not that user's connection.** What is wrong there is
+still open: their phone reports a VPN with no local proxy Relay could find, and
+whether TCP crosses at all has not yet been measured.
+
 ## [2.8.8] — 2026-09-16
 
 ### Added — Relay finds the VPN's proxy port for you
