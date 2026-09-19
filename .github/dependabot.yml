@@ -15,6 +15,21 @@ updates:
     groups:
       android-dependencies:
         patterns: ['*']
+    # Kotlin 2.4.20 specifically, and nothing else.
+    #
+    # CodeQL's Kotlin extractor refuses it -- "Kotlin version 2.4.20 is too
+    # recent. CodeQL currently supports versions below 2.4.20" -- so the bump
+    # lands as a permanently red pull request while the app itself builds and
+    # tests clean on it. A red Dependabot branch nobody can merge is worse than
+    # a held pin: it teaches everyone to ignore a failing check.
+    #
+    # Pinned to the one version rather than a range on purpose. When 2.4.21
+    # appears Dependabot will raise it, and that run answers the only question
+    # that matters -- whether CodeQL has caught up -- without anyone having to
+    # remember this file exists.
+    ignore:
+      - dependency-name: org.jetbrains.kotlin:*
+        versions: ['2.4.20']
 
   - package-ecosystem: nuget
     directory: /windows

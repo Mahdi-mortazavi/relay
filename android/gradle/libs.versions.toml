@@ -1,9 +1,24 @@
 [versions]
 agp = "9.4.0"
+# Held at 2.4.10 on purpose. CodeQL's Kotlin extractor refuses anything newer:
+#
+#   > Task :app:compileDebugKotlin FAILED
+#   > Kotlin version 2.4.20 is too recent. CodeQL currently supports versions
+#     below 2.4.20
+#
+# The app itself builds and tests clean on 2.4.20 -- every other job in #142
+# passed. It is the security analysis that cannot read it, and CodeQL's bundle
+# comes from the runner rather than from this repository, so there is nothing
+# here to pin differently. Checked again on 2026-09-20 by re-running the job;
+# same message.
+#
+# Raise this the moment CodeQL catches up. Turning off Kotlin extraction to get
+# a green tick is the one thing not to do: that trades the analysis for the
+# appearance of it.
 kotlin = "2.4.10"
 coreKtx = "1.19.0"
 activityCompose = "1.13.0"
-composeBom = "2026.08.00"
+composeBom = "2026.09.00"
 lifecycle = "2.11.0"
 junit = "4.13.2"
 androidxTest = "1.7.0"
