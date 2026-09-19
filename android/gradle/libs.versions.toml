@@ -1,5 +1,5 @@
 [versions]
-agp = "9.4.0"
+agp = "9.4.1"
 # Held at 2.4.10 on purpose. CodeQL's Kotlin extractor refuses anything newer:
 #
 #   > Task :app:compileDebugKotlin FAILED
@@ -15,7 +15,7 @@ agp = "9.4.0"
 # Raise this the moment CodeQL catches up. Turning off Kotlin extraction to get
 # a green tick is the one thing not to do: that trades the analysis for the
 # appearance of it.
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 coreKtx = "1.19.0"
 activityCompose = "1.13.0"
 composeBom = "2026.09.00"
