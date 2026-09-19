@@ -27,7 +27,21 @@ updates:
     # appears Dependabot will raise it, and that run answers the only question
     # that matters -- whether CodeQL has caught up -- without anyone having to
     # remember this file exists.
+    #
+    # The pattern matters, and the first attempt at it did not work. It was
+    # `org.jetbrains.kotlin:*`, which is the Maven `group:artifact` form -- and
+    # Dependabot names Gradle *plugins* by their plugin id, which has no colon
+    # in it at all. Its own pull request said so:
+    #
+    #   Updates `org.jetbrains.kotlin.plugin.compose` from 2.4.10 to 2.4.20
+    #
+    # So the rule matched nothing and #162 arrived with the same bump. Both
+    # forms are listed below: the plugin ids this catalogue actually uses, and
+    # the coordinate form in case a Kotlin artifact is ever depended on
+    # directly.
     ignore:
+      - dependency-name: org.jetbrains.kotlin.plugin.*
+        versions: ['2.4.20']
       - dependency-name: org.jetbrains.kotlin:*
         versions: ['2.4.20']
 
