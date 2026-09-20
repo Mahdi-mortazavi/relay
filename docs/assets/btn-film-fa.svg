@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 52" width="236" height="52" role="img"
+     aria-label="تماشای ویدیو">
+  <!--
+    The Persian twin of btn-film.svg, same 236x52 shape as the buttons beside it.
+
+    Drawn rather than fetched for the reason the other Persian button records:
+    shields.io does not shape Arabic script, so the label would arrive as
+    isolated letters running the wrong way. The render is checked, not assumed.
+  -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B2836"/>
+      <stop offset="100%" stop-color="#0D1721"/>
+    </linearGradient>
+  </defs>
+  <rect width="236" height="52" rx="11" fill="url(#g)"/>
+  <rect x="0.5" y="0.5" width="235" height="51" rx="10.5" fill="none" stroke="#2C3D4E"/>
+  <circle cx="176" cy="26" r="13" fill="none" stroke="#4ADFBF" stroke-width="2"/>
+  <polygon points="172,19.5 172,32.5 183,26" fill="#4ADFBF"/>
+  <text x="106" y="33" text-anchor="middle" direction="rtl"
+        font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif"
+        font-size="17" font-weight="600" fill="#FFFFFF">تماشای ویدیو</text>
+</svg>
