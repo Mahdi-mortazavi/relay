@@ -127,11 +127,17 @@
 
 </div>
 
-https://github.com/user-attachments/assets/3cf8f272-4a7b-4a85-9cb8-b04609ced2c2
+<div align="center">
+
+<img src="docs/assets/relay-film.gif" alt="جفت‌شدن ریلی و آنلاین شدن کامپیوتر: گوشی کد دو رقمی و QR را نشان می‌دهد، کامپیوتر از «آماده‌ی اتصال» به «آنلاین شدی» می‌رود، یک دانلود ۳.۴ گیگابایتی از داخل تونل جریان دارد، و گوشی وسط انتقال از وای‌فای به LTE می‌رود بدون آنکه دانلود قطع شود" width="760">
+
+</div>
+
+https://github.com/user-attachments/assets/f79039dd-ad46-48be-8018-fe8a2e24996b
 
 <div align="center">
 
-<sub><b>پلی را بزن — صدا دارد.</b> رابطی که در آن می‌بینید کشیده شده، نه فیلم‌برداری‌شده؛ آموزشی که پایین‌تر است، کار واقعی و بدون تدوین است. فایلش در مخزن هست: <a href="docs/assets/relay-film.mp4"><code>docs/assets/relay-film.mp4</code></a>.</sub>
+<sub>لوپ بالا بی‌صداست — <b>پلی را بزن تا کل شصت ثانیه با صدا پخش شود.</b> رابطی که در آن می‌بینید کشیده شده، نه فیلم‌برداری‌شده؛ آموزشی که پایین‌تر است، کار واقعی و بدون تدوین است. فایلش در مخزن هست: <a href="docs/assets/relay-film.mp4"><code>docs/assets/relay-film.mp4</code></a>.</sub>
 
 </div>
 
