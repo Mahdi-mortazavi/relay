@@ -173,7 +173,7 @@ LTE underneath it.
 
 </div>
 
-https://github.com/user-attachments/assets/f79039dd-ad46-48be-8018-fe8a2e24996b
+https://github.com/user-attachments/assets/fcfbc7ec-e61f-48c0-96b8-cd4713abb49b
 
 <div align="center">
 
