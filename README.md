@@ -11,6 +11,8 @@
 &nbsp;
 [<img src="docs/assets/btn-android.svg" alt="Download for Android" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
+[<img src="docs/assets/btn-film.svg" alt="Watch the film" height="46">](#watch-it-work)
+&nbsp;
 [<img src="docs/assets/btn-guide-fa.svg" alt="راهنمای فارسی" height="46">](README.fa.md)
 
 <sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">All files &amp; release notes</a> · <a href="LICENSE">GPL-3.0</a> · <a href="README.fa.md">فارسی</a></sub>
@@ -161,7 +163,21 @@ at all. No camera? Type the two digits. No list? Scan the QR.
 
 ## Watch it work
 
-**[KASRA MAX](https://github.com/Mahdi-mortazavi/relay/issues)** recorded a full
+Sixty seconds, no narration: the two digits, the QR, the moment the PC comes
+online — and a download that keeps running while the phone moves from Wi-Fi to
+LTE underneath it.
+
+<div align="center">
+
+<img src="docs/assets/relay-film.gif" alt="Relay pairing and coming online: the phone shows a two-digit code and a QR, the PC moves from Ready to connect to You're online, a 3.4 GB download runs through the tunnel, and the phone switches from Wi-Fi to LTE mid-transfer without the download stopping" width="760">
+
+<sub><b><a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-film.mp4">▶︎ Watch the full sixty seconds</a></b> — with sound. The interface in it is drawn, not filmed; the walkthrough below is the unedited real thing.</sub>
+
+</div>
+
+<br>
+
+And at length, from someone who is not me — **[KASRA MAX](https://github.com/Mahdi-mortazavi/relay/issues)** recorded a full
 walkthrough — Persian narration with English subtitles, four minutes, from
 install to browsing.
 

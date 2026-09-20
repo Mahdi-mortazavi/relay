@@ -11,6 +11,8 @@
 &nbsp;
 [<img src="docs/assets/btn-android-fa.svg" alt="دانلود برای اندروید" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
+[<img src="docs/assets/btn-film-fa.svg" alt="تماشای ویدیو" height="46">](#ببین-چطور-کار-میکند)
+&nbsp;
 [<img src="docs/assets/btn-english.svg" alt="Read in English" height="46">](README.md)
 
 <sub><a href="https://github.com/Mahdi-mortazavi/relay/releases/latest">همه‌ی فایل‌ها و توضیحات نسخه</a> · <a href="LICENSE">GPL-3.0</a> · <a href="README.md">English</a></sub>
@@ -120,8 +122,25 @@
 
 ## ببین چطور کار می‌کند
 
-**KASRA MAX** یک آموزش کامل ساخته — روایت فارسی با زیرنویس انگلیسی، حدود چهار
-دقیقه، از نصب تا گشت‌وگذار.
+شصت ثانیه، بدون روایت: دو رقم، کد QR، لحظه‌ای که کامپیوتر آنلاین می‌شود — و
+دانلودی که ادامه می‌دهد، در حالی که گوشی زیرش از وای‌فای به LTE می‌رود.
+
+</div>
+
+<div align="center">
+
+<img src="docs/assets/relay-film.gif" alt="جفت‌شدن ریلی و آنلاین شدن کامپیوتر: گوشی کد دو رقمی و QR را نشان می‌دهد، کامپیوتر از «آماده‌ی اتصال» به «آنلاین شدی» می‌رود، یک دانلود ۳.۴ گیگابایتی از داخل تونل جریان دارد، و گوشی وسط انتقال از وای‌فای به LTE می‌رود بدون آنکه دانلود قطع شود" width="760">
+
+<sub><b><a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-film.mp4">▶︎ تماشای کامل شصت ثانیه</a></b> — با صدا. رابطی که در آن می‌بینید کشیده شده، نه فیلم‌برداری‌شده؛ آموزشی که پایین‌تر است، کار واقعی و بدون تدوین است.</sub>
+
+</div>
+
+<br>
+
+<div dir="rtl">
+
+و به‌تفصیل، از کسی جز من — **KASRA MAX** یک آموزش کامل ساخته — روایت فارسی با
+زیرنویس انگلیسی، حدود چهار دقیقه، از نصب تا گشت‌وگذار.
 
 </div>
 
