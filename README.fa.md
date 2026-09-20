@@ -11,7 +11,7 @@
 &nbsp;
 [<img src="docs/assets/btn-android-fa.svg" alt="دانلود برای اندروید" height="46">](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
 &nbsp;
-[<img src="docs/assets/btn-film-fa.svg" alt="تماشای ویدیو" height="46">](#ببین-چطور-کار-میکند)
+[<img src="docs/assets/btn-film-fa.svg" alt="تماشای ویدیو" height="46">](#ببین-چطور-کار-می‌کند)
 &nbsp;
 [<img src="docs/assets/btn-english.svg" alt="Read in English" height="46">](README.md)
 
