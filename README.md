@@ -167,11 +167,11 @@ Sixty seconds, no narration: the two digits, the QR, the moment the PC comes
 online — and a download that keeps running while the phone moves from Wi-Fi to
 LTE underneath it.
 
+https://github.com/user-attachments/assets/3cf8f272-4a7b-4a85-9cb8-b04609ced2c2
+
 <div align="center">
 
-<img src="docs/assets/relay-film.gif" alt="Relay pairing and coming online: the phone shows a two-digit code and a QR, the PC moves from Ready to connect to You're online, a 3.4 GB download runs through the tunnel, and the phone switches from Wi-Fi to LTE mid-transfer without the download stopping" width="760">
-
-<sub><b><a href="https://raw.githubusercontent.com/Mahdi-mortazavi/relay/main/docs/assets/relay-film.mp4">▶︎ Watch the full sixty seconds</a></b> — with sound. The interface in it is drawn, not filmed; the walkthrough below is the unedited real thing.</sub>
+<sub><b>Press play — it has sound.</b> The interface in it is drawn rather than screen-recorded; the walkthrough below is the unedited real thing. The file is in the repo as <a href="docs/assets/relay-film.mp4"><code>docs/assets/relay-film.mp4</code></a>.</sub>
 
 </div>
 
