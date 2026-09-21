@@ -27,6 +27,39 @@ the **released** APK/installer (what a stranger gets) or a **local debug** build
 (what the instrumented suite installs). Conclusions about one do not transfer to
 the other — the release APK is minified and not debuggable.
 
+## The gate: prove the phone runs the build you think it does
+
+**Before any observation of the app's behaviour counts**, and before forming a
+single hypothesis about a bug:
+
+```bash
+scripts/device-verify.sh path/to/the-apk-you-installed.apk
+```
+
+It compares the SHA-256 of the APK **on the phone** against the file on disk,
+and exits **2** on a mismatch. Run without an argument and it reports what is
+installed but proves nothing — it says so.
+
+This is not ceremony. It is here because a stale APK once invalidated every
+observation made before anyone noticed, *including the conclusions drawn from
+them* — an afternoon of careful reasoning about a build that was not running.
+`docs/testing.md` records it.
+
+Two rules follow from that:
+
+- **A reinstall is not proof.** `adb install -r` can be refused, can install a
+  different variant than intended, or can succeed while a launcher shortcut
+  still opens something else. Re-run the gate *after* installing, not before.
+- **Re-run it after anything that could change the installed app** — an
+  auto-update, a Play Protect prompt, a `-r` reinstall, or the app updating
+  itself. Relay ships a self-updater; it can move the ground under a test
+  mid-session.
+
+Also worth reading off the gate's output: the **uid** (an Android VPN's per-app
+exclusion is keyed to it, and a reinstall changes it, which silently undoes an
+exclusion) and **installed by** (`none` is a sideload; anything else means a
+repository client owns updates — see `InstallSource`).
+
 ## The order to work in
 
 1. **The firewall check first.** It is the most likely to be broken, the most
