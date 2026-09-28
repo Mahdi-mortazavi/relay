@@ -16,7 +16,7 @@ agp = "9.4.1"
 # a green tick is the one thing not to do: that trades the analysis for the
 # appearance of it.
 kotlin = "2.4.10"
-coreKtx = "1.19.0"
+coreKtx = "1.19.1"
 activityCompose = "1.13.0"
 composeBom = "2026.09.00"
 lifecycle = "2.11.0"
