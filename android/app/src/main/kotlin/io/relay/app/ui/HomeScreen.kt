@@ -516,12 +516,6 @@ private fun IdlePanel(
             onClick = onStart,
             enabled = fullModeAvailable,
         )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = stringResource(R.string.tagline),
-            style = MaterialTheme.typography.labelSmall,
-            color = glass.textTertiary,
-        )
     }
 }
 
@@ -1125,31 +1119,17 @@ private fun AdvancedSection(
                 modifier = Modifier.fillMaxWidth().glassPanel(radius = 16.dp).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // Which build this is. Two people holding two APKs with the same
-                // name and different vintages had no way to discover that was
-                // what they were doing, and the report they sent named a version
-                // that never existed. Read from the installed package, so it is
-                // the truth about this APK rather than about the source tree.
-                LabeledValue(stringResource(R.string.advanced_version), installedVersion())
+                // Three groups, each with a heading, instead of five unrelated
+                // rows in one list (docs/ux-audit.md P-40).
+                AdvancedHeading(R.string.advanced_section_connection)
 
-                // Hotspot address (read-only, from current state)
+                // Phone address (read-only, from current state)
                 val host = when (state) {
                     is ConnectionState.Advertising -> "${state.payload.host}:${state.payload.port}"
                     is ConnectionState.Connected -> "${state.payload.host}:${state.payload.port}"
                     else -> "—"
                 }
                 LabeledValue(stringResource(R.string.advanced_ip), host)
-
-                // Appearance
-                Column {
-                    Text(stringResource(R.string.advanced_theme), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ThemeChip("system", R.string.theme_system, themeMode, onSetTheme)
-                        ThemeChip("dark", R.string.theme_dark, themeMode, onSetTheme)
-                        ThemeChip("light", R.string.theme_light, themeMode, onSetTheme)
-                    }
-                }
 
                 // Where the PC's traffic leaves this phone.
                 //
@@ -1165,8 +1145,8 @@ private fun AdvancedSection(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        stringResource(R.string.advanced_upstream_hint),
-                        style = MaterialTheme.typography.labelSmall,
+                        stringResource(R.string.advanced_route_hint),
+                        style = MaterialTheme.typography.bodySmall,
                         color = glass.textTertiary,
                     )
                     Spacer(Modifier.height(6.dp))
@@ -1195,8 +1175,21 @@ private fun AdvancedSection(
                             color = if (currentRoute.why == RouteChoice.Why.NO_PROXY) glass.textSecondary else glass.accent,
                         )
                     }
-                    Spacer(Modifier.height(6.dp))
+                    // A typed proxy is for the few who need to pin one, so the
+                    // field stays folded away unless one is already set.
+                    var manual by rememberSaveable { mutableStateOf(upstreamProxy.isNotEmpty()) }
+                    Spacer(Modifier.height(2.dp))
+                    QuietAction("${disclosure(manual)}  " + stringResource(R.string.advanced_upstream_manual)) {
+                        manual = !manual
+                    }
                     val usable = Settings.isUsableProxy(upstreamProxy)
+                    if (manual) {
+                    Text(
+                        stringResource(R.string.advanced_upstream_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = glass.textTertiary,
+                    )
+                    Spacer(Modifier.height(6.dp))
                     BasicTextField(
                         value = upstreamProxy,
                         onValueChange = onSetUpstreamProxy,
@@ -1233,6 +1226,7 @@ private fun AdvancedSection(
                             style = MaterialTheme.typography.labelSmall,
                             color = glass.error,
                         )
+                    }
                     }
 
                     // What the search found. Only while the field is empty:
@@ -1297,6 +1291,25 @@ private fun AdvancedSection(
                         }
                     }
                 }
+
+                // Appearance
+                AdvancedHeading(R.string.advanced_theme)
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ThemeChip("system", R.string.theme_system, themeMode, onSetTheme)
+                        ThemeChip("dark", R.string.theme_dark, themeMode, onSetTheme)
+                        ThemeChip("light", R.string.theme_light, themeMode, onSetTheme)
+                    }
+                }
+
+
+                AdvancedHeading(R.string.advanced_section_diagnostics)
+                // Which build this is. Two people holding two APKs with the same
+                // name and different vintages had no way to discover that was
+                // what they were doing, and the report they sent named a version
+                // that never existed. Read from the installed package, so it is
+                // the truth about this APK rather than about the source tree.
+                LabeledValue(stringResource(R.string.advanced_version), installedVersion())
 
                 // Local-only activity log
                 Column {
@@ -1374,6 +1387,18 @@ private fun installedVersion(): String {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "unknown"
     }
+}
+
+/** A group heading inside Advanced, announced as a heading by TalkBack. */
+@Composable
+private fun AdvancedHeading(label: Int) {
+    val glass = LocalGlass.current
+    Text(
+        stringResource(label),
+        style = MaterialTheme.typography.labelSmall,
+        color = glass.textSecondary,
+        modifier = Modifier.semantics { heading() },
+    )
 }
 
 @Composable
