@@ -1,4 +1,5 @@
 {
+  "$contrast": "Every text colour clears 4.5:1 on the worst ground it can sit on: dark text over the raised panel (12% white over backgroundGradientTop), light text over backgroundGradientBottom. Asserted by DesignTokensTest (Android). docs/ux-audit.md has the method.",
   "$comment": "Single source of truth for the Liquid Glass design language (§3). Both apps map these tokens to platform constructs (Compose theme objects / WinUI resources). Colors are sRGB hex or rgba(). Do not fork values per platform — change them here.",
   "color": {
     "dark": {
@@ -16,8 +17,8 @@
       "accent": "#4ADFBF",
       "accentPressed": "#38C2A3",
       "accentSubtle": "rgba(74,223,191,0.16)",
-      "error": "#E5645F",
-      "errorSubtle": "rgba(229,100,95,0.16)",
+      "error": "#F07A75",
+      "errorSubtle": "rgba(240,122,117,0.16)",
       "warning": "#E0A458"
     },
     "light": {
@@ -31,14 +32,14 @@
       "glassStrokeHighlight": "rgba(255,255,255,0.85)",
       "glassInnerGlow": "rgba(255,255,255,0.35)",
       "textPrimary": "rgba(12,14,18,0.94)",
-      "textSecondary": "rgba(12,14,18,0.58)",
+      "textSecondary": "rgba(12,14,18,0.66)",
       "textTertiary": "rgba(12,14,18,0.62)",
-      "accent": "#0F7A63",
-      "accentPressed": "#0B5F4D",
-      "accentSubtle": "rgba(15,122,99,0.16)",
-      "error": "#C7433E",
-      "errorSubtle": "rgba(199,67,62,0.16)",
-      "warning": "#B37417"
+      "accent": "#0D7059",
+      "accentPressed": "#0A5A48",
+      "accentSubtle": "rgba(13,112,89,0.16)",
+      "error": "#AD3833",
+      "errorSubtle": "rgba(173,56,51,0.16)",
+      "warning": "#8F5C0E"
     }
   },
   "radius": { "xs": 8, "sm": 12, "md": 16, "lg": 24, "pill": 999 },
@@ -67,6 +68,7 @@
       "display": { "size": 34, "lineHeight": 40, "weight": 600 },
       "title": { "size": 22, "lineHeight": 28, "weight": 600 },
       "body": { "size": 15, "lineHeight": 22, "weight": 400 },
+      "bodySmall": { "size": 14, "lineHeight": 21, "weight": 400, "$comment": "Explanatory paragraphs: warnings, hints, onboarding. Caption (12) is for labels, never for a paragraph -- at 12/16 Persian sits too tight and a long paragraph is hard work at any scale (docs/ux-audit.md P-29)." },
       "caption": { "size": 12, "lineHeight": 16, "weight": 400 },
       "pairingCode": { "size": 28, "lineHeight": 36, "weight": 500, "features": ["tabular-numbers", "letter-spacing:0.12em"] }
     }

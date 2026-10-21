@@ -16,8 +16,8 @@ colors:
   accent-pressed: "#38C2A3"
   accent-subtle: "rgba(74,223,191,0.16)"
   on-accent: "#0A0C10"
-  error: "#E5645F"
-  error-subtle: "rgba(229,100,95,0.16)"
+  error: "#F07A75"
+  error-subtle: "rgba(240,122,117,0.16)"
   warning: "#E0A458"
   accent-brand: "#4ADFBF"   # resolved: now the same value as accent
   light-bg-base: "#EEF1F5"
@@ -28,13 +28,13 @@ colors:
   light-glass-stroke: "rgba(0,0,0,0.08)"
   light-glass-stroke-highlight: "rgba(255,255,255,0.85)"
   light-text-primary: "rgba(12,14,18,0.94)"
-  light-text-secondary: "rgba(12,14,18,0.58)"
+  light-text-secondary: "rgba(12,14,18,0.66)"
   light-text-tertiary: "rgba(12,14,18,0.62)"
-  light-accent: "#0F7A63"
-  light-accent-pressed: "#0B5F4D"
+  light-accent: "#0D7059"
+  light-accent-pressed: "#0A5A48"
   light-on-accent: "#FFFFFF"
-  light-error: "#C7433E"
-  light-warning: "#B37417"
+  light-error: "#AD3833"
+  light-warning: "#8F5C0E"
   win-scrim-top: "rgba(16,19,24,0.25)"
   win-scrim-bottom: "rgba(8,10,14,0.35)"
   win-window-solid: "#12161D"
@@ -68,6 +68,11 @@ typography:
     fontSize: "15sp"
     fontWeight: 400
     lineHeight: "22sp"
+  body-small:
+    fontFamily: "system default (Android), Inter fallback"
+    fontSize: "14sp"
+    fontWeight: 400
+    lineHeight: "21sp"
   caption:
     fontFamily: "system default (Android), Inter fallback"
     fontSize: "12sp"
@@ -333,9 +338,15 @@ and fill ramp, tuned against its scrim rather than against a system background.
 Those stay namespaced `win-` in the frontmatter above, which continues to record
 **the values the code actually renders**.
 
-**Nothing test-enforces `/shared` against either client.** The only link is a doc
-comment in `ui/theme/Theme.kt`. A token contract test is the obvious next guard —
-this drift was found by reading, which is not a mechanism.
+**`/shared` is now test-enforced on Android (2.11).** `DesignTokensTest` reads
+`shared/design-tokens.json` and fails if any Compose colour differs from its token
+by more than one 8-bit step, and if any text colour falls below 4.5:1 on the worst
+ground it can sit on — dark text over a raised panel, light text over the bottom of
+the light gradient (the token file's `$contrast` note). That test is what moved four
+values in 2.11: dark `error` to `#F07A75`, light `textSecondary` to 66%, light
+`accent` to `#0D7059` and light `error` to `#AD3833`, plus light `warning` to
+`#8F5C0E`. The Windows `win-` ramp is still asserted by nothing; its caption colour
+was found by reading (docs/ux-audit.md P-22) and moved to tertiary by hand.
 
 ## Typography
 
@@ -378,7 +389,10 @@ Shared scale (`shared/design-tokens.json`, implemented in Compose):
 - **Display** (600, 34/40): the one number or headline a screen is about.
 - **Title** (600, 22/28): screen and section titles.
 - **Body** (400, 15/22): explanatory prose.
-- **Caption** (400, 12/16): hints, log lines, secondary labels.
+- **Body small** (400, 14/21): explanatory paragraphs — warnings, hints,
+  onboarding. Added in 2.11: these were caption-sized, and a paragraph at
+  12/16 is hard work at any font scale and too tight for Persian.
+- **Caption** (400, 12/16): labels, log lines, secondary text. Never a paragraph.
 - **Pairing code** (500, 28/36, +3sp tracking, tabular numerals): the two digits
   the PC needs, spaced so they cannot be misread.
 
@@ -532,7 +546,10 @@ The system's most characteristic control. A pill (24px radius, `win-fill-tertiar
 fill, `10,5,12,5` padding) containing an 8px dot and the word — Idle /
 Connecting / Connected / Reconnecting — in caption type. It replaced a bare
 coloured dot, and the replacement is doctrine: colour reinforces the word, it
-never carries the state alone.
+never carries the state alone. Since 2.11 it also says *Problem* on an error
+(it used to say "Not connected" beside a red dot), is a polite live region so
+Narrator announces each change, and Android's header carries the same word
+beside its dot.
 
 ### Cards / Containers
 
@@ -569,6 +586,22 @@ collapsible Advanced section at the bottom.
 A title that names the problem, a body that says what to do, and a primary
 action that does it — each error code mapped to its own triple. An error surface
 that only reports is a dead end with a full stop on it.
+
+**Exactly one primary action, and its label is true.** If the fix lives in
+Settings, the primary opens Settings and *Try Again* is secondary; *Try Again*
+repeats the last attempt rather than dismissing. Below the buttons, Android
+says what Relay already tried and keeps the error code and recent log lines
+behind *Technical details* — collapsed, because they are for the issue, not the
+next step.
+
+### Connected (Android)
+
+Its own panel since 2.11, not the pairing screen with a line added. A title in
+plain words, download and upload **rates** in tabular figures, totals beneath,
+Stop, and the pairing code one tap away behind *Show the pairing code* — never
+the subject once a PC is connected. Rates are the difference between two
+readings of the counters the service already publishes; nothing new is asked of
+the tunnel.
 
 ## Do's and Don'ts
 
