@@ -33,14 +33,14 @@
     <string name="warning_lockdown_body">That setting drops everything except the VPN — including this phone\'s replies to your PC, so your PC can reach the phone but never hears back. Open VPN settings, tap the ⚙ beside your VPN app\'s name, and turn it off. Your VPN keeps running, and Relay will share it.</string>
     <string name="warning_lockdown_action">VPN settings</string>
     <string name="warning_no_reply_title">Your PC is not getting an answer</string>
-    <string name="warning_no_reply_body">A PC took Relay\'s settings and started its tunnel, but no reply ever left this phone. If your VPN app has a “local network access” option, turn it on — that fixes this and the PC still gets your VPN. Otherwise, exclude Relay in the app\'s per-app list, or switch the app to its proxy-only mode, then turn the VPN off and on: Relay finds the VPN app\'s local proxy by itself and sends the PC through it, so the PC still gets your VPN.</string>
+    <string name="warning_no_reply_body">A PC took Relay\'s settings, but no reply ever left this phone — a VPN on it is catching the replies.\n1. Best: turn on “local network access” (or “LAN access”) in your VPN app. The PC keeps your VPN.\n2. Otherwise: exclude Relay in the VPN app\'s per-app list, or switch the app to proxy-only mode, then turn the VPN off and on. Relay finds the VPN\'s local proxy by itself, so the PC still gets your VPN.</string>
     <string name="warning_no_vpn_title">No VPN is active</string>
     <string name="warning_no_vpn_body">You\'re sharing your regular connection. Turn on your VPN first if you meant to share it.</string>
 
     <!-- Advanced -->
     <string name="advanced">Advanced</string>
     <string name="advanced_version">Version</string>
-    <string name="advanced_ip">Hotspot address</string>
+    <string name="advanced_ip">Phone address</string>
     <string name="advanced_theme">Appearance</string>
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>
@@ -77,9 +77,9 @@
     <string name="error_port_in_use_title">Ports are busy</string>
     <string name="error_port_in_use_body">Another app is using the connection ports Relay needs. Close it, then try again.</string>
     <string name="error_service_failed_title">Android stopped the sharing service</string>
-    <string name="error_service_failed_body">This is usually battery optimisation, or Relay being swiped away from recent apps. In Advanced, allow Relay to ignore battery optimisation, then start sharing again.</string>
-    <string name="error_hotspot_lost_title">Hotspot connection lost</string>
-    <string name="error_hotspot_lost_body">The hotspot dropped and didn\'t come back. Check it\'s still on, then start sharing again.</string>
+    <string name="error_service_failed_body">This is usually battery optimisation, or Relay being swiped away from recent apps. Allow Relay to ignore battery optimisation from the banner on the home screen, then start sharing again.</string>
+    <string name="error_hotspot_lost_title">The network dropped</string>
+    <string name="error_hotspot_lost_body">The Wi‑Fi, hotspot or USB link this phone was sharing on went away and didn\'t come back. Check it, then start sharing again.</string>
     <string name="error_wg_start_title">The tunnel didn\'t start</string>
     <string name="error_wg_start_body">Relay\'s WireGuard endpoint couldn\'t start on this phone — usually a port another app is holding. Start sharing again; if it keeps failing, close other VPN or proxy apps and try once more.</string>
     <string name="action_retry">Try Again</string>
@@ -143,7 +143,7 @@
 
     <!-- First run -->
     <string name="onboarding_title">Keep Relay within reach</string>
-    <string name="onboarding_body">Relay matters most when a laptop has no internet. These put it one tap away when that happens.</string>
+    <string name="onboarding_body">Two of these keep sharing running. The rest are shortcuts — add them now or any time later.</string>
     <string name="onboarding_done">Done</string>
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_notif_title">Let Relay show its status</string>
@@ -169,4 +169,29 @@
     <string name="approval_body">%1$s wants to share your connection.</string>
     <string name="approval_allow">Allow</string>
     <string name="approval_deny">Deny</string>
+
+    <!-- 2.11 UX pass (docs/ux-audit.md) -->
+    <string name="approve_body_named">%1$s (%2$s) wants to share your connection.</string>
+    <string name="status_word_idle">Off</string>
+    <string name="status_word_starting">Starting</string>
+    <string name="status_word_waiting">Waiting</string>
+    <string name="status_word_connected">Connected</string>
+    <string name="status_word_reconnecting">Reconnecting</string>
+    <string name="status_word_error">Problem</string>
+    <string name="connected_title">Your PC is online through this phone</string>
+    <string name="connected_down">Download</string>
+    <string name="connected_up">Upload</string>
+    <string name="traffic_rate">%1$s/s</string>
+    <string name="connected_totals">Total: %1$s down · %2$s up</string>
+    <string name="connected_show_code">Show the pairing code</string>
+    <string name="connected_hide_code">Hide the pairing code</string>
+    <string name="preparing_hint">Looking for Wi‑Fi, a hotspot or a USB link…</string>
+    <string name="error_action_network">Open network settings</string>
+    <string name="error_tried_link">Relay waited about 8 seconds for a usable network first.</string>
+    <string name="error_tried_lost">Relay kept trying to reconnect before it stopped.</string>
+    <string name="error_tried_tunnel">Relay tried to start its tunnel and the phone refused.</string>
+    <string name="error_details">Technical details</string>
+    <string name="error_details_code">Code: %1$s</string>
+    <string name="onboarding_section_needed">Needed for sharing</string>
+    <string name="onboarding_section_optional">Shortcuts — optional</string>
 </resources>
