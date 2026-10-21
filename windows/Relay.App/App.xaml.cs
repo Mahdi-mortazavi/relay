@@ -278,6 +278,9 @@ public partial class App : Application
             // per byte would be its own kind of broken.
             var justConnected = state == "Connected" && previousState != "Connected";
             previousState = state;
+            // The tunnel is very often this laptop's only way to GitHub, so a
+            // check that failed while idle gets its retry now (#166).
+            if (justConnected) _updates?.Nudge();
 
             _window?.DispatcherQueue.TryEnqueue(() =>
             {

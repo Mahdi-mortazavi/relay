@@ -307,6 +307,22 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     /// </summary>
     private void StartTunnelWatch()
     {
+        // With the kill switch on the tunnel outlives a quiet phone, so the
+        // process is still there and the loop below has nothing to see. This is
+        // how that state reaches the screen instead: as Reconnecting, which is
+        // what it is -- WireGuard keeps trying, and the same session coming
+        // back resumes with nothing pressed.
+        if (Interlocked.Exchange(ref _peerEventsWired, 1) == 0)
+        {
+            _tunnel.PeerLostChanged += lost =>
+            {
+                if (StateName != "Connected") return;
+                LocalLog.Add(lost
+                    ? "The phone stopped answering — kill switch holding traffic until it is back"
+                    : "The phone is answering again");
+                SetReconnecting(lost);
+            };
+        }
         StopSupervisor();
         var watch = new CancellationTokenSource();
         _supervisor = watch;
@@ -329,6 +345,8 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             }
         }, watch.Token);
     }
+
+    private int _peerEventsWired;
 
     /// <summary>How often the tunnel is checked for having gone.</summary>
     private static readonly TimeSpan TunnelWatchInterval = TimeSpan.FromSeconds(5);
@@ -394,7 +412,15 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
     // Full Mode's tunnel shares the same lock: a user Disconnect and anything
     // else touching the session must not overlap, exactly as for the proxy.
     private Task<WgTunnelSession.Result> TunnelConnectLocked(WgParams wg, string host) =>
-        Task.Run(() => { lock (_sessionLock) return _tunnel.Connect(wg, host, LeakProtection.IsEnabled()); });
+        Task.Run(() =>
+        {
+            lock (_sessionLock)
+            {
+                var hold = KillSwitch.IsEnabled();
+                if (hold) LocalLog.Add("Kill switch on — if the phone stops answering, traffic is held, not sent around the tunnel");
+                return _tunnel.Connect(wg, host, LeakProtection.IsEnabled(), hold);
+            }
+        });
 
     private Task<WgTunnelSession.Result> TunnelDisconnectLocked() =>
         Task.Run(() => { lock (_sessionLock) return _tunnel.Disconnect(); });

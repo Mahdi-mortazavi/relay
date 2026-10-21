@@ -81,6 +81,7 @@ import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
 import io.relay.app.core.WarningCode
 import io.relay.app.net.ProxyScan
+import io.relay.app.core.RouteChoice
 import io.relay.app.net.UsbLink
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
@@ -125,6 +126,11 @@ fun HomeScreen(
     proxyScan: ProxyScan.State = ProxyScan.State.Idle,
     onScanForProxy: () -> Unit = {},
     onUseFoundProxy: () -> Unit = {},
+    /** Whether Relay picks the PC's route itself. See [RouteChoice]. */
+    automaticRoute: Boolean = true,
+    onSetAutomaticRoute: (Boolean) -> Unit = {},
+    /** The route in force while sharing, or null. */
+    currentRoute: RouteChoice.Route? = null,
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -208,6 +214,7 @@ fun HomeScreen(
                 state, themeMode, logs, onSetTheme, onClearLogs, onShareLogs,
                 upstreamProxy, onSetUpstreamProxy,
                 proxyScan, onScanForProxy, onUseFoundProxy,
+                automaticRoute, onSetAutomaticRoute, currentRoute,
             )
         }
 
@@ -735,6 +742,9 @@ private fun AdvancedSection(
     proxyScan: ProxyScan.State,
     onScanForProxy: () -> Unit,
     onUseFoundProxy: () -> Unit,
+    automaticRoute: Boolean,
+    onSetAutomaticRoute: (Boolean) -> Unit,
+    currentRoute: RouteChoice.Route?,
 ) {
     val glass = LocalGlass.current
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -814,6 +824,32 @@ private fun AdvancedSection(
                         color = glass.textTertiary,
                     )
                     Spacer(Modifier.height(6.dp))
+                    // Automatic is the default since 2.10.0 (ADR-0011): the
+                    // phone's route while Relay is inside the VPN, the VPN's
+                    // own proxy while it is not. A typed address below beats
+                    // both and is never dropped.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val chosen = if (automaticRoute) "auto" else "phone"
+                        ThemeChip("auto", R.string.advanced_route_auto, chosen) { onSetAutomaticRoute(true) }
+                        ThemeChip("phone", R.string.advanced_route_phone, chosen) { onSetAutomaticRoute(false) }
+                    }
+                    // What is actually happening, not what was asked for: the
+                    // one setting that changes where packets go has to say so.
+                    if (currentRoute != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            when (currentRoute.why) {
+                                RouteChoice.Why.MANUAL, RouteChoice.Why.VPN_PROXY ->
+                                    stringResource(R.string.advanced_route_now_proxy, currentRoute.proxy)
+                                RouteChoice.Why.RELAY_IN_VPN -> stringResource(R.string.advanced_route_now_vpn)
+                                RouteChoice.Why.NO_PROXY -> stringResource(R.string.advanced_route_now_bare)
+                                RouteChoice.Why.AUTOMATIC_OFF -> stringResource(R.string.advanced_route_now_phone)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (currentRoute.why == RouteChoice.Why.NO_PROXY) glass.textSecondary else glass.accent,
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
                     val usable = Settings.isUsableProxy(upstreamProxy)
                     BasicTextField(
                         value = upstreamProxy,
@@ -871,7 +907,16 @@ private fun AdvancedSection(
                                 color = glass.textTertiary,
                             )
 
-                            is ProxyScan.State.Found -> Text(
+                            // Automatic already uses what was found whenever
+                            // the PC needs it, so there is nothing to tap.
+                            is ProxyScan.State.Found -> if (automaticRoute) Text(
+                                stringResource(
+                                    R.string.advanced_upstream_found_auto,
+                                    proxyScan.address,
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = glass.textTertiary,
+                            ) else Text(
                                 stringResource(
                                     R.string.advanced_upstream_found,
                                     proxyScan.address,

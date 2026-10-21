@@ -319,4 +319,47 @@ public class WgTunnelSessionTests
         Assert.False(second.Ok);
         Assert.Equal(1, host.Starts);
     }
+
+    [Fact]
+    public void TheKillSwitchIsOffUnlessAskedForAndPassedWhenItIs()
+    {
+        // Off by default: holding a dead tunnel blocks the machine's internet,
+        // which is what someone who turned it on wants and nobody else does.
+        var off = new StubHost(ReadyProcess());
+        new WgTunnelSession(off).Connect(Params(), "192.168.1.13");
+        Assert.DoesNotContain(WgTunnelSession.HoldOnLossArgument, off.Arguments);
+
+        var on = new StubHost(ReadyProcess());
+        new WgTunnelSession(on).Connect(Params(), "192.168.1.13", holdOnLoss: true);
+        Assert.Contains(WgTunnelSession.HoldOnLossArgument, on.Arguments);
+    }
+
+    [Fact]
+    public void AHoldingTunnelReportsThePhoneGoingAndComingBack()
+    {
+        var process = ReadyProcess();
+        process.Output.Enqueue(WgTunnelSession.PeerLostLine);
+        process.Output.Enqueue(WgTunnelSession.PeerBackLine);
+        var session = new WgTunnelSession(new StubHost(process));
+
+        var seen = new List<bool>();
+        using var done = new ManualResetEventSlim();
+        session.PeerLostChanged += lost =>
+        {
+            lock (seen)
+            {
+                seen.Add(lost);
+                if (seen.Count == 2) done.Set();
+            }
+        };
+
+        Assert.True(session.Connect(Params(), "192.168.1.13", holdOnLoss: true).Ok);
+        Assert.True(done.Wait(TimeSpan.FromSeconds(5)), "the peer lines were never reported");
+
+        // In order: gone, then back. The tunnel itself never stopped, which is
+        // the whole of the kill switch -- the machine's route stayed on it.
+        Assert.Equal(new List<bool> { true, false }, seen);
+        Assert.False(session.PeerLost);
+        Assert.True(session.IsRunning);
+    }
 }

@@ -32,6 +32,18 @@ object ConnectionRepository {
         _warnings.update { if (active) it + code else it - code }
     }
 
+    /**
+     * The route the PC's traffic is taking right now, or null when not sharing
+     * (ADR-0011). Shown in Advanced, because the one setting that changes where
+     * packets go must say what it is doing.
+     */
+    private val _route = MutableStateFlow<io.relay.app.core.RouteChoice.Route?>(null)
+    val route: StateFlow<io.relay.app.core.RouteChoice.Route?> = _route.asStateFlow()
+
+    fun setRoute(route: io.relay.app.core.RouteChoice.Route?) {
+        _route.value = route
+    }
+
     fun clearWarnings() {
         _warnings.value = emptySet()
     }

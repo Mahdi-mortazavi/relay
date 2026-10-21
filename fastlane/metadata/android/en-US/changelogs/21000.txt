@@ -1,0 +1,5 @@
+Relay now picks the PC's route by itself: through the phone's VPN when Relay is inside it, or through the VPN app's local proxy when Relay is excluded or the app runs in proxy-only mode. It re-checks every ten seconds without dropping the PC.
+
+Proxy-only VPN modes now work out of the box.
+
+Advanced shows which route is in use and why.

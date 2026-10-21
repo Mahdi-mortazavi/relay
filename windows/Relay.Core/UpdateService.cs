@@ -144,6 +144,12 @@ public sealed class UpdateService(
     private readonly string _directory = downloadDirectory ?? PendingUpdate.DefaultDirectory;
     private CancellationTokenSource? _loop;
 
+    /// <summary>Cuts a retry wait short. See <see cref="Nudge"/>.</summary>
+    private readonly SemaphoreSlim _wake = new(0, 1);
+
+    /// <summary>Checks in a row that did not complete; read by <see cref="Nudge"/>.</summary>
+    private int _failures;
+
     /// <summary>The version already announced, so a daily check does not nag.</summary>
     private string? _announced;
 
@@ -153,6 +159,30 @@ public sealed class UpdateService(
         var loop = new CancellationTokenSource();
         _loop = loop;
         _ = Task.Run(() => RunAsync(loop.Token), loop.Token);
+    }
+
+    /// <summary>
+    /// Says the network just changed for the better — Relay's own tunnel came
+    /// up — so a check that failed should not wait out its backoff.
+    ///
+    /// Reported as #166, and it is most of the people this app is for: a laptop
+    /// whose only internet <em>is</em> the phone. At launch nothing is connected
+    /// yet, so the first check fails ("No such host is known"), and the retry
+    /// is five minutes away, then ten, then twenty — by which time a short
+    /// session is over. That laptop could go its whole life without updating,
+    /// while being online through Relay every day. The tunnel coming up is the
+    /// one moment the check is certain to be able to succeed.
+    ///
+    /// Does nothing when the last check completed: then there is nothing to
+    /// retry, and a check per connect would be a request per connect for no
+    /// news.
+    /// </summary>
+    /// <returns>Whether a retry was brought forward.</returns>
+    public bool Nudge()
+    {
+        if (Volatile.Read(ref _failures) == 0) return false;
+        try { _wake.Release(); } catch (SemaphoreFullException) { /* already nudged */ }
+        return true;
     }
 
     public void Stop()
@@ -180,12 +210,14 @@ public sealed class UpdateService(
             if (await InstallPendingAsync(relaunch: true, token).ConfigureAwait(false)) return;
 
             await Task.Delay(FirstCheckDelay, token).ConfigureAwait(false);
-            var failures = 0;
             while (!token.IsCancellationRequested)
             {
-                var cycle = await CheckAndMaybeInstallAsync(token).ConfigureAwait(false);
-                failures = cycle == UpdateCycle.Failed ? failures + 1 : 0;
-                await Task.Delay(NextDelay(failures), token).ConfigureAwait(false);
+                await CheckAndMaybeInstallAsync(token).ConfigureAwait(false);
+                var failures = Volatile.Read(ref _failures);
+                // A nudge that landed while a check was succeeding asks for a
+                // check that has just happened; it must not cost tomorrow's wait.
+                if (failures == 0) while (_wake.Wait(0)) { }
+                await _wake.WaitAsync(NextDelay(failures), token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -212,6 +244,14 @@ public sealed class UpdateService(
     /// silently costing a launch its update.
     /// </returns>
     public async Task<UpdateCycle> CheckAndMaybeInstallAsync(CancellationToken token = default)
+    {
+        var cycle = await CycleAsync(token).ConfigureAwait(false);
+        if (cycle == UpdateCycle.Failed) Interlocked.Increment(ref _failures);
+        else Volatile.Write(ref _failures, 0);
+        return cycle;
+    }
+
+    private async Task<UpdateCycle> CycleAsync(CancellationToken token)
     {
         var check = checkFactory?.Invoke() ?? new UpdateCheck(currentVersion);
 

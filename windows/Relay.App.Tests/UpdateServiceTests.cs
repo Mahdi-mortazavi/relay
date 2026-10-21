@@ -259,4 +259,35 @@ public class UpdateServiceTests
         // measured in weeks.
         Assert.Equal(UpdateService.Interval, UpdateService.NextDelay(int.MaxValue));
     }
+
+    [Fact]
+    public async Task ATunnelComingUpRetriesACheckThatFailedWhileOffline()
+    {
+        // #166: the laptop's only internet is the phone. The check at launch
+        // fails because nothing is connected yet, and the backoff would have
+        // put the retry after the session was already over.
+        var service = new UpdateService(
+            "1.0.0", () => "Idle", new Notices().Add,
+            () => new UpdateCheck("1.0.0", new HttpClient(new Offline())),
+            idleWait: TimeSpan.Zero,
+            downloadDirectory: Isolated());
+
+        Assert.Equal(UpdateCycle.Failed, await service.CheckAndMaybeInstallAsync());
+        Assert.True(service.Nudge(), "a connect after a failed check did not bring the retry forward");
+    }
+
+    [Fact]
+    public async Task ATunnelComingUpAfterASuccessfulCheckAsksNothing()
+    {
+        // A check per connect would be a request per connect for no news.
+        var current = """{"tag_name":"v1.0.0","draft":false,"prerelease":false,"assets":[]}""";
+        var service = new UpdateService(
+            "1.0.0", () => "Idle", new Notices().Add,
+            () => new UpdateCheck("1.0.0", new HttpClient(new Canned(current))),
+            idleWait: TimeSpan.Zero);
+
+        Assert.False(service.Nudge(), "a nudge before any check did anything");
+        Assert.Equal(UpdateCycle.Checked, await service.CheckAndMaybeInstallAsync());
+        Assert.False(service.Nudge(), "a nudge after a completed check asked again");
+    }
 }

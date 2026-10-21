@@ -210,6 +210,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _upstreamProxy.value = value.trim()
     }
 
+    private val _automaticRoute = MutableStateFlow(settings.automaticRoute)
+    val automaticRoute: StateFlow<Boolean> = _automaticRoute
+
+    /**
+     * Read by the service on its next look, so a change here reaches a running
+     * session within [io.relay.app.core.RouteChoice.POLL_MS].
+     */
+    fun setAutomaticRoute(value: Boolean) {
+        settings.automaticRoute = value
+        _automaticRoute.value = value
+    }
+
+    /** The route in force while sharing. See [io.relay.app.core.RouteChoice]. */
+    val currentRoute = ConnectionRepository.route
+
     private val _proxyScan = MutableStateFlow<ProxyScan.State>(ProxyScan.State.Idle)
     val proxyScan: StateFlow<ProxyScan.State> = _proxyScan.asStateFlow()
 

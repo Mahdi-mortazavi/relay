@@ -9,6 +9,67 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.10.0] — 2026-10-21
+
+The release for everyone who has a VPN on the phone and a PC that finds the
+phone and then gets nothing — #124, #125 and #126 — and for the two Windows
+reports that followed.
+
+### Changed — Relay chooses the PC's route by itself, and keeps choosing
+
+Until now the arrangement that gives a PC both the connection *and* the VPN on
+a capturing phone needed two steps: exclude Relay in the VPN app, then find
+Relay's Advanced section and tap the proxy it had found. Almost nobody did the
+second, so the people who did the hard part got the phone's bare connection.
+
+Relay now decides for itself, again every ten seconds while sharing
+([ADR-0011](docs/adr/0011-automatic-route.md)):
+
+- **Relay inside the VPN** → the phone's own route, which already is the VPN.
+- **Relay outside the VPN, and the VPN app's local proxy answers** → through
+  that proxy, so the PC gets the VPN.
+- **Neither** → the phone's own route, so the PC stays online.
+
+It asks Android which network *Relay* is on rather than guessing, and the
+switch happens under a live tunnel: same keys, no handshake lost, open
+downloads finish on the path they started on. A proxy that was carrying the PC
+has to miss two looks in a row before it is given up.
+
+This also makes **proxy-only VPN modes** work out of the box — Oblivion's
+`SOCKS5 only` and the proxy modes of v2ray- and sing-box-based clients. With no
+system VPN nothing captures Relay's replies, so the PC pairs first time, and
+Relay finds the VPN behind its loopback port. For the phones in #126's group 3,
+where the approval prompt never appears, that is now the simplest fix.
+
+Advanced shows the route in force and why. A proxy typed by hand still wins and
+is never dropped; **This phone's route only** restores the old behaviour.
+
+### Added — a kill switch on Windows (#165)
+
+**Advanced → Kill switch.** Off by default. When on and the phone stops
+answering, the tunnel stays up and holds the laptop's traffic instead of letting
+every app fall back to the laptop's own connection without a word. The window
+says Reconnecting, and when the phone answers again on the same sharing session
+traffic resumes with nothing pressed. Disconnect always works.
+
+It needs no firewall rule of its own: the tunnel's default route, kept in
+place, is what does the blocking, and it disappears with the tunnel process
+exactly as before.
+
+### Fixed — a laptop whose only internet is Relay never updated (#166)
+
+The update check runs shortly after launch — when nothing is connected yet, so
+on a laptop with no other internet it failed ("No such host is known") and its
+retry was five, then ten, then twenty minutes away. A short session ended
+before any of them. The tunnel coming up now brings a failed check forward, so
+those laptops update like everyone else. A check that already succeeded is not
+repeated.
+
+### Changed — the "no reply" banner names the fix that keeps the VPN
+
+`PC_GOT_NO_REPLY` now says that excluding Relay, or switching the VPN app to
+proxy mode, keeps the VPN for the PC — because Relay finds the proxy itself.
+
 ## [2.9.0] — 2026-09-17
 
 Relay is being prepared for the open-source app repositories. Most of that is

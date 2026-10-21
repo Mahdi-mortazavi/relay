@@ -27,6 +27,16 @@ interface WgForwarder {
     fun stop()
 
     /**
+     * Re-points a running endpoint at [upstreamProxy] (empty for the phone's
+     * own route) without restarting it: same keys, same peer, no handshake
+     * lost. New flows take the new path; open ones finish on the old.
+     *
+     * @return false when this build's library cannot switch mid-session or the
+     *   switch was refused. The caller then keeps the route it had.
+     */
+    fun setUpstream(upstreamProxy: String): Boolean = false
+
+    /**
      * When the peer last completed a handshake, in seconds since the epoch, or
      * 0 if it never has.
      *
