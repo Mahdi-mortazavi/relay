@@ -30,7 +30,14 @@ class ClientGate(
     enum class Decision { ALLOWED, DENIED }
 
     /** A client waiting on a person. Null when nothing is pending. */
-    data class Pending(val address: String)
+    /**
+     * A client waiting on a person. [name] is what the PC called itself in its
+     * request (/shared/pairing-beacon.md → "The pairing exchange"), already
+     * sanitised, or null when it sent none. It is display data only: the
+     * decision is still keyed by [address], because a name is whatever the
+     * sender chose to type.
+     */
+    data class Pending(val address: String, val name: String? = null)
 
     private val decisions = ConcurrentHashMap<String, Decision>()
 
@@ -61,7 +68,7 @@ class ClientGate(
      * Silence is a denial. A phone in a pocket must fail closed, or "I did not
      * notice the prompt" becomes "anyone on this network may use my data".
      */
-    suspend fun authorize(address: String): Boolean {
+    suspend fun authorize(address: String, name: String? = null): Boolean {
         decisions[address]?.let { return it == Decision.ALLOWED }
 
         // One prompt at a time: two computers connecting together must not race
@@ -71,7 +78,7 @@ class ClientGate(
             decisions[address]?.let { return@withLock it == Decision.ALLOWED }
             val answer = CompletableDeferred<Decision>()
             waiters[address] = answer
-            _pending.value = Pending(address)
+            _pending.value = Pending(address, name)
             var answered = true
             val decision = try {
                 withTimeout(timeoutMs) { answer.await() }
