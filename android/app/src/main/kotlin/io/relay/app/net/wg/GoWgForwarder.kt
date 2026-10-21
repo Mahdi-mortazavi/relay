@@ -21,6 +21,7 @@ class GoWgForwarder : WgForwarder {
     private val startEndpoint: Method
     private val startEndpointVia: Method?
     private val stopEndpoint: Method
+    private val setEndpointUpstream: Method?
     private val isRunning: Method
     private val lastHandshakeUnix: Method
     private val bytesReceived: Method
@@ -43,6 +44,11 @@ class GoWgForwarder : WgForwarder {
             relaywg.getMethod("startEndpointVia", String::class.java, String::class.java)
         }.getOrNull()
         stopEndpoint = relaywg.getMethod("stopEndpoint")
+        // Optional for the same reason as startEndpointVia: an older library
+        // simply cannot switch routes mid-session.
+        setEndpointUpstream = runCatching {
+            relaywg.getMethod("setEndpointUpstream", String::class.java)
+        }.getOrNull()
         isRunning = relaywg.getMethod("isRunning")
         lastHandshakeUnix = relaywg.getMethod("lastHandshakeUnix")
         bytesReceived = relaywg.getMethod("bytesReceived")
@@ -76,6 +82,11 @@ class GoWgForwarder : WgForwarder {
         // tearing down, often from a failure, and throwing here would replace
         // the real error with this one.
         runCatching { stopEndpoint.invoke(null) }
+    }
+
+    override fun setUpstream(upstreamProxy: String): Boolean {
+        val method = setEndpointUpstream ?: return false
+        return runCatching { method.invoke(null, upstreamProxy) }.isSuccess
     }
 
     /** True when the Go side has a live endpoint, asked rather than remembered. */

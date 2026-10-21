@@ -3,6 +3,7 @@ package relaywg
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -347,5 +348,83 @@ func TestAProxyDemandingAuthenticationSaysSoClearly(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "authentication") {
 		t.Fatalf("the error does not name the cause: %v", err)
+	}
+}
+
+func TestARunningTunCanBeRepointedAtAProxyAndBack(t *testing.T) {
+	// The automatic route on the phone changes its mind while sharing: a VPN
+	// app opens its proxy after Relay started, or closes it. Each change has
+	// to reach the very next flow, with nothing restarted.
+	proxy := newFakeSocks(t)
+	device := &netTun{}
+
+	device.setUpstream(socks5{address: proxy.address()})
+	conn, err := device.dial("tcp", "203.0.113.9:80")
+	if err != nil {
+		t.Fatalf("dial through the new upstream: %v", err)
+	}
+	conn.Close()
+	select {
+	case asked := <-proxy.lastRequest:
+		if asked != "203.0.113.9:80" {
+			t.Fatalf("proxy was asked for %q", asked)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the switch did not reach the next flow")
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	device.setUpstream(direct{})
+	conn, err = device.dial("tcp", listener.Addr().String())
+	if err != nil {
+		t.Fatalf("dial after switching back to the phone's route: %v", err)
+	}
+	conn.Close()
+	select {
+	case asked := <-proxy.lastRequest:
+		t.Fatalf("switched back to direct, but the proxy was still asked for %q", asked)
+	default:
+	}
+}
+
+func TestSetUpstreamRefusesNonsenseAndKeepsTheRoute(t *testing.T) {
+	// A typo must never become "forward nowhere": the old route stays.
+	private, _ := keyPair(t)
+	_, peerPublic := keyPair(t)
+	endpoint, err := Start(fmt.Sprintf(
+		"private_key=%s\nlisten_port=%d\npublic_key=%s\nallowed_ip=10.13.37.2/32\n",
+		private, freeUDPPort(t), peerPublic))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer endpoint.Stop()
+
+	before := endpoint.tun.out.Load()
+	if err := endpoint.SetUpstream("not an address"); err == nil {
+		t.Fatal("a malformed proxy address was accepted")
+	}
+	if endpoint.tun.out.Load() != before {
+		t.Fatal("a refused address still changed the route")
+	}
+	if err := endpoint.SetUpstream("127.0.0.1:1819"); err != nil {
+		t.Fatalf("a well-formed address was refused: %v", err)
+	}
+	if endpoint.tun.out.Load() == before {
+		t.Fatal("a well-formed address did not change the route")
+	}
+}
+
+func TestSetUpstreamOnAStoppedEndpointSaysSo(t *testing.T) {
+	var nothing *Endpoint
+	if err := nothing.SetUpstream(""); err == nil {
+		t.Fatal("a nil endpoint accepted a route")
+	}
+	StopEndpoint()
+	if err := SetEndpointUpstream(""); err == nil {
+		t.Fatal("switching with nothing running claimed success")
 	}
 }

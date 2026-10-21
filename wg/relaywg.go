@@ -122,7 +122,7 @@ func StartVia(ipcConfig, upstreamProxy string) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	tunDevice.out = out
+	tunDevice.setUpstream(out)
 	// Installed before the tunnel comes up, so the first packet from the peer
 	// already has somewhere to go.
 	tunDevice.installForwarders()
@@ -140,6 +140,41 @@ func StartVia(ipcConfig, upstreamProxy string) (*Endpoint, error) {
 	}
 
 	return &Endpoint{dev: dev, tun: tunDevice}, nil
+}
+
+// SetUpstream changes where the endpoint forwards new flows, without touching
+// the tunnel: same keys, same port, same peer, no handshake lost.
+//
+// This is what lets the phone pick its route while sharing rather than once at
+// start. A VPN client can open its local proxy after Relay started, or close it
+// -- the user switched modes, or the app was killed -- and the right answer for
+// the PC changes with it. Restarting the endpoint to follow would drop the
+// laptop for as long as a rehandshake takes and reset every connection on it;
+// this changes the next dial and nothing else.
+//
+// Flows already open keep the path they were dialled on. A TCP stream cannot
+// move to a different egress mid-life, and a UDP flow is reaped within a minute
+// of going quiet (udpIdleTimeout), so everything converges on the new route
+// without anyone's download being cut.
+//
+// The address is validated exactly as StartVia validates it, and a bad one
+// leaves the current route in place: a typo must never become "forward
+// nowhere".
+func (e *Endpoint) SetUpstream(upstreamProxy string) error {
+	if e == nil {
+		return errors.New("relaywg: no endpoint is running")
+	}
+	out, err := newUpstream(upstreamProxy)
+	if err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed || e.tun == nil {
+		return errors.New("relaywg: the endpoint has stopped")
+	}
+	e.tun.setUpstream(out)
+	return nil
 }
 
 // Stop tears the endpoint down. Idempotent by design — see the type comment.

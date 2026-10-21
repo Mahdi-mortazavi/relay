@@ -33,7 +33,7 @@
     <string name="warning_lockdown_body">That setting drops everything except the VPN — including this phone\'s replies to your PC, so your PC can reach the phone but never hears back. Open VPN settings, tap the ⚙ beside your VPN app\'s name, and turn it off. Your VPN keeps running, and Relay will share it.</string>
     <string name="warning_lockdown_action">VPN settings</string>
     <string name="warning_no_reply_title">Your PC is not getting an answer</string>
-    <string name="warning_no_reply_body">A PC took Relay\'s settings and started its tunnel, but no reply ever left this phone. If your VPN app has a “local network access” option, turn it on — that fixes this and the PC still gets your VPN. Excluding Relay in the app\'s per-app list also works, but then the PC gets this phone\'s own connection instead of the VPN.</string>
+    <string name="warning_no_reply_body">A PC took Relay\'s settings and started its tunnel, but no reply ever left this phone. If your VPN app has a “local network access” option, turn it on — that fixes this and the PC still gets your VPN. Otherwise, exclude Relay in the app\'s per-app list, or switch the app to its proxy-only mode, then turn the VPN off and on: Relay finds the VPN app\'s local proxy by itself and sends the PC through it, so the PC still gets your VPN.</string>
     <string name="warning_no_vpn_title">No VPN is active</string>
     <string name="warning_no_vpn_body">You\'re sharing your regular connection. Turn on your VPN first if you meant to share it.</string>
 
@@ -45,8 +45,8 @@
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
-    <string name="advanced_upstream">Send the PC\'s traffic through a proxy</string>
-    <string name="advanced_upstream_hint">Leave empty to use this phone\'s own connection. If a VPN app on this phone offers a local SOCKS5 port, putting it here is what lets the PC use that VPN.</string>
+    <string name="advanced_upstream">Where the PC\'s traffic goes</string>
+    <string name="advanced_upstream_hint">Automatic sends it through this phone\'s VPN whichever way works: directly when Relay is inside the VPN, or through the VPN app\'s own local proxy when it is not. Type a proxy below to pin one — Relay then always uses it and never falls back.</string>
     <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
     <string name="advanced_upstream_invalid">That needs to be a port, or an address and a port — like 127.0.0.1:10808 or :10808.</string>
     <string name="advanced_upstream_looking">Looking for a VPN\'s proxy on this phone…</string>
@@ -54,6 +54,13 @@
     <string name="advanced_upstream_found_action">Use the proxy that was found</string>
     <string name="advanced_upstream_none">No proxy on this phone answered. Read the port from your VPN app\'s own settings, then type it above. Tap to look again.</string>
     <string name="advanced_upstream_again">Look for a proxy again</string>
+    <string name="advanced_route_auto">Automatic</string>
+    <string name="advanced_route_phone">This phone\'s route only</string>
+    <string name="advanced_route_now_proxy">Now: through the VPN proxy at %1$s</string>
+    <string name="advanced_route_now_vpn">Now: through this phone\'s VPN</string>
+    <string name="advanced_route_now_bare">Now: this phone\'s own connection — no VPN reaches Relay, and no VPN proxy answered</string>
+    <string name="advanced_route_now_phone">Now: this phone\'s own route</string>
+    <string name="advanced_upstream_found_auto">Found a VPN proxy at %1$s — Relay uses it by itself whenever the PC needs it.</string>
     <string name="advanced_logs">Activity log (stays on this device)</string>
     <string name="advanced_logs_clear">Clear</string>
     <string name="advanced_logs_empty">No activity yet</string>

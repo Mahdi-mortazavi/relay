@@ -358,6 +358,27 @@ the Windows client's willingness to retry, and someone watching the phone sees
 "Your PC is not getting an answer" over a connection that then works. Seen once,
 self-corrected, timing not captured.
 
+### The automatic route and the kill switch — awaiting hardware (2.10.0)
+
+What CI proves: the Go suite re-points a live tunnel at a proxy and back and
+checks a malformed address leaves the route alone; the Kotlin suite pins the
+route table and its hysteresis (`RouteChoiceTest`); the Windows suite pins the
+kill-switch flag and the PEER-LOST / PEER-BACK lines (`WgTunnelSessionTests`)
+and the update retry on connect (`UpdateServiceTests`).
+
+What only a phone and a laptop can show, and has not yet been run:
+
+1. Relay excluded from a full-tunnel VPN that exposes a SOCKS5 port: the log
+   says `Route chosen via=127.0.0.1:<port> why=VPN_PROXY` and the laptop's
+   public address is the VPN's exit.
+2. The same VPN app closed mid-download: within about twenty seconds,
+   `Route switched via=phone why=NO_PROXY`, and the tunnel itself never drops.
+3. A VPN app in proxy-only mode with no system VPN: the PC pairs first time and
+   gets the VPN's exit.
+4. Kill switch on, phone's Wi-Fi turned off for four minutes: the laptop shows
+   Reconnecting and nothing loads; Wi-Fi back on, the same session resumes
+   with nothing pressed.
+
 ### An unanswered UAC prompt is indistinguishable from a hang — 2026-09-16
 
 Worth writing down because it cost a diagnosis twice in one day, and because it

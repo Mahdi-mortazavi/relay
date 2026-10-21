@@ -19,7 +19,8 @@
 //	in      the wireguard-go IPC configuration, ended by "END-CONFIG"
 //	out     "READY" once the peer has handshaked and traffic can flow, or
 //	        "NO-HANDSHAKE" if the adapter came up and the peer never answered;
-//	        then nothing
+//	        then, only with -hold-on-loss, "PEER-LOST" and "PEER-BACK" as the
+//	        phone stops and resumes answering
 //	stderr  human-readable progress and errors
 //	exit    tear the tunnel down when the stream closes, or on Ctrl+Break
 //
@@ -95,6 +96,11 @@ const (
 	handshakeStale = 3 * time.Minute
 
 	handshakePoll = 250 * time.Millisecond
+
+	// Printed with -hold-on-loss when the peer goes quiet and again when it
+	// answers. See [watchPeer].
+	peerLostLine = "PEER-LOST"
+	peerBackLine = "PEER-BACK"
 )
 
 func main() {
@@ -106,15 +112,18 @@ func main() {
 		"named pipe carrying the configuration and readiness; stdin/stdout when empty")
 	blockLeaks := flag.Bool("block-leaks", true,
 		"block traffic that would bypass the tunnel (other resolvers, IPv6, other adapters)")
+	holdOnLoss := flag.Bool("hold-on-loss", false,
+		"kill switch: when the phone stops answering, keep the tunnel's routes so nothing "+
+			"leaves by another adapter, and wait for it to come back")
 	flag.Parse()
 
-	if err := run(*name, *address, *dns, *routes, *pipe, *blockLeaks); err != nil {
+	if err := run(*name, *address, *dns, *routes, *pipe, *blockLeaks, *holdOnLoss); err != nil {
 		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
+func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) error {
 	// The app talks over a named pipe rather than stdin, because a process
 	// launched through the elevation prompt cannot have its streams redirected
 	// at all -- and the only other way to hand it a private key would be a temp
@@ -241,7 +250,27 @@ func run(name, address, dns, routes, pipe string, blockLeaks bool) error {
 	// moves, and this is the only place the configuration is still in hand.
 	peerKey := peerPublicKey(config)
 
-	waitForShutdown(reader, parentGone, peerLost(dev), func(line string) {
+	// Without the kill switch, a peer that goes quiet ends the process, which is
+	// the one signal the app watches. With it, the process stays -- and with it
+	// the adapter, its default route and the leak filters -- so the machine's
+	// traffic keeps going into a tunnel that drops it, rather than quietly out
+	// of the Wi-Fi adapter. That is the whole of a kill switch, and it needs no
+	// filter of its own: the route is already doing the blocking.
+	var gone <-chan struct{}
+	if holdOnLoss {
+		go watchPeer(dev, handshakeStale, func(lost bool) {
+			line := peerBackLine
+			if lost {
+				line = peerLostLine
+			}
+			fmt.Fprintf(os.Stderr, "peer %s\n", strings.ToLower(line))
+			io.WriteString(channel, line+"\n")
+		})
+	} else {
+		gone = peerLost(dev)
+	}
+
+	waitForShutdown(reader, parentGone, gone, func(line string) {
 		endpoint, ok := strings.CutPrefix(line, endpointPrefix)
 		if !ok {
 			return // the app says nothing else here; ignore whatever this was
@@ -330,17 +359,46 @@ func peerLost(dev *device.Device) <-chan struct{} {
 		defer close(lost)
 		for {
 			time.Sleep(time.Second)
-			last := lastHandshakeUnix(dev)
-			if last == 0 {
-				continue // gated before READY, so this cannot be "never"
-			}
-			if time.Since(time.Unix(last, 0)) > handshakeStale {
+			// Never-handshaked is not stale: this is gated behind READY.
+			if peerIsStale(lastHandshakeUnix(dev), time.Now(), handshakeStale) {
 				fmt.Fprintln(os.Stderr, "the peer stopped handshaking; tearing down")
 				return
 			}
 		}
 	}()
 	return lost
+}
+
+// watchPeer reports the peer going quiet and coming back, for the kill switch.
+//
+// The same staleness rule as [peerLost], and the same reason for it: WireGuard
+// rekeys every two minutes while anything flows and the client keeps alive
+// every 25 seconds, so a handshake older than [handshakeStale] is a phone that
+// is not there. Coming back is a fresh handshake, which wireguard-go keeps
+// attempting on its own for as long as the device is up -- so a phone that
+// returns on the same session (same keys) is picked up with nothing done here
+// beyond noticing.
+//
+// Runs until the process exits; see [peerLost] for why that is fine.
+func watchPeer(dev *device.Device, stale time.Duration, report func(lost bool)) {
+	lost := false
+	for {
+		time.Sleep(time.Second)
+		if nowLost := peerIsStale(lastHandshakeUnix(dev), time.Now(), stale); nowLost != lost {
+			lost = nowLost
+			report(lost)
+		}
+	}
+}
+
+// peerIsStale is the rule [peerLost] and [watchPeer] share. Never having
+// handshaked is not stale: both are only started after READY, which required
+// one.
+func peerIsStale(lastHandshake int64, now time.Time, stale time.Duration) bool {
+	if lastHandshake == 0 {
+		return false
+	}
+	return now.Sub(time.Unix(lastHandshake, 0)) > stale
 }
 
 // lastHandshakeUnix reads the peer's last handshake out of the device itself,

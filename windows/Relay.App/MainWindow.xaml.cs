@@ -532,6 +532,11 @@ public sealed partial class MainWindow : Window
         AdvancedLeakToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
         ToolTipService.SetToolTip(AdvancedLeakToggle, Strings.Get("AdvancedLeakBlockHint"));
         SyncLeakToggle();
+        AdvancedKillSwitchLabel.Text = Strings.Get("AdvancedKillSwitch");
+        AdvancedKillSwitchToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedKillSwitchToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedKillSwitchToggle, Strings.Get("AdvancedKillSwitchHint"));
+        SyncKillSwitchToggle();
         AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
         AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
         AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
@@ -626,6 +631,32 @@ public sealed partial class MainWindow : Window
         LocalLog.Add(wanted
             ? "Leak protection on — takes effect on the next connection"
             : "Leak protection OFF — DNS and IPv6 can leave outside the tunnel");
+    }
+
+    /// <summary>Read, not remembered — see <see cref="SyncLeakToggle"/>.</summary>
+    private void SyncKillSwitchToggle()
+    {
+        _syncingKillSwitch = true;
+        try { AdvancedKillSwitchToggle.IsOn = KillSwitch.IsEnabled(); }
+        finally { _syncingKillSwitch = false; }
+    }
+
+    private bool _syncingKillSwitch;
+
+    private void OnKillSwitchToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingKillSwitch) return;
+
+        var wanted = AdvancedKillSwitchToggle.IsOn;
+        if (!KillSwitch.Set(wanted))
+        {
+            LocalLog.Add("Windows would not save that");
+            SyncKillSwitchToggle();
+            return;
+        }
+        LocalLog.Add(wanted
+            ? "Kill switch on — takes effect on the next connection"
+            : "Kill switch off — if the phone stops answering, the laptop uses its own connection");
     }
 
     private void OnStartupToggled(object sender, RoutedEventArgs e)

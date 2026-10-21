@@ -1,6 +1,9 @@
 package relaywg
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 // The gomobile-facing surface.
 //
@@ -57,6 +60,22 @@ func StartEndpointVia(ipcConfig, upstreamProxy string) error {
 	}
 	active = endpoint
 	return nil
+}
+
+// SetEndpointUpstream re-points the running endpoint's forwarders at a SOCKS5
+// address, or at the phone's default route when empty, without restarting the
+// tunnel. See Endpoint.SetUpstream.
+//
+// Its own entry point for the same reason StartEndpointVia is: the Kotlin side
+// looks it up reflectively, so an app built against an older library keeps
+// working and simply cannot switch routes mid-session.
+func SetEndpointUpstream(upstreamProxy string) error {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	if active == nil {
+		return errors.New("relaywg: no endpoint is running")
+	}
+	return active.SetUpstream(upstreamProxy)
 }
 
 // StopEndpoint tears down whatever is running. Safe to call when nothing is:

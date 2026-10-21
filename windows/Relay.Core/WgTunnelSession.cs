@@ -118,6 +118,30 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// </summary>
     public const string LeakProtectionFailedLine = "LEAK-PROTECTION-FAILED";
 
+    /// <summary>
+    /// The kill switch (#165): the client keeps the tunnel, and with it the
+    /// machine's default route, when the phone stops answering, so nothing
+    /// leaves by the Wi-Fi adapter instead. Must match the client's flag.
+    /// </summary>
+    public const string HoldOnLossArgument = "-hold-on-loss";
+
+    /// <summary>Printed by a holding client when the phone stops answering. Must match the client.</summary>
+    public const string PeerLostLine = "PEER-LOST";
+
+    /// <summary>Printed by a holding client when the phone answers again. Must match the client.</summary>
+    public const string PeerBackLine = "PEER-BACK";
+
+    /// <summary>
+    /// Raised with true when a holding tunnel's phone went quiet and false when
+    /// it came back. Only ever raised with the kill switch on: without it the
+    /// client exits instead, which <see cref="IsRunning"/> already says. Fires
+    /// on a worker thread.
+    /// </summary>
+    public event Action<bool>? PeerLostChanged;
+
+    /// <summary>True while a holding tunnel's phone is not answering.</summary>
+    public bool PeerLost { get; private set; }
+
     /// <summary>True when the last connection came up without leak protection.</summary>
     public bool LeakProtectionUnavailable { get; private set; }
 
@@ -141,7 +165,11 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// Close the paths that go around the tunnel. Defaults to true here as well
     /// as in the client, so a caller that forgets still fails closed.
     /// </param>
-    public Result Connect(WgParams wg, string host, bool blockLeaks = true)
+    /// <param name="holdOnLoss">
+    /// The kill switch: keep blocking rather than fall back to the physical
+    /// adapter when the phone stops answering. See <see cref="HoldOnLossArgument"/>.
+    /// </param>
+    public Result Connect(WgParams wg, string host, bool blockLeaks = true, bool holdOnLoss = false)
     {
         if (IsRunning) return Result.Fail("ERR_WG_ALREADY_RUNNING");
 
@@ -162,7 +190,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         IProcessHandle tunnel;
         try
         {
-            tunnel = processHost.Start(Arguments(wg, blockLeaks));
+            tunnel = processHost.Start(Arguments(wg, blockLeaks, holdOnLoss));
         }
         catch (ElevationDeclined)
         {
@@ -200,7 +228,50 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
 
         _tunnel = tunnel;
         LeakProtectionUnavailable = unprotected;
+        PeerLost = false;
+        if (holdOnLoss) WatchPeer(tunnel);
         return Result.Success;
+    }
+
+    /// <summary>
+    /// Listens for the holding client's PEER-LOST and PEER-BACK lines.
+    ///
+    /// Its own thread, because a read on the pipe blocks and this lasts for the
+    /// whole session. It ends by itself when the pipe does: Disconnect closes
+    /// it, and so does the client exiting.
+    /// </summary>
+    private void WatchPeer(IProcessHandle tunnel)
+    {
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                while (true)
+                {
+                    var line = tunnel.ReadLine();
+                    if (line is null) return;
+                    var trimmed = line.Trim();
+                    bool lost;
+                    if (trimmed == PeerLostLine) lost = true;
+                    else if (trimmed == PeerBackLine) lost = false;
+                    else continue;
+                    // Only for the tunnel that is still this session's: a line
+                    // from one being torn down must not repaint the next.
+                    if (!ReferenceEquals(_tunnel, tunnel)) return;
+                    PeerLost = lost;
+                    PeerLostChanged?.Invoke(lost);
+                }
+            }
+            catch (Exception)
+            {
+                // The pipe closing under a blocked read is the ordinary way out.
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Relay tunnel peer watch",
+        };
+        thread.Start();
     }
 
     /// <summary>
@@ -244,6 +315,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     {
         var tunnel = _tunnel;
         _tunnel = null;
+        PeerLost = false;
         if (tunnel is null) return Result.Success;
 
         return Stop(tunnel) ? Result.Success : Result.Fail("ERR_WG_STOP_FAILED");
@@ -306,7 +378,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// The client's arguments. The DNS server and the tunnel address come from
     /// the payload and the shared contract rather than being repeated here.
     /// </summary>
-    internal static string Arguments(WgParams wg, bool blockLeaks = true)
+    internal static string Arguments(WgParams wg, bool blockLeaks = true, bool holdOnLoss = false)
     {
         var arguments = new List<string>
         {
@@ -322,6 +394,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         // Only ever passed to turn it OFF. The client defaults to blocking, so
         // a Relay that somehow forgets to pass anything still fails closed.
         if (!blockLeaks) arguments.Add(DisableLeakBlockArgument);
+        if (holdOnLoss) arguments.Add(HoldOnLossArgument);
         return string.Join(' ', arguments.Select(Quote));
     }
 

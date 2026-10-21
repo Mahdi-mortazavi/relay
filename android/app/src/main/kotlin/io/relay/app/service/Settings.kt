@@ -46,7 +46,24 @@ class Settings(context: Context) {
         get() = prefs.getString(KEY_UPSTREAM, "")?.trim() ?: ""
         set(value) = prefs.edit().putString(KEY_UPSTREAM, value.trim()).apply()
 
+    /**
+     * Whether Relay picks the PC's route by itself while sharing (ADR-0011):
+     * the phone's own route when Relay is inside the VPN, the VPN app's local
+     * proxy when it is not and one answers. Only consulted while
+     * [upstreamProxy] is empty — a typed proxy is never second-guessed.
+     *
+     * On by default. Before 2.10.0 an empty field meant "the phone's route,
+     * always", and the found proxy was only offered; that left the PC without
+     * the VPN on exactly the phones where Relay had been excluded to make the
+     * connection work at all, unless the person found Advanced, understood it,
+     * and tapped. Off restores that behaviour exactly.
+     */
+    var automaticRoute: Boolean
+        get() = prefs.getBoolean(KEY_AUTOMATIC_ROUTE, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTOMATIC_ROUTE, value).apply()
+
     companion object {
+        private const val KEY_AUTOMATIC_ROUTE = "automatic_route"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_ONBOARDED = "onboarded"
         private const val KEY_UPSTREAM = "upstream_proxy"
