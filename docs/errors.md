@@ -1,6 +1,8 @@
 # Error taxonomy
 
-Stable error codes shared by both apps. Every user-surfaced error maps to **one concrete next action** (AC2.2). EN/FA message strings live in each app's localization resources keyed by these codes (Android: `strings.xml` / `values-fa/strings.xml`; Windows: `Strings/*/Resources.resw` + the fallback table in `Strings.cs`).
+Stable error codes shared by both apps. Every user-surfaced error maps to **one concrete next action** (AC2.2). EN/FA message strings live in each app's string store (Android: `strings.xml` / `values-fa/strings.xml`; Windows: `Strings.cs`, the **only** Windows string store — `CLAUDE.md` forbids a `.resw`).
+
+Since 2.11 every error surface has **exactly one primary action**, and it does what its label says: on Windows, *Try Again* repeats the last attempt rather than dismissing (it used to do the same as *Dismiss*); on Android, the three errors only a setting can fix (`HOTSPOT_OFF`, `ONLY_MOBILE_DATA`, `ONLY_VPN`) lead with *Open network settings*, with *Try Again* one step quieter. Each Android error also says what Relay already tried, and keeps the code and the last log lines under *Technical details*.
 
 Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; new codes may be appended in later phases (e.g. WireGuard in Phase 3).
 
@@ -19,12 +21,12 @@ Codes are **never renamed or reused**. This is the complete Phase 2 taxonomy; ne
 | `ONLY_MOBILE_DATA` | Error | Every addressed link is the carrier's (`rmnet`, `ccmni`, `pdp`, …). A PC cannot route to mobile data | Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable and turn on USB tethering |
 | `ONLY_VPN` | Error | The only addressed link is the phone's own VPN tunnel (`tun`, `ipsec`). A PC cannot reach the phone through it | Connect the phone to Wi-Fi, turn on its hotspot, or plug in a cable. The message says explicitly that the VPN stays on and Relay will share it — *turn off your VPN* is the one thing this must never imply, since sharing it is the point |
 | `HOTSPOT_LOST` | Transient → Error | Hotspot interface dropped and did not return within the reconnect bound | Check the hotspot is still on, then start sharing again |
-| `PORT_IN_USE` | Error | Every candidate SOCKS port is bound by another app | Close the other app using those ports, then try again |
+| `PORT_IN_USE` | Error | *Legacy (Fast Mode, ADR-0009):* every candidate SOCKS port was bound by another app. **Raised by nothing since Fast Mode was removed**; kept because codes are never removed | Close the other app using those ports, then try again |
 | `SERVICE_FAILED` | Error | Foreground service stopped unexpectedly — Android killing it for battery optimisation, or the app swiped from recents. **Declared, mapped in the UI, and raised by nothing**: as of 2.8.5 no code path produces it. Kept because codes are never removed, and because the condition is real even if nothing detects it yet | Allow Relay to ignore battery optimisation in Advanced, then start sharing again |
 | `WG_START_FAILED` | Error | The WireGuard endpoint could not start on the phone | Start sharing again |
 | `NO_VPN_ACTIVE` | Warning | No VPN is active on the phone when sharing starts | Informational: you're sharing your regular connection. Turn on your VPN first if you meant to share it |
 | `VPN_LOCKDOWN_ON` | Warning | The same fault as `PC_GOT_NO_REPLY`, with the cause confirmed: `Settings.Secure.always_on_vpn_lockdown` reads non-zero (`VpnLockdown`). The only warning that gets an action button, because it is the only one that knows a screen worth opening | Open VPN settings (button), tap the ⚙ beside the VPN app's name, turn "Block connections without VPN" off. The message says explicitly that the VPN keeps running |
-| `PC_GOT_NO_REPLY` | Warning | A PC took a configuration and the WireGuard endpoint saw no completed handshake in the 20 s that followed (`HandshakeWatch`). Fires at the same moment the PC shows `ERR_WG_NO_HANDSHAKE`. Replaces 2.8.1's `VPN_CAPTURES_RELAY`, which predicted the fault from a route lookup and was seen announcing it on a session that then paired and carried traffic — see [vpn-compat.md](vpn-compat.md) | Exclude Relay in the VPN app's per-app list, or turn off "Block connections without VPN" in Settings → Network → VPN |
+| `PC_GOT_NO_REPLY` | Warning | A PC took a configuration and the WireGuard endpoint saw no completed handshake in the 20 s that followed (`HandshakeWatch`). Fires at the same moment the PC shows `ERR_WG_NO_HANDSHAKE`. Replaces 2.8.1's `VPN_CAPTURES_RELAY`, which predicted the fault from a route lookup and was seen announcing it on a session that then paired and carried traffic — see [vpn-compat.md](vpn-compat.md) | Two numbered steps, best first: turn on "local network access" in the VPN app; otherwise exclude Relay (or switch the VPN app to proxy-only mode) and toggle the VPN — since 2.10 Relay then finds the VPN's local proxy, so the PC **keeps** the VPN (ADR-0011) |
 | `BATTERY_UNRESTRICTED_DENIED` | Warning | Battery-optimization exemption not granted | Allow it so sharing survives screen-off (button opens the exemption dialog) |
 
 ## Windows (client device)
@@ -39,12 +41,12 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_CODE_NOT_FOUND` | Error | No phone on this network is announcing the two digits that were typed | Check the phone is still sharing and this PC is on its hotspot, the same Wi-Fi, or its USB cable with tethering on |
 | `ERR_CODE_AMBIGUOUS` | Error | More than one phone is announcing that code (see `/shared/pairing-beacon.md`) | Stop sharing on the phone you don't want, then try again |
 | `ERR_FULL_MODE_NEEDS_QR` | Error | The phone is sharing but is not offering a pairing port, so a code cannot fetch a configuration | Scan its QR code instead |
-| `ERR_HOST_UNREACHABLE` | Error | SOCKS5 probe to the phone failed on first connect (proxy rolled back) | Put this PC on the phone's Wi-Fi or hotspot, or connect it by USB with tethering on, then try again |
+| `ERR_HOST_UNREACHABLE` | Error | The phone could not be reached on first connect: the pairing exchange got no answer (and, for a legacy Fast Mode QR, the SOCKS5 probe failed) | Put this PC on the phone's Wi-Fi or hotspot, or connect it by USB with tethering on, then try again |
 | `ERR_WRONG_NETWORK` | Error | The phone's host IP is not on any connected interface's subnet | This PC shares no network with the phone. Join its Wi-Fi or hotspot, or plug in the cable and turn on USB tethering, then try again |
-| `ERR_CONNECTION_LOST` | Transient → Error | An established connection dropped and did not recover within the reconnect bound | The phone became unreachable. Re-check the hotspot and connect again |
+| `ERR_CONNECTION_LOST` | Transient → Error | An established connection dropped and did not recover within the reconnect bound | Check the phone is still sharing and on the same Wi-Fi, hotspot or cable; Try Again re-dials the same phone, found afresh by its code |
 | `ERR_FIREWALL_BLOCKED` | Error | Local connect refused/blocked in a way consistent with a firewall rule | Allow Relay through Windows Firewall (or your security software), then try again |
-| `ERR_PROXY_APPLY_FAILED` | Error | Applied proxy didn't verify on read-back (rolled back) | Close other proxy/VPN managers and try again |
-| `ERR_ROLLBACK_INCOMPLETE` | Error | Disconnect couldn't restore the snapshot (backup kept) | Press Disconnect again to retry the restore |
+| `ERR_PROXY_APPLY_FAILED` | Error | *Legacy Fast Mode only — reachable solely from a `socks5` QR (docs/ux-audit.md P-07).* Applied proxy didn't verify on read-back (rolled back) | Close other proxy/VPN managers and try again |
+| `ERR_ROLLBACK_INCOMPLETE` | Error | *Legacy Fast Mode only.* Disconnect couldn't restore the snapshot (backup kept) | Press Disconnect again to retry the restore |
 | `ERR_WG_ELEVATION_DECLINED` | Error | The elevation prompt was dismissed | Choose Yes on the prompt to connect |
 | `ERR_WG_START_FAILED` | Error | The tunnel process did not come up (no adapter, or the configuration was refused) | Close any other VPN, then try again |
 | `ERR_WG_ELEVATION_UNAVAILABLE` | Error | Windows refused to elevate from Relay's install folder, so no prompt was ever shown — seen when `%LOCALAPPDATA%\Programs` is a junction to another drive | Reinstall Relay somewhere that is not redirected |
@@ -52,8 +54,9 @@ Input-validation codes (bad scan / bad typed code) never touch the system and re
 | `ERR_WG_NO_HANDSHAKE` | Error | The adapter came up but the peer never handshaked — almost always a QR whose keys the phone has since replaced | Scan the QR the phone is showing now |
 | `ERR_PAIRING_DENIED` | Error | The person holding the phone declined this computer, or did not answer within 60 s | Tap Allow on the phone, then try the code again |
 | `ERR_PAIRING_VERSION` | Error | The phone speaks an older pairing version than this PC | Update Relay on the phone |
-| `ERR_WG_ALREADY_RUNNING` | Error | A tunnel is already up; a second would fight it for the adapter | Disconnect first |
-| `ERR_WG_STOP_FAILED` | Error | The tunnel process would not exit | Restart Relay; the adapter and its routes go when it exits |
+| `ERR_WG_ALREADY_RUNNING` | Error | A tunnel is already up; a second would fight it for the adapter | Disconnect first (the button does it) |
+| `ERR_WG_STOP_FAILED` | Error | The tunnel process would not exit | Disconnect again (the button retries the stop); if it still will not stop, restart Relay — the adapter and its routes go when it exits |
+| *(any code this build has no words for)* | Error | A code added later, or none at all | A neutral "Something went wrong" with Try Again. It used to borrow `ERR_PROXY_APPLY_FAILED`'s copy about a proxy Relay no longer sets |
 | `ERR_CAMERA_DENIED` | Error | Camera unavailable or access denied | Allow camera access for desktop apps in Windows Settings → Privacy, or enter the code manually |
 
 ## The empty list is not an error, and still needs a reason

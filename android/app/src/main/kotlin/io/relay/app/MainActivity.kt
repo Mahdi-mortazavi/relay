@@ -180,6 +180,8 @@ class MainActivity : ComponentActivity() {
                         },
                         updateAvailable = updateAvailable,
                         pendingClient = pendingClient?.address,
+                        pendingClientName = pendingClient?.name,
+                        onOpenNetworkSettings = ::openNetworkSettings,
                         onApproveClient = { allowed ->
                             pendingClient?.let {
                                 ConnectionRepository.clientGate.resolve(it.address, allowed)
@@ -227,9 +229,20 @@ class MainActivity : ComponentActivity() {
     @androidx.compose.runtime.Composable
     private fun onboardingSteps(batteryExempt: Boolean): List<OnboardingStep> {
         val ctx = this
-        val notifGranted = Build.VERSION.SDK_INT < 33 ||
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-            android.content.pm.PackageManager.PERMISSION_GRANTED
+        // State, not a read: the step has to tick the moment Android answers.
+        // It used to be read once during composition, and nothing recomposed
+        // when the permission dialog closed, so "Allow notifications" stayed on
+        // screen after it had been allowed (docs/ux-audit.md P-37).
+        var notifGranted by remember {
+            mutableStateOf(
+                Build.VERSION.SDK_INT < 33 ||
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED,
+            )
+        }
+        val notifLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted -> notifGranted = granted }
 
         val canTile = HomeScreenExtras.canOfferTile()
         val canWidget = HomeScreenExtras.canOfferWidget(ctx)
@@ -245,9 +258,10 @@ class MainActivity : ComponentActivity() {
                 actionLabel = stringResource(R.string.onboarding_notif_action),
                 onAction = {
                     if (Build.VERSION.SDK_INT >= 33) {
-                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 },
+                essential = true,
             ),
             OnboardingStep(
                 title = stringResource(R.string.onboarding_battery_title),
@@ -255,6 +269,7 @@ class MainActivity : ComponentActivity() {
                 action = if (batteryExempt) StepAction.Done else StepAction.Offer,
                 actionLabel = stringResource(R.string.onboarding_battery_action),
                 onAction = ::requestBatteryExemption,
+                essential = true,
             ),
             OnboardingStep(
                 title = stringResource(R.string.onboarding_tile_title),
@@ -302,6 +317,23 @@ class MainActivity : ComponentActivity() {
                 onAction = {},
             ),
         )
+    }
+
+    /**
+     * The screen where Wi-Fi, the hotspot and USB tethering live, for the three
+     * errors that only a setting can fix. "Wireless & networks" is that screen
+     * on most builds; a build without it gets Settings itself, which is still
+     * one tap closer than nothing.
+     */
+    private fun openNetworkSettings() {
+        for (action in listOf(Settings.ACTION_WIRELESS_SETTINGS, Settings.ACTION_SETTINGS)) {
+            try {
+                startActivity(Intent(action))
+                return
+            } catch (_: Exception) {
+                // Not on this build; try the next.
+            }
+        }
     }
 
     /** Deep link to the exemption dialog for this app (ADR-0003). */

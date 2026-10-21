@@ -192,4 +192,24 @@ class PairingServerTest {
         assertTrue(gate.authorize("10.0.0.7"))
         assertNull("no prompt should be pending", gate.pending.value)
     }
+
+    @Test
+    fun `the PC's name reaches the prompt, cleaned`() {
+        // The contract has always said the prompt names the computer; the phone
+        // used to throw the name away and show only an address.
+        assertEquals("MAHDI-LAPTOP", PairingServer.requestName("""{"v":1,"pair":1,"name":"MAHDI-LAPTOP"}"""))
+        // A right-to-left override would let a name reorder the sentence it sits in.
+        assertEquals("evil", PairingServer.requestName("{\"v\":1,\"pair\":1,\"name\":\"\u202Eevil\"}"))
+        assertEquals(PairingServer.MAX_NAME, PairingServer.requestName(
+            """{"v":1,"pair":1,"name":"${"x".repeat(80)}"}""",
+        )!!.length)
+    }
+
+    @Test
+    fun `no usable name is no name`() {
+        assertNull(PairingServer.requestName("""{"v":1,"pair":1}"""))
+        assertNull(PairingServer.requestName("""{"v":1,"pair":1,"name":"   "}"""))
+        assertNull(PairingServer.requestName("""{"v":1,"pair":1,"name":7}"""))
+        assertNull(PairingServer.requestName("not json"))
+    }
 }

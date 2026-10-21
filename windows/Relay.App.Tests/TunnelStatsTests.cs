@@ -68,6 +68,24 @@ public class TunnelStatsTests
         => Assert.Equal(expected, TunnelStats.Bytes(value));
 
     [Fact]
+    public void TheNumberKeepsLatinDigitsAndAFullStopInAnyCulture()
+    {
+        // The unit is translated by the app; the figure is not. It sits beside
+        // an address and a port, and a person compares it across two screens.
+        var before = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("fa-IR");
+            Assert.Equal(("1.20", "GB"), TunnelStats.BytesParts(1_288_490_188));
+            Assert.Equal(("512", "B"), TunnelStats.BytesParts(512));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = before;
+        }
+    }
+
+    [Fact]
     public void DurationStaysShortUntilItHasToGrow()
     {
         // Most sessions are minutes, and "00:04:31" spends two characters saying

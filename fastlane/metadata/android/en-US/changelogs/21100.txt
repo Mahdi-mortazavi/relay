@@ -1,0 +1,3 @@
+A clearer Relay. The connected screen shows download and upload speed instead of the pairing code. Errors lead with the fix, open network settings when only a setting can help, and say what Relay already tried.
+
+The approval prompt names the computer, not just its address. TalkBack announces every change of state. Contrast, large fonts, Persian layout and reduced motion are all improved.

@@ -167,7 +167,7 @@ class SharingService : Service() {
                 if (waiting == null) {
                     ApprovalNotice.clear(this@SharingService)
                 } else {
-                    ApprovalNotice.show(this@SharingService, waiting.address)
+                    ApprovalNotice.show(this@SharingService, waiting.address, waiting.name)
                 }
             }
         }

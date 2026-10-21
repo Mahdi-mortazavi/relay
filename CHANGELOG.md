@@ -9,6 +9,82 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.11.0] — 2026-10-21
+
+An interface release. Every change here traces to a numbered finding in
+[`docs/ux-audit.md`](docs/ux-audit.md), which also lists what is still open.
+Nothing about the tunnel, pairing or routing changed.
+
+### Fixed — buttons that said one thing and did another
+
+- **Windows "Try Again" now tries again.** For ten error codes it only went
+  back to the idle screen, exactly like the *Dismiss* beside it. It now repeats
+  the last attempt: the same phone, found again by its code in case it moved;
+  the same long code; or the same QR.
+- **Android errors lead with the fix.** When only a setting can help (no Wi‑Fi
+  or hotspot, only mobile data, only the VPN), the main button opens network
+  settings. *Try Again* is still there, for after the setting is changed. Each
+  error also says what Relay already tried, and keeps the code and recent log
+  lines under *Technical details*.
+- An unknown error on Windows no longer shows the retired proxy's message.
+- The Windows status chip says **Problem** on an error, not "Not connected"
+  beside a red dot.
+
+### Changed — the phone's connected screen is about the connection
+
+It used to be the pairing screen with one extra line, so the biggest things on
+it were a code and a QR nobody needed any more. Now it says the PC is online,
+shows **download and upload speed** with totals underneath, and keeps the code
+one tap away.
+
+### Fixed — the approval prompt names the computer
+
+The PC has always sent its name, and the pairing contract has always said the
+prompt shows it. The phone threw it away and showed only an address. Both the
+dialog and the notification now read "MAHDI‑LAPTOP (192.168.1.23) wants to
+share your connection". The name is cleaned first: control and
+direction-override characters removed, at most 32 characters. While it waits,
+the PC shows the same name, so the two screens can be checked against each
+other.
+
+### Accessibility
+
+- **Screen readers hear state changes.** TalkBack and Narrator are told when
+  the state becomes Starting, Waiting, Connected or Problem. Before, every
+  change was silent.
+- **Android shows the state as a word**, not only a coloured dot.
+- **Contrast.** A new test reads `shared/design-tokens.json` and fails if any
+  text colour is below 4.5:1 on the worst background it can sit on. It found
+  five such colours, and all five are now fixed in `/shared` first: light
+  warning, light secondary, light accent, light error and dark error. On
+  Windows, small captions (the status chip and every Advanced label) went from
+  3.3:1 to 6.0:1.
+- **Enter on Windows acts on the focused control.** Before, pressing Enter on
+  *Dismiss* ran the main action.
+- **Text scaling.** Windows buttons and the code box grow with *Text size*
+  instead of clipping. Advanced labels wrap instead of truncating. Android
+  paragraphs use a new 14/21 style instead of 12/16, and banner buttons sit
+  under the text so long sentences stay readable at large sizes.
+- **Reduced motion.** Android stops its pulses when *Remove animations* is on.
+
+### Persian and right-to-left
+
+- Windows speeds and sizes are in Persian (کیلوبایت، مگابایت، در ثانیه).
+  Figures stay Latin with a full stop, because they are compared across two
+  screens.
+- Phone rows on Windows are separate runs instead of one padded string, so a
+  Latin model name and a Persian link word no longer reorder each other.
+- The Advanced arrow points the right way in RTL.
+- Onboarding step numbers follow the reader's digits.
+
+### Changed — first run
+
+Onboarding separates the two things sharing needs (notifications, battery)
+from the three shortcuts (tile, widget, long-press), and can be skipped from
+the first screen. The notification step now ticks as soon as it's allowed.
+"No VPN is active" no longer uses the warning colour, and the battery request
+no longer appears twice.
+
 ## [2.10.0] — 2026-10-21
 
 The release for everyone who has a VPN on the phone and a PC that finds the

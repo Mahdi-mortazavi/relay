@@ -65,15 +65,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.text.BidiFormatter
+import android.os.SystemClock
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.ErrorCode
@@ -112,6 +118,10 @@ fun HomeScreen(
     onGetUpdate: () -> Unit = {},
     /** The computer waiting on an answer, or null. /shared/pairing-beacon.md. */
     pendingClient: String? = null,
+    /** The name that computer gave, already sanitised, or null. */
+    pendingClientName: String? = null,
+    /** Opens the system's network settings, for the errors only a setting can fix. */
+    onOpenNetworkSettings: () -> Unit = {},
     onApproveClient: (Boolean) -> Unit = {},
     /** What the USB cable is doing. See [UsbLink.Cable]. */
     cable: UsbLink.Cable = UsbLink.Cable.Absent,
@@ -132,6 +142,11 @@ fun HomeScreen(
     /** The route in force while sharing, or null. */
     currentRoute: RouteChoice.Route? = null,
 ) {
+    // Survives the crossfade between Connected and Reconnecting, and resets
+    // whenever sharing stops: a new session starts with the code hidden.
+    var showCode by rememberSaveable { mutableStateOf(false) }
+    val connected = state is ConnectionState.Connected
+    LaunchedEffect(connected) { if (!connected) showCode = false }
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -148,7 +163,9 @@ fun HomeScreen(
             Header(state)
             Spacer(Modifier.height(24.dp))
 
-            WarningBanners(warnings, onDismissWarning, onOpenVpnSettings)
+            // The battery request has its own banner with a button below, so
+            // the warning of the same name would only say it twice.
+            WarningBanners(warnings - WarningCode.BATTERY_UNRESTRICTED_DENIED, onDismissWarning, onOpenVpnSettings)
 
             // Key the crossfade on the state *name*, not the state value.
             // Connected is a data class carrying byte counters that change every
@@ -176,20 +193,33 @@ fun HomeScreen(
                             traffic = null, onStop = onStop,
                             overUsb = cable == UsbLink.Cable.Carrying,
                         )
-                    is ConnectionState.Connected ->
-                        PairingPanel(
-                            rememberQrText(current.payload), current.typedCode, current.shortCode,
-                            subtitle = if (current.reconnecting)
-                                stringResource(R.string.status_reconnecting)
-                            else pluralStringResource(
-                                R.plurals.status_connected, current.clientCount, current.clientCount,
-                            ),
-                            reconnecting = current.reconnecting,
-                            traffic = formatTraffic(current.bytesUp, current.bytesDown),
-                            onStop = onStop, connected = true,
+                    // Connected is its own screen now (docs/ux-audit.md P-03). It
+                    // used to be the pairing screen with one extra line, so the
+                    // answer to "is it working?" was the smallest text on it and
+                    // a code nobody needed any more was the biggest. The code is
+                    // one tap away for the rare second pairing; it is no longer
+                    // the subject.
+                    is ConnectionState.Connected -> Column {
+                        ConnectedPanel(
+                            state = current,
                             overUsb = cable == UsbLink.Cable.Carrying,
+                            showCode = showCode,
+                            onToggleCode = { showCode = !showCode },
+                            onStop = onStop,
                         )
-                    is ConnectionState.Error -> ErrorPanel(current.code, onRetry, onDismissError)
+                        if (showCode) {
+                            Spacer(Modifier.height(16.dp))
+                            PairingPanel(
+                                rememberQrText(current.payload), current.typedCode, current.shortCode,
+                                subtitle = null,
+                                reconnecting = current.reconnecting,
+                                traffic = null, onStop = onStop,
+                                showStop = false,
+                            )
+                        }
+                    }
+                    is ConnectionState.Error ->
+                        ErrorPanel(current.code, logs, onRetry, onDismissError, onOpenNetworkSettings)
                 }
             }
 
@@ -221,7 +251,7 @@ fun HomeScreen(
         // Inside the Box and after the scrolling Column, so it sits above the
         // whole screen rather than scrolling away with the content.
         if (pendingClient != null) {
-            ApprovalDialog(address = pendingClient, onAnswer = onApproveClient)
+            ApprovalDialog(address = pendingClient, name = pendingClientName, onAnswer = onApproveClient)
         }
     }
 }
@@ -236,11 +266,74 @@ private fun Header(state: ConnectionState) {
             text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.titleLarge,
             color = glass.textPrimary,
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.weight(1f))
-        StatusDot(state)
+        // A dot alone made colour the only carrier of state on this platform,
+        // while the Windows chip has said the word since 2.6. The row is a
+        // polite live region, so TalkBack announces each change of state
+        // without anyone having to go looking for it (docs/ux-audit.md P-24/P-25).
+        Row(
+            modifier = Modifier.semantics(mergeDescendants = true) {
+                liveRegion = LiveRegionMode.Polite
+            },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatusDot(state)
+            Text(
+                text = stringResource(statusWord(state)),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textSecondary,
+            )
+        }
     }
 }
+
+/** The one word that names the state, in the same order of precedence as the dot. */
+private fun statusWord(state: ConnectionState): Int {
+    val reconnecting = (state as? ConnectionState.Connected)?.reconnecting == true ||
+        (state as? ConnectionState.Advertising)?.reconnecting == true
+    return when {
+        reconnecting -> R.string.status_word_reconnecting
+        state is ConnectionState.Idle -> R.string.status_word_idle
+        state is ConnectionState.Preparing -> R.string.status_word_starting
+        state is ConnectionState.Advertising -> R.string.status_word_waiting
+        state is ConnectionState.Connected -> R.string.status_word_connected
+        else -> R.string.status_word_error
+    }
+}
+
+/**
+ * Whether the person has turned animations off ("Remove animations").
+ *
+ * Read from the animator scale Android itself uses for that switch. Infinite
+ * pulses are the motion most likely to bother someone who asked for none, so
+ * they get an explicit branch rather than relying on a scale of zero to land
+ * them on a sensible frame.
+ */
+@Composable
+private fun reducedMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching {
+            android.provider.Settings.Global.getFloat(
+                context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+            ) == 0f
+        }.getOrDefault(false)
+    }
+}
+
+/** A disclosure arrow that points the way the reading direction goes. */
+@Composable
+private fun disclosure(expanded: Boolean): String = when {
+    expanded -> "▾"
+    LocalLayoutDirection.current == LayoutDirection.Rtl -> "◂"
+    else -> "▸"
+}
+
+/** Keeps an embedded run (a name, an address, a number) from reordering its sentence. */
+private fun isolate(text: String): String = BidiFormatter.getInstance().unicodeWrap(text)
 
 @Composable
 private fun StatusDot(state: ConnectionState) {
@@ -259,9 +352,11 @@ private fun StatusDot(state: ConnectionState) {
     // started unconditionally, including in Idle and steady Connected where the
     // alpha it produced was discarded for a constant — an animation nobody can
     // see, invalidating a frame forever, for the life of the screen.
-    val pulsing = reconnecting ||
-        state is ConnectionState.Preparing ||
-        state is ConnectionState.Advertising
+    val pulsing = !reducedMotion() && (
+        reconnecting ||
+            state is ConnectionState.Preparing ||
+            state is ConnectionState.Advertising
+        )
     val alpha = if (pulsing) {
         val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
             initialValue = 0.35f,
@@ -302,41 +397,84 @@ private fun WarningBanners(
             WarningCode.VPN_LOCKDOWN_ON ->
                 R.string.warning_lockdown_title to R.string.warning_lockdown_body
         }
-        Row(
+        // Informational, not a fault: sharing without a VPN is the ordinary
+        // case for most people, and the amber dot real faults use made it look
+        // like one (docs/ux-audit.md P-13).
+        val informational = code == WarningCode.NO_VPN_ACTIVE
+        // Actions sit under the words, as the USB card's already do. Beside
+        // them, a dismiss and a button left a long body about three words a
+        // line at large font sizes (P-29).
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
                 .glassPanel(radius = 16.dp)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(16.dp)
+                .semantics(mergeDescendants = false) {
+                    if (!informational) liveRegion = LiveRegionMode.Polite
+                },
         ) {
-            Box(Modifier.size(8.dp).background(glass.warning, CircleShape))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(title), style = MaterialTheme.typography.bodyMedium, color = glass.textPrimary)
-                Text(stringResource(body), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
-            }
-            // Only this one gets a button, because it is the only warning that
-            // knows a screen worth opening. Android exports no deep link to the
-            // page the switch is actually on, so this lands on the VPN list and
-            // the body text names the last tap -- the ⚙ beside the app's name.
-            if (code == WarningCode.VPN_LOCKDOWN_ON) {
-                SubtleButton(
-                    text = stringResource(R.string.warning_lockdown_action),
-                    onClick = onOpenVpnSettings,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    Modifier.size(8.dp).background(
+                        if (informational) glass.textTertiary else glass.warning, CircleShape,
+                    ),
+                )
+                Text(
+                    stringResource(title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = glass.textPrimary,
                 )
             }
+            Spacer(Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.action_dismiss),
-                style = MaterialTheme.typography.labelSmall,
-                color = glass.accent,
-                modifier = Modifier
-                    .clickable(role = Role.Button) { onDismiss(code) }
-                    .minimumInteractiveComponentSize()
-                    .padding(4.dp),
+                stringResource(body),
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.textSecondary,
             )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                QuietAction(stringResource(R.string.action_dismiss)) { onDismiss(code) }
+                Spacer(Modifier.weight(1f))
+                // Only this one gets a button, because it is the only warning that
+                // knows a screen worth opening. Android exports no deep link to the
+                // page the switch is actually on, so this lands on the VPN list and
+                // the body text names the last tap -- the ⚙ beside the app's name.
+                if (code == WarningCode.VPN_LOCKDOWN_ON) {
+                    SubtleButton(
+                        text = stringResource(R.string.warning_lockdown_action),
+                        onClick = onOpenVpnSettings,
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * A text-weight action: dismiss, show details, look again. Secondary label
+ * colour rather than the accent, so the screen's one accented thing stays the
+ * one thing to do (DESIGN.md → One Accent Rule).
+ */
+@Composable
+private fun QuietAction(text: String, onClick: () -> Unit) {
+    val glass = LocalGlass.current
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = glass.textSecondary,
+        modifier = Modifier
+            .clickable(role = Role.Button, onClick = onClick)
+            .minimumInteractiveComponentSize()
+            .padding(horizontal = 4.dp),
+    )
 }
 
 // --- panels ------------------------------------------------------------------
@@ -390,18 +528,34 @@ private fun IdlePanel(
 @Composable
 private fun PreparingPanel() {
     val glass = LocalGlass.current
-    val pulse by rememberInfiniteTransition(label = "prep").animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1f,
-        animationSpec = InfiniteRepeatableSpec(tween(900), RepeatMode.Reverse),
-        label = "prepAlpha",
-    )
-    Text(
-        text = stringResource(R.string.status_preparing),
-        style = MaterialTheme.typography.bodyMedium,
-        color = glass.textSecondary,
-        modifier = Modifier.alpha(pulse),
-    )
+    val alpha = if (reducedMotion()) {
+        1f
+    } else {
+        val pulse by rememberInfiniteTransition(label = "prep").animateFloat(
+            initialValue = 0.4f,
+            targetValue = 1f,
+            animationSpec = InfiniteRepeatableSpec(tween(900), RepeatMode.Reverse),
+            label = "prepAlpha",
+        )
+        pulse
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = stringResource(R.string.status_preparing),
+            style = MaterialTheme.typography.bodyMedium,
+            color = glass.textSecondary,
+            modifier = Modifier.alpha(alpha),
+        )
+        // This can take several seconds while a link is still getting an
+        // address (LinkWait), and a word that only pulses gives no reason.
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.preparing_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = glass.textTertiary,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 /**
@@ -413,11 +567,23 @@ private fun PreparingPanel() {
  * The person has to choose, or let it time out, which the gate counts as no.
  */
 @Composable
-private fun ApprovalDialog(address: String, onAnswer: (Boolean) -> Unit) {
+private fun ApprovalDialog(address: String, name: String?, onAnswer: (Boolean) -> Unit) {
+    val glass = LocalGlass.current
+    // The name the PC gave, beside the address it came from. A name alone is
+    // whatever the sender typed; an address alone is something nobody can
+    // check. Isolated so neither can reorder the sentence (docs/ux-audit.md P-04).
+    val body = if (name != null) {
+        stringResource(R.string.approve_body_named, isolate(name), isolate(address))
+    } else {
+        stringResource(R.string.approve_body, isolate(address))
+    }
     AlertDialog(
         onDismissRequest = { },
+        containerColor = glass.backgroundGradientTop,
+        titleContentColor = glass.textPrimary,
+        textContentColor = glass.textSecondary,
         title = { Text(stringResource(R.string.approve_title)) },
-        text = { Text(stringResource(R.string.approve_body, address)) },
+        text = { Text(body) },
         confirmButton = {
             TextButton(onClick = { onAnswer(true) }) {
                 Text(stringResource(R.string.approve_allow))
@@ -436,13 +602,15 @@ private fun PairingPanel(
     qrContent: String,
     typedCode: String?,
     shortCode: String?,
-    subtitle: String,
+    subtitle: String?,
     reconnecting: Boolean,
     traffic: String?,
     onStop: () -> Unit,
     connected: Boolean = false,
     /** Whether the phone is currently reachable over the cable. */
     overUsb: Boolean = false,
+    /** False when shown under the connected screen, which has its own Stop. */
+    showStop: Boolean = true,
 ) {
     val glass = LocalGlass.current
     Column(
@@ -452,15 +620,17 @@ private fun PairingPanel(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = when {
-                reconnecting -> glass.warning
-                connected -> glass.accent
-                else -> glass.textSecondary
-            },
-        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = when {
+                    reconnecting -> glass.warning
+                    connected -> glass.accent
+                    else -> glass.textSecondary
+                },
+            )
+        }
         // The payoff for the whole feature: the person who plugged the cable in
         // gets told it is being used, rather than having to infer it from the
         // speed. Accent-coloured because it is good news, and it sits above the
@@ -514,8 +684,10 @@ private fun PairingPanel(
             // Stop sits with the code rather than after the QR. Leading with a
             // tall QR pushed it off the bottom of a small screen: the way out
             // of the screen has to be visible without scrolling.
-            SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
-            Spacer(Modifier.height(24.dp))
+            if (showStop) {
+                SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
+                Spacer(Modifier.height(24.dp))
+            }
             Text(
                 text = stringResource(R.string.or_scan_qr),
                 style = MaterialTheme.typography.labelSmall,
@@ -569,15 +741,133 @@ private fun PairingPanel(
             )
         }
 
-        if (shortCode == null) {
+        if (shortCode == null && showStop) {
             Spacer(Modifier.height(24.dp))
             SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
         }
     }
 }
 
+/**
+ * What the PC's traffic is doing, from the endpoint's own counters.
+ *
+ * Speed first, because it answers "is it working right now"; totals second,
+ * because they answer "has it been working". Rates are the difference between
+ * two readings of the counters the service already pushes once a second, so
+ * nothing new is asked of the tunnel to show them. Figures are tabular so a
+ * changing number does not make its neighbours jitter.
+ */
 @Composable
-private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Unit) {
+private fun ConnectedPanel(
+    state: ConnectionState.Connected,
+    overUsb: Boolean,
+    showCode: Boolean,
+    onToggleCode: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val glass = LocalGlass.current
+    var previous by remember { mutableStateOf<Triple<Long, Long, Long>?>(null) }
+    var upRate by remember { mutableStateOf<Long?>(null) }
+    var downRate by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(state.bytesUp, state.bytesDown) {
+        val now = SystemClock.elapsedRealtime()
+        previous?.let { (up, down, at) ->
+            val elapsed = now - at
+            if (elapsed > 0) {
+                upRate = (state.bytesUp - up).coerceAtLeast(0) * 1000 / elapsed
+                downRate = (state.bytesDown - down).coerceAtLeast(0) * 1000 / elapsed
+            }
+        }
+        previous = Triple(state.bytesUp, state.bytesDown, now)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().glassPanel(raised = true).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(
+                if (state.reconnecting) R.string.status_reconnecting else R.string.connected_title,
+            ),
+            style = MaterialTheme.typography.titleLarge,
+            color = if (state.reconnecting) glass.warning else glass.textPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        if (overUsb) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.usb_carrying),
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.accent,
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().alpha(if (state.reconnecting) 0.4f else 1f),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RateColumn(R.string.connected_down, downRate, Modifier.weight(1f))
+            RateColumn(R.string.connected_up, upRate, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(
+                R.string.connected_totals,
+                isolate(formatBytes(state.bytesDown)),
+                isolate(formatBytes(state.bytesUp)),
+            ),
+            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+            color = glass.textTertiary,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(24.dp))
+        SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
+        Spacer(Modifier.height(8.dp))
+        QuietAction(
+            "${disclosure(showCode)}  " + stringResource(
+                if (showCode) R.string.connected_hide_code else R.string.connected_show_code,
+            ),
+            onClick = onToggleCode,
+        )
+    }
+}
+
+@Composable
+private fun RateColumn(label: Int, bytesPerSecond: Long?, modifier: Modifier) {
+    val glass = LocalGlass.current
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            stringResource(label),
+            style = MaterialTheme.typography.labelSmall,
+            color = glass.textTertiary,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = bytesPerSecond?.let { stringResource(R.string.traffic_rate, formatBytes(it)) } ?: "—",
+            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+            color = glass.textPrimary,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * An error, what Relay already did about it, and the one thing to do next.
+ *
+ * Three of these are fixed in Settings and nowhere else, so for those the
+ * accented action opens Settings: offering "Try Again" first sent people
+ * through the same eight-second wait to the same failure (docs/ux-audit.md
+ * P-08). Retry stays, one step quieter, for after the setting is changed.
+ */
+@Composable
+private fun ErrorPanel(
+    code: ErrorCode,
+    logs: List<LocalLog.Entry>,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    onOpenNetworkSettings: () -> Unit,
+) {
     val glass = LocalGlass.current
     val (title, body) = when (code) {
         ErrorCode.HOTSPOT_OFF -> R.string.error_hotspot_off_title to R.string.error_hotspot_off_body
@@ -591,8 +881,23 @@ private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Un
         ErrorCode.SERVICE_FAILED -> R.string.error_service_failed_title to R.string.error_service_failed_body
         ErrorCode.WG_START_FAILED -> R.string.error_wg_start_title to R.string.error_wg_start_body
     }
+    val tried = when (code) {
+        ErrorCode.HOTSPOT_OFF, ErrorCode.LINK_NEGOTIATING,
+        ErrorCode.ONLY_MOBILE_DATA, ErrorCode.ONLY_VPN -> R.string.error_tried_link
+        ErrorCode.HOTSPOT_LOST -> R.string.error_tried_lost
+        ErrorCode.WG_START_FAILED -> R.string.error_tried_tunnel
+        else -> null
+    }
+    val needsSettings = code == ErrorCode.HOTSPOT_OFF ||
+        code == ErrorCode.ONLY_MOBILE_DATA || code == ErrorCode.ONLY_VPN
+    var details by rememberSaveable { mutableStateOf(false) }
+
     Column(
-        modifier = Modifier.fillMaxWidth().glassPanel().padding(24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassPanel()
+            .padding(24.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -608,10 +913,51 @@ private fun ErrorPanel(code: ErrorCode, onRetry: () -> Unit, onDismiss: () -> Un
             color = glass.textSecondary,
             textAlign = TextAlign.Center,
         )
+        if (tried != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(tried),
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.textTertiary,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(Modifier.height(24.dp))
-        PrimaryButton(text = stringResource(R.string.action_retry), onClick = onRetry)
-        Spacer(Modifier.height(8.dp))
-        SubtleButton(text = stringResource(R.string.action_dismiss), onClick = onDismiss)
+        if (needsSettings) {
+            PrimaryButton(text = stringResource(R.string.error_action_network), onClick = onOpenNetworkSettings)
+            Spacer(Modifier.height(8.dp))
+            SubtleButton(text = stringResource(R.string.action_retry), onClick = onRetry)
+        } else {
+            PrimaryButton(text = stringResource(R.string.action_retry), onClick = onRetry)
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuietAction(stringResource(R.string.action_dismiss), onClick = onDismiss)
+            QuietAction(
+                "${disclosure(details)}  " + stringResource(R.string.error_details),
+                onClick = { details = !details },
+            )
+        }
+        // The code and the last few log lines, for the person who will paste
+        // them into an issue. Collapsed, because they are not the next step.
+        AnimatedVisibility(visible = details) {
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(
+                    stringResource(R.string.error_details_code, code.name),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = glass.textSecondary,
+                    fontFamily = FontFamily.Monospace,
+                )
+                logs.takeLast(4).forEach { entry ->
+                    Text(
+                        entry.renderCompact(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = glass.textTertiary,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -652,7 +998,7 @@ private fun UsbOffer(onTurnOn: () -> Unit, onDismiss: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         Text(
             stringResource(R.string.usb_offer_body),
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.bodySmall,
             color = glass.textSecondary,
         )
         Spacer(Modifier.height(14.dp))
@@ -688,7 +1034,7 @@ private fun BatteryBanner(onAllow: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(stringResource(R.string.battery_banner_title), style = MaterialTheme.typography.bodyMedium, color = glass.textPrimary)
-            Text(stringResource(R.string.battery_banner_body), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
+            Text(stringResource(R.string.battery_banner_body), style = MaterialTheme.typography.bodySmall, color = glass.textSecondary)
         }
         SubtleButton(text = stringResource(R.string.battery_banner_allow), onClick = onAllow)
     }
@@ -759,7 +1105,7 @@ private fun AdvancedSection(
     }
     Column(Modifier.fillMaxWidth()) {
         Text(
-            text = (if (expanded) "▾  " else "▸  ") + stringResource(R.string.advanced),
+            text = "${disclosure(expanded)}  " + stringResource(R.string.advanced),
             style = MaterialTheme.typography.labelSmall,
             color = glass.textTertiary,
             modifier = Modifier
@@ -964,7 +1310,7 @@ private fun AdvancedSection(
                         Text(
                             stringResource(R.string.advanced_logs_share),
                             style = MaterialTheme.typography.labelSmall,
-                            color = glass.accent,
+                            color = glass.textSecondary,
                             modifier = Modifier
                                 .clickable(role = Role.Button) { onShareLogs() }
                                 .minimumInteractiveComponentSize()
@@ -973,7 +1319,7 @@ private fun AdvancedSection(
                         Text(
                             stringResource(R.string.advanced_logs_clear),
                             style = MaterialTheme.typography.labelSmall,
-                            color = glass.accent,
+                            color = glass.textSecondary,
                             modifier = Modifier
                                 .clickable(role = Role.Button) { onClearLogs() }
                                 .minimumInteractiveComponentSize()
@@ -1097,10 +1443,6 @@ private fun SubtleButton(text: String, enabled: Boolean = true, onClick: () -> U
 }
 
 // --- helpers -----------------------------------------------------------------
-
-@Composable
-private fun formatTraffic(up: Long, down: Long): String =
-    stringResource(R.string.traffic_format, formatBytes(up), formatBytes(down))
 
 /**
  * A byte count in the reader's own language.
