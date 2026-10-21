@@ -1,6 +1,11 @@
 # UX audit — Relay 2.10.0
 
-**Status:** Phase 1 (audit only). No code was changed to produce this.
+**Status:** Phase 1 audit, with Phase 2 shipped in **2.11.0** — see
+"Where each finding stands" at the end. The four decisions the audit raised were
+taken with the defaults it proposed: Relay Teal stays the accent; Latin digits
+for anything compared or typed, the reader's digits for counts in prose; the
+caption buttons keep their documented exception; no new Windows screenshot
+tooling.
 **Date:** 2026-10-21 · **Scope:** Android app (`android/`), Windows client (`windows/`), `/shared`.
 
 How this was done: by reading the code paths a person goes through, not by
@@ -240,3 +245,59 @@ WCAG 2.1 relative luminance. Alpha foregrounds were composited over the
 Disabled controls are exempt under WCAG 1.4.3 and are not counted. The
 acrylic case on Windows depends on the wallpaper behind it, which is why the
 solid fallback is used as the bound.
+
+---
+
+## Where each finding stands (2.11.0)
+
+Fixed means changed in code and, where a test can say so, asserted. **Open**
+means not done, and why. Nothing here is "verified on hardware" until
+`docs/testing.md` says so.
+
+| Finding | 2.11.0 |
+|---|---|
+| P-01 Try Again dismissed | **Fixed.** Repeats the last attempt (same phone found afresh by its code, the same long code, or the same QR). |
+| P-02 Unknown codes showed proxy copy | **Fixed.** Neutral "Something went wrong". |
+| P-03 Connected was the pairing screen | **Fixed (Android).** Its own panel: plain title, rates, totals, Stop; code behind a toggle. |
+| P-04 Approval showed only an IP | **Fixed.** The PC's name, sanitised (control and bidi-override characters removed, 32 chars), in the dialog and the notification. Tested. |
+| P-05 Red chip said "Not connected" | **Fixed.** Says "Problem". |
+| P-06 2.10 VPN copy contradicted itself | **Fixed** in both languages and `docs/errors.md`. |
+| P-07 Fast Mode remnants in the Windows controller | **Open.** Removal touches `ProxySession` and its tests; documented as legacy in `docs/errors.md`. |
+| P-08 Android always offered Try Again first | **Fixed.** Settings first where only a setting helps. |
+| P-09 No "what Relay tried", no details | **Fixed (Android).** Windows errors still have no details section — **open**. |
+| P-10 "Hotspot" where the link may be Wi-Fi/USB | **Fixed.** |
+| P-11 Wrong copy for specific codes | **Fixed** for `ERR_WG_ALREADY_RUNNING`, `ERR_WG_STOP_FAILED`, `SERVICE_FAILED`. `ERR_QR_NEWER_VERSION` still has no button — **open**. |
+| P-12 Long single-paragraph warnings | **Fixed** for `PC_GOT_NO_REPLY` (numbered steps). Windows `ErrPhoneRepliesBlocked` shortened, still prose. |
+| P-13 "No VPN" looked like a fault | **Fixed.** Neutral dot. |
+| P-14 `errors.md` out of date | **Fixed.** |
+| P-15 PC didn't show its own name | **Fixed.** |
+| P-16 No sense of time waiting for approval | **Open.** |
+| P-17 Phone had no rates | **Fixed.** |
+| P-18 Windows units in English | **Fixed.** Units in `Strings.cs`; figures invariant. Tested. |
+| P-19 Proportional figures | **Fixed (Android)** with `tnum`. Windows rates were already monospaced. |
+| P-20 Two vocabularies | **Partly.** Android now has a state word; a shared copy table in `/shared` is **open**. |
+| P-21 Plurals for a count of one | **Open** (harmless; the connected screen no longer uses them). |
+| P-22 Windows caption 3.3:1 | **Fixed.** Tertiary, 6.0:1. |
+| P-23 Android light warning 3.67:1 | **Fixed**, and `DesignTokensTest` found four more pairs below 4.5:1 on the worst ground, now fixed in `/shared` first. |
+| P-24 No screen-reader announcements | **Fixed.** Live regions on both platforms. |
+| P-25 Android status was colour only | **Fixed.** |
+| P-26 Enter ignored focus | **Fixed.** |
+| P-27 No high-contrast path on Windows | **Open.** Needs theme dictionaries across every brush; too broad to change without a Windows runner that can look at it. |
+| P-28 Phone rows were one string | **Fixed.** Separate runs plus an automation name. |
+| P-29 Paragraphs at 12 sp | **Fixed.** New `bodySmall` (14/21) in `/shared`; banner actions moved under the text. |
+| P-30 Fixed heights on Windows | **Fixed** for buttons and the code box (min-heights). The scan card stays fixed — it frames a camera image. |
+| P-31 Mixed-direction concatenation | **Fixed** on Android (isolated runs) and in Windows rows. Windows stats lines still concatenate a label and a value — **verify on hardware**. |
+| P-32 Disclosure arrow didn't mirror | **Fixed.** |
+| P-33 No digit rule | **Fixed** as decided above; onboarding counts follow the locale. |
+| P-34 No bundled Persian face | **Open** (Estedad remains the decided target; DESIGN.md). |
+| P-35 Persian labels truncated | **Fixed.** They wrap. |
+| P-36 Onboarding treated essentials and extras alike | **Fixed.** Two groups, Skip. Moving it after the first share is **open**. |
+| P-37 Notification step didn't tick | **Fixed.** |
+| P-38 Battery asked twice | **Fixed.** |
+| P-39 Approval dialog off-system | **Fixed.** Glass colours. |
+| P-40 Advanced mixes five things | **Open.** |
+| P-41 Several accents per screen | **Fixed** on Android (quiet actions use the label colour). |
+| P-42 No reduced-motion branch on Android | **Fixed.** |
+| P-43 "Starting…" gave no reason | **Fixed.** |
+| P-44 Ad-hoc spacing | **Open.** |
+

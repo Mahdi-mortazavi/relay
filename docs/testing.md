@@ -379,6 +379,30 @@ What only a phone and a laptop can show, and has not yet been run:
    Reconnecting and nothing loads; Wi-Fi back on, the same session resumes
    with nothing pressed.
 
+### The 2.11 interface pass — awaiting hardware
+
+What CI proves: `DesignTokensTest` (every Compose colour equals its token, every
+text colour clears 4.5:1 on its worst ground), the PC's name reaching the
+approval prompt (`PairingServerTest`, `ClientGateTest`), Windows units staying
+in `Strings.cs` and figures staying Latin under `fa-IR` (`StringsCoverageTests`,
+`TunnelStatsTests`). The existing device journeys still pass through the new
+connected and error panels.
+
+What only a person with the devices can say, and has not yet been checked:
+
+1. TalkBack and Narrator announce Starting → Waiting → Connected → Problem,
+   once each, without repeating every second.
+2. The approval dialog and notification read "MAHDI-LAPTOP (192.168.1.23)…" in
+   the right order in Persian.
+3. Android at 200% font size on a 360dp phone: banners, the connected rates and
+   the error buttons wrap rather than clip.
+4. Windows at 200% *Text size*: buttons grow instead of clipping; Advanced
+   labels wrap.
+5. Windows: Tab to Dismiss on an error and press Enter — it dismisses.
+6. Windows: an error after a code pairing, then Try Again — it re-pairs the
+   same phone without retyping.
+7. Android with *Remove animations* on: no pulsing dot or "Starting…".
+
 ### An unanswered UAC prompt is indistinguishable from a hang — 2026-09-16
 
 Worth writing down because it cost a diagnosis twice in one day, and because it
