@@ -26,15 +26,17 @@ public class StringsCoverageTests
     private static readonly string StringsSource =
         File.ReadAllText(Path.Combine(AppDir, "Strings.cs"));
 
-    /// <summary>Keys passed to <c>Strings.Get("…")</c> anywhere in the app.</summary>
+    /// <summary>Keys passed to <c>Strings.Get("…")</c> or <c>Strings.Format("…", …)</c> anywhere in the app.</summary>
     private static IEnumerable<string> RequestedKeys()
     {
         foreach (var file in Directory.EnumerateFiles(AppDir, "*.cs", SearchOption.AllDirectories))
         {
             var source = File.ReadAllText(file);
-            foreach (Match m in Regex.Matches(source, """Strings\.Get\("([A-Za-z0-9_]+)"\)"""))
+            foreach (Match m in Regex.Matches(source, """Strings\.(?:Get\("([A-Za-z0-9_]+)"\)|Format\("([A-Za-z0-9_]+)",)"""))
             {
-                yield return m.Groups[1].Value;
+                // Format keys too: a formatted string with no entry falls back
+                // to its key exactly as a plain one does (docs/ux-audit.md G-3).
+                yield return m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
             }
 
             // ApplyError names its title, body and button keys in a switch arm

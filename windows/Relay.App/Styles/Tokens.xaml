@@ -119,8 +119,9 @@
 
     <Style x:Key="ButtonBase" TargetType="Button">
         <Setter Property="CornerRadius" Value="{StaticResource PillCorner}" />
-        <Setter Property="Height" Value="{StaticResource ButtonHeight}" />
-        <Setter Property="MinHeight" Value="{StaticResource TargetMin}" />
+        <!-- A floor, not a fixed height: Windows' Text size setting scales the
+             label, and a fixed 46 clipped it (docs/ux-audit.md P-30). -->
+        <Setter Property="MinHeight" Value="{StaticResource ButtonHeight}" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="FontFamily" Value="{StaticResource FontText}" />
         <Setter Property="FontSize" Value="{StaticResource SizeBody}" />
@@ -206,7 +207,7 @@
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="FontSize" Value="{StaticResource SizeCallout}" />
-        <Setter Property="Height" Value="{StaticResource TargetMin}" />
+        <Setter Property="MinHeight" Value="{StaticResource TargetMin}" />
     </Style>
 
     <!--
@@ -277,7 +278,11 @@
         <Setter Property="FontFamily" Value="{StaticResource FontText}" />
         <Setter Property="FontSize" Value="{StaticResource SizeCaption}" />
         <Setter Property="CharacterSpacing" Value="{StaticResource TrackCaption}" />
-        <Setter Property="Foreground" Value="{StaticResource LabelQuaternary}" />
+        <!-- Tertiary, not quaternary. 36% white at 11.5px composited to 3.3:1,
+             and this style carries the status word and every Advanced label;
+             54% is 6.0:1 (docs/ux-audit.md P-22). Quaternary stays for
+             decoration that is not text. -->
+        <Setter Property="Foreground" Value="{StaticResource LabelTertiary}" />
     </Style>
 
     <Style x:Key="MonoText" TargetType="TextBlock">
