@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">رله</string>
-    <string name="tagline">اتصالت را به‌اشتراک بگذار. در یک لحظه.</string>
 
     <!-- Home -->
     <string name="action_start">شروع اشتراک‌گذاری</string>
@@ -9,15 +8,9 @@
     <string name="status_idle">اشتراک‌گذاری خاموش است</string>
     <string name="status_preparing">در حال شروع…</string>
     <string name="status_waiting">در انتظار رایانه شما…</string>
-    <plurals name="status_connected">
-        <item quantity="one">%d دستگاه متصل است</item>
-        <item quantity="other">%d دستگاه متصل هستند</item>
-    </plurals>
-    <string name="scan_hint">با «رله» روی رایانه‌تان اسکن کنید</string>
     <string name="qr_content_description">کد QR جفت‌سازی</string>
     <string name="or_type_code">یا این کد را در رایانه وارد کنید</string>
     <string name="code_unavailable">کد دستی در این شبکه نیست — کیو‌آر را اسکن کنید</string>
-    <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
     <string name="traffic_gb">%1$s گیگابایت</string>
     <string name="traffic_mb">%1$s مگابایت</string>
     <string name="traffic_kb">%1$s کیلوبایت</string>
@@ -46,7 +39,7 @@
     <string name="theme_dark">تیره</string>
     <string name="theme_light">روشن</string>
     <string name="advanced_upstream">ترافیک کامپیوتر از کجا برود</string>
-    <string name="advanced_upstream_hint">حالت خودکار ترافیک را از هر راهی که کار کند از وی‌پی‌ان این گوشی می‌فرستد: مستقیم وقتی رله داخل وی‌پی‌ان است، یا از پروکسی محلیِ خودِ برنامهٔ وی‌پی‌ان وقتی نیست. برای ثابت کردن یک پروکسی آن را پایین بنویسید — آن‌وقت رله همیشه از همان استفاده می‌کند و هرگز به راه دیگری برنمی‌گردد.</string>
+    <string name="advanced_upstream_hint">رله همیشه از این پروکسی استفاده می‌کند و به راه دیگری برنمی‌گردد. برای حالت خودکار خالی بگذارید.</string>
     <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
     <string name="advanced_upstream_invalid">باید یک پورت باشد، یا یک نشانی و یک پورت — مثل 127.0.0.1:10808 یا :10808.</string>
     <string name="advanced_upstream_looking">دنبال پروکسیِ وی‌پی‌ان روی این گوشی…</string>
@@ -89,7 +82,6 @@
     <string name="battery_banner_title">اشتراک‌گذاری را زنده نگه دارید</string>
     <string name="battery_banner_body">به رله اجازه دهید بهینه‌سازی باتری را نادیده بگیرد تا با خاموش‌شدن صفحه، اشتراک‌گذاری قطع نشود.</string>
     <string name="battery_banner_allow">اجازه دادن</string>
-    <string name="battery_banner_done">اشتراک‌گذاری در پس‌زمینه محافظت می‌شود</string>
 
     <string name="usb_offer_title">کابل به کامپیوتر وصل است؟</string>
     <string name="usb_offer_body">اشتراک اینترنت با USB را روشن کنید — اتصالی پایدار که باتری مصرف نمی‌کند و به وای‌فای نیاز ندارد.</string>
@@ -102,8 +94,8 @@
     <string name="notification_starting">در حال شروع…</string>
     <string name="notification_waiting">اشتراک‌گذاری روشن است — در انتظار رایانه شما</string>
     <plurals name="notification_connected">
-        <item quantity="one">در حال اشتراک با %d دستگاه</item>
-        <item quantity="other">در حال اشتراک با %d دستگاه</item>
+        <item quantity="one">در حال اشتراک با کامپیوتر شما</item>
+        <item quantity="other">در حال اشتراک با کامپیوتر شما</item>
     </plurals>
     <string name="notification_error">اشتراک‌گذاری متوقف شد — برای جزئیات، رله را باز کنید</string>
     <string name="notification_reconnecting">در حال اتصال مجدد…</string>
@@ -130,8 +122,8 @@
     <string name="tile_code">کد %1$s</string>
     <string name="tile_error">برای تلاش دوباره بزنید</string>
     <plurals name="tile_connected">
-        <item quantity="one">در حال اشتراک با %d دستگاه</item>
-        <item quantity="other">در حال اشتراک با %d دستگاه</item>
+        <item quantity="one">در حال اشتراک با کامپیوتر شما</item>
+        <item quantity="other">در حال اشتراک با کامپیوتر شما</item>
     </plurals>
 
     <!-- ویجت صفحه اصلی -->
@@ -191,4 +183,8 @@
     <string name="error_details_code">کد: %1$s</string>
     <string name="onboarding_section_needed">لازم برای اشتراک‌گذاری</string>
     <string name="onboarding_section_optional">میان‌بُرها — اختیاری</string>
+    <string name="advanced_section_connection">اتصال</string>
+    <string name="advanced_section_diagnostics">عیب‌یابی</string>
+    <string name="advanced_route_hint">حالت خودکار وی‌پی‌ان گوشی را از هر راهی که کار کند به اشتراک می‌گذارد و هر چند ثانیه دوباره بررسی می‌کند.</string>
+    <string name="advanced_upstream_manual">استفاده از یک پروکسی مشخص</string>
 </resources>

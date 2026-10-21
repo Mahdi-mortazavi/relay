@@ -276,7 +276,7 @@ means not done, and why. Nothing here is "verified on hardware" until
 | P-18 Windows units in English | **Fixed.** Units in `Strings.cs`; figures invariant. Tested. |
 | P-19 Proportional figures | **Fixed (Android)** with `tnum`. Windows rates were already monospaced. |
 | P-20 Two vocabularies | **Partly.** Android now has a state word; a shared copy table in `/shared` is **open**. |
-| P-21 Plurals for a count of one | **Open** (harmless; the connected screen no longer uses them). |
+| P-21 Plurals for a count of one | **Fixed in 2.11.1.** "Sharing with your PC". |
 | P-22 Windows caption 3.3:1 | **Fixed.** Tertiary, 6.0:1. |
 | P-23 Android light warning 3.67:1 | **Fixed**, and `DesignTokensTest` found four more pairs below 4.5:1 on the worst ground, now fixed in `/shared` first. |
 | P-24 No screen-reader announcements | **Fixed.** Live regions on both platforms. |
@@ -295,7 +295,7 @@ means not done, and why. Nothing here is "verified on hardware" until
 | P-37 Notification step didn't tick | **Fixed.** |
 | P-38 Battery asked twice | **Fixed.** |
 | P-39 Approval dialog off-system | **Fixed.** Glass colours. |
-| P-40 Advanced mixes five things | **Open.** |
+| P-40 Advanced mixes five things | **Fixed in 2.11.1** (Android). Three headed groups — Connection, Appearance, Diagnostics — and the manual proxy field folded away unless one is set. |
 | P-41 Several accents per screen | **Fixed** on Android (quiet actions use the label colour). |
 | P-42 No reduced-motion branch on Android | **Fixed.** |
 | P-43 "Starting…" gave no reason | **Fixed.** |

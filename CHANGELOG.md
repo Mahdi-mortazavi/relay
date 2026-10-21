@@ -9,6 +9,30 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.11.1] — 2026-10-21
+
+A tidy-up of the screens 2.11.0 rebuilt, and of the repository around them.
+
+### Changed
+
+- **Android → Advanced is three groups**, each with a heading: *Connection*
+  (the phone's address and where the PC's traffic goes), *Appearance*, and
+  *Diagnostics* (version and activity log). The manual proxy field is folded
+  behind *Use a specific proxy* unless one is already set — almost nobody needs
+  it now that the route is automatic.
+- The notification, tile and widget say **"Sharing with your PC"** instead of
+  counting devices: only one PC can ever be connected.
+- The idle screen drops its tagline. The one button is the subject.
+- Unused strings removed from both apps.
+
+### Docs
+
+- **Both READMEs rewritten**: shorter, in the same order in both languages, and
+  with a plain section on sharing a phone that runs a VPN — including the limit
+  (a VPN with no LAN option, no per-app list and no local proxy can't be shared)
+  and what to try instead.
+- The Persian README now calls the app «رله», as the app itself does.
+
 ## [2.11.0] — 2026-10-21
 
 An interface release. Every change here traces to a numbered finding in

@@ -1,0 +1,1 @@
+Tidier settings: Advanced is now three groups (Connection, Appearance, Diagnostics), and the manual proxy field is folded away unless you use it. The notification and tile say "Sharing with your PC".

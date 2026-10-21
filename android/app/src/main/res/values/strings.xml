@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Relay</string>
-    <string name="tagline">Share your connection. Instantly.</string>
 
     <!-- Home -->
     <string name="action_start">Start Sharing</string>
@@ -9,15 +8,9 @@
     <string name="status_idle">Not sharing</string>
     <string name="status_preparing">Starting…</string>
     <string name="status_waiting">Waiting for your PC…</string>
-    <plurals name="status_connected">
-        <item quantity="one">%d device connected</item>
-        <item quantity="other">%d devices connected</item>
-    </plurals>
-    <string name="scan_hint">Scan with Relay on your PC</string>
     <string name="qr_content_description">Pairing QR code</string>
     <string name="or_type_code">or enter this code on your PC</string>
     <string name="code_unavailable">No manual code on this network — scan the QR</string>
-    <string name="traffic_format">↑ %1$s   ↓ %2$s</string>
     <string name="traffic_gb">%1$s GB</string>
     <string name="traffic_mb">%1$s MB</string>
     <string name="traffic_kb">%1$s KB</string>
@@ -46,7 +39,7 @@
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="advanced_upstream">Where the PC\'s traffic goes</string>
-    <string name="advanced_upstream_hint">Automatic sends it through this phone\'s VPN whichever way works: directly when Relay is inside the VPN, or through the VPN app\'s own local proxy when it is not. Type a proxy below to pin one — Relay then always uses it and never falls back.</string>
+    <string name="advanced_upstream_hint">Relay always uses this proxy and never falls back. Leave it empty for Automatic.</string>
     <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
     <string name="advanced_upstream_invalid">That needs to be a port, or an address and a port — like 127.0.0.1:10808 or :10808.</string>
     <string name="advanced_upstream_looking">Looking for a VPN\'s proxy on this phone…</string>
@@ -89,7 +82,6 @@
     <string name="battery_banner_title">Keep sharing alive</string>
     <string name="battery_banner_body">Allow Relay to ignore battery optimization so sharing survives when the screen is off.</string>
     <string name="battery_banner_allow">Allow</string>
-    <string name="battery_banner_done">Background sharing is protected</string>
 
     <!-- The cable. Phrased as a question because the signal behind it is a
          guess: BATTERY_PLUGGED_USB tells a host port from a wall charger and
@@ -105,8 +97,8 @@
     <string name="notification_starting">Starting…</string>
     <string name="notification_waiting">Sharing is on — waiting for your PC</string>
     <plurals name="notification_connected">
-        <item quantity="one">Sharing with %d device</item>
-        <item quantity="other">Sharing with %d devices</item>
+        <item quantity="one">Sharing with your PC</item>
+        <item quantity="other">Sharing with your PC</item>
     </plurals>
     <string name="notification_error">Sharing stopped — open Relay for details</string>
     <string name="notification_reconnecting">Reconnecting…</string>
@@ -133,8 +125,8 @@
     <string name="tile_code">Code %1$s</string>
     <string name="tile_error">Tap to try again</string>
     <plurals name="tile_connected">
-        <item quantity="one">Sharing with %d device</item>
-        <item quantity="other">Sharing with %d devices</item>
+        <item quantity="one">Sharing with your PC</item>
+        <item quantity="other">Sharing with your PC</item>
     </plurals>
 
     <!-- Home screen widget -->
@@ -194,4 +186,8 @@
     <string name="error_details_code">Code: %1$s</string>
     <string name="onboarding_section_needed">Needed for sharing</string>
     <string name="onboarding_section_optional">Shortcuts — optional</string>
+    <string name="advanced_section_connection">Connection</string>
+    <string name="advanced_section_diagnostics">Diagnostics</string>
+    <string name="advanced_route_hint">Automatic shares the phone\'s VPN whichever way works, and checks again every few seconds.</string>
+    <string name="advanced_upstream_manual">Use a specific proxy</string>
 </resources>

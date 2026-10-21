@@ -38,7 +38,6 @@ public static class Strings
     private static readonly Dictionary<string, string> En = new()
     {
         ["AppName"] = "Relay",
-        ["Tagline"] = "Share your connection. Instantly.",
         ["StatusIdle"] = "Not connected",
         ["StatusConnecting"] = "Connecting…",
         ["StatusConnected"] = "Connected",
@@ -183,7 +182,6 @@ public static class Strings
     private static readonly Dictionary<string, string> Fa = new()
     {
         ["AppName"] = "رله",
-        ["Tagline"] = "اتصالت را به‌اشتراک بگذار. در یک لحظه.",
         ["StatusIdle"] = "متصل نیست",
         ["StatusConnecting"] = "در حال اتصال…",
         ["StatusConnected"] = "متصل شد",
