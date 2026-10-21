@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.zx2c4.com/wireguard/tun"
@@ -83,10 +84,16 @@ type netTun struct {
 	events   chan tun.Event
 	mtu      int
 
-	// Where forwarded traffic goes out. Nil means the phone's default route,
+	// Where forwarded traffic goes out. Empty means the phone's default route,
 	// which is what every release before upstream proxying did and what this
 	// still does unless someone configures otherwise. See upstream.go.
-	out upstream
+	//
+	// Atomic because it changes under a live tunnel: the phone re-decides its
+	// route while sharing (a VPN app opened its proxy, or closed it), and the
+	// forwarders read this once per new flow on their own goroutines. A flow
+	// keeps the upstream it was dialled through for its whole life -- moving
+	// an established TCP stream to another path is not something TCP allows.
+	out atomic.Pointer[upstreamRef]
 
 	// Cancelled by Close, so a Read blocked on an empty queue returns instead
 	// of waiting for a packet that is never coming.
@@ -101,10 +108,20 @@ type netTun struct {
 // opinion about egress, and a zero value that behaves like the old code is
 // worth more than three call sites that must remember to set a field.
 func (d *netTun) dial(network, address string) (net.Conn, error) {
-	if d.out == nil {
+	ref := d.out.Load()
+	if ref == nil {
 		return direct{}.Dial(network, address)
 	}
-	return d.out.Dial(network, address)
+	return ref.Dial(network, address)
+}
+
+// upstreamRef boxes an upstream so it can sit behind an atomic pointer; an
+// interface value cannot.
+type upstreamRef struct{ upstream }
+
+// setUpstream points every flow opened from now on at out.
+func (d *netTun) setUpstream(out upstream) {
+	d.out.Store(&upstreamRef{out})
 }
 
 func newNetTun(mtu int) (*netTun, error) {

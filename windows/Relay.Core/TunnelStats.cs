@@ -142,16 +142,30 @@ public sealed class TunnelStats(string adapterName = TunnelStats.DefaultAdapter)
     /// <summary>"1.2 MB", "340 KB" — sized for a panel this narrow.</summary>
     public static string Bytes(long value)
     {
-        if (value < 1024) return $"{value} B";
+        var (number, unit) = BytesParts(value);
+        return $"{number} {unit}";
+    }
+
+    /// <summary>
+    /// The number and the unit separately, so the app can put the unit into
+    /// the reader's language (docs/ux-audit.md P-18). The unit is one of
+    /// "B", "KB", "MB", "GB", "TB". The number is always formatted with the
+    /// invariant culture: it sits beside an address and a port, and a figure
+    /// someone compares across two screens keeps Latin digits and a full stop.
+    /// </summary>
+    public static (string Number, string Unit) BytesParts(long value)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        if (value < 1024) return (value.ToString(inv), "B");
         double v = value;
         string[] units = ["KB", "MB", "GB", "TB"];
         foreach (var unit in units)
         {
             v /= 1024;
             if (v < 1024 || unit == "TB")
-                return v >= 100 ? $"{v:0} {unit}" : v >= 10 ? $"{v:0.0} {unit}" : $"{v:0.00} {unit}";
+                return (v.ToString(v >= 100 ? "0" : v >= 10 ? "0.0" : "0.00", inv), unit);
         }
-        return $"{value} B";
+        return (value.ToString(inv), "B");
     }
 
     /// <summary>"2.4 MB/s".</summary>

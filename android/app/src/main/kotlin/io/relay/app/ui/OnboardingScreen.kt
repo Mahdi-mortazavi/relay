@@ -23,11 +23,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.relay.app.R
 import io.relay.app.ui.theme.LocalGlass
 import io.relay.app.ui.theme.glassPanel
+import java.util.Locale
 
 /**
  * What a step can be in. [Offer] means the platform will do the asking for us;
@@ -42,6 +45,12 @@ data class OnboardingStep(
     val action: StepAction,
     val actionLabel: String,
     val onAction: () -> Unit,
+    /**
+     * Whether sharing depends on it (notifications, battery) rather than it
+     * being a shortcut (tile, widget, long-press). Shown in two groups, because
+     * five steps of equal weight hid which two mattered (docs/ux-audit.md P-36).
+     */
+    val essential: Boolean = false,
 )
 
 /**
@@ -81,12 +90,28 @@ fun OnboardingScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(16.dp))
+
+            // Skippable from the first frame, as this screen always promised:
+            // everything on it is reachable later, and the person who already
+            // knows what they are doing should not have to read it. The string
+            // existed in both languages and nothing showed it.
+            Row(Modifier.fillMaxWidth()) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDone) {
+                    Text(
+                        stringResource(R.string.onboarding_skip),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = glass.textSecondary,
+                    )
+                }
+            }
 
             Text(
                 text = stringResource(R.string.onboarding_title),
                 style = MaterialTheme.typography.displaySmall,
                 color = glass.textPrimary,
+                modifier = Modifier.semantics { heading() },
             )
             Spacer(Modifier.height(8.dp))
             Text(
@@ -97,9 +122,26 @@ fun OnboardingScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            steps.forEachIndexed { index, step ->
-                StepRow(index + 1, step)
-                Spacer(Modifier.height(12.dp))
+            val (needed, optional) = steps.partition { it.essential }
+            var number = 0
+            for ((label, group) in listOf(
+                R.string.onboarding_section_needed to needed,
+                R.string.onboarding_section_optional to optional,
+            )) {
+                if (group.isEmpty()) continue
+                Text(
+                    text = stringResource(label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = glass.textSecondary,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Spacer(Modifier.height(8.dp))
+                group.forEach { step ->
+                    number += 1
+                    StepRow(number, step)
+                    Spacer(Modifier.height(12.dp))
+                }
+                Spacer(Modifier.height(8.dp))
             }
 
             Spacer(Modifier.height(16.dp))
@@ -142,7 +184,9 @@ private fun StepRow(number: Int, step: OnboardingStep) {
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = if (step.action == StepAction.Done) "✓" else number.toString(),
+                    // A count in prose, so it follows the reader's digits;
+                    // codes and addresses elsewhere stay Latin on purpose.
+                    text = if (step.action == StepAction.Done) "✓" else String.format(Locale.getDefault(), "%d", number),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = if (step.action == StepAction.Done) glass.onAccent else glass.accent,
@@ -162,8 +206,8 @@ private fun StepRow(number: Int, step: OnboardingStep) {
             Spacer(Modifier.height(3.dp))
             Text(
                 text = step.body,
-                style = MaterialTheme.typography.labelSmall,
-                color = glass.textTertiary,
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.textSecondary,
             )
 
             when (step.action) {

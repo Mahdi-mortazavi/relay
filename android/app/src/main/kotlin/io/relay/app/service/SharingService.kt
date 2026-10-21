@@ -24,6 +24,7 @@ import io.relay.app.core.HandshakeWatch
 import io.relay.app.core.LinkWait
 import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
+import io.relay.app.core.RouteChoice
 import io.relay.app.core.WarningCode
 import io.relay.app.core.WgConfig
 import io.relay.app.net.LinkSnapshot
@@ -31,6 +32,7 @@ import io.relay.app.net.LocalAddress
 import io.relay.app.core.PairingCode
 import io.relay.app.net.Beacon
 import io.relay.app.net.PairingServer
+import io.relay.app.net.ProxyScan
 import io.relay.app.net.VpnCapture
 import io.relay.app.net.VpnLockdown
 import io.relay.app.net.VpnStatus
@@ -83,6 +85,10 @@ class SharingService : Service() {
     private var currentHost: String? = null
     private var hotspotWatcher: Job? = null
     private var peerWatcher: Job? = null
+    private var routeWatcher: Job? = null
+
+    /** Where the PC's traffic goes, decided while sharing. See [RouteChoice]. */
+    private var routes = RouteChoice.Switcher()
 
     // The session's forwarder and this pairing's keys (ADR-0008).
     private var wgForwarder: WgForwarder? = WgForwarderProvider.create()
@@ -161,7 +167,7 @@ class SharingService : Service() {
                 if (waiting == null) {
                     ApprovalNotice.clear(this@SharingService)
                 } else {
-                    ApprovalNotice.show(this@SharingService, waiting.address)
+                    ApprovalNotice.show(this@SharingService, waiting.address, waiting.name)
                 }
             }
         }
@@ -255,6 +261,9 @@ class SharingService : Service() {
         LocalLog.info(
             LocalLog.Area.SERVICE, "Starting sharing",
             "vpn" to vpnActive.toString(),
+            // Not the same question: a VPN can be up while Relay is excluded
+            // from it, which is the arrangement ADR-0011's route depends on.
+            "relay_in_vpn" to VpnStatus.isRelayInsideVpn(this).toString(),
             "lockdown" to VpnLockdown.describe(VpnLockdown.read(this)),
         )
         ConnectionRepository.clearWarnings()
@@ -343,7 +352,7 @@ class SharingService : Service() {
     }
 
     /** Full Mode: mint per-pairing keys, start the userspace WG endpoint, return its wireguard payload. */
-    private fun prepareFull(host: String): QrPayload? {
+    private suspend fun prepareFull(host: String): QrPayload? {
         val forwarder = wgForwarder
         if (forwarder == null) {
             LocalLog.error(LocalLog.Area.TUNNEL, "No WireGuard forwarder in this build")
@@ -351,18 +360,28 @@ class SharingService : Service() {
             return null
         }
         val keys = WgKeys.generate()
+        routes = RouteChoice.Switcher()
+        // The first look, before the endpoint exists, so the very first packet
+        // from the PC already takes the right way out.
+        var route = lookForRoute() ?: RouteChoice.Route("", RouteChoice.Why.NO_PROXY)
         try {
-            // The upstream is read at start, not captured: someone who fixes a
-            // typo in it and starts sharing again gets the corrected value
-            // without restarting the app.
-            val upstream = settings.upstreamProxy.takeIf { Settings.isUsableProxy(it) }.orEmpty()
-            if (upstream.isNotEmpty()) {
-                LocalLog.info(
-                    LocalLog.Area.TUNNEL, "Forwarding the PC's traffic through a local proxy",
-                    "proxy" to upstream,
+            try {
+                forwarder.start(WgConfig.serverConfig(keys), route.proxy)
+            } catch (e: WgForwarderException) {
+                // A proxy Relay chose for itself must never be why sharing did
+                // not start: it answered a probe a moment ago, and if it will not
+                // carry the endpoint now the phone's own route still will. A
+                // typed one is different — that is somebody saying where the
+                // traffic must go, and going elsewhere would be a leak.
+                if (route.why != RouteChoice.Why.VPN_PROXY) throw e
+                LocalLog.warn(
+                    LocalLog.Area.TUNNEL, "The VPN's proxy would not take the endpoint; using the phone's route",
+                    "proxy" to route.proxy, "error" to (e.message ?: "no message"),
                 )
+                route = RouteChoice.Route("", RouteChoice.Why.NO_PROXY)
+                routes.restore(route)
+                forwarder.start(WgConfig.serverConfig(keys), "")
             }
-            forwarder.start(WgConfig.serverConfig(keys), upstream)
         } catch (e: WgForwarderException) {
             LocalLog.error(
                 LocalLog.Area.TUNNEL, "The WireGuard endpoint would not start",
@@ -371,17 +390,84 @@ class SharingService : Service() {
             fail(ErrorCode.WG_START_FAILED)
             return null
         }
+        noteRoute("Route chosen", route)
         wgKeys = keys
         LocalLog.info(
             LocalLog.Area.TUNNEL, "WireGuard endpoint up",
             "host" to host, "port" to keys.endpointPort.toString(),
         )
         startPeerWatcher(forwarder)
+        startRouteWatcher(forwarder)
         startPairingServer()
         return pairing.issuePayload(
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
             deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
         )
+    }
+
+    /**
+     * One look at how this phone's VPN treats Relay, turned into a route.
+     * Returns null when the route in force is still right.
+     *
+     * Read fresh every time — the typed proxy and the automatic switch as well
+     * as the network — so a change in Advanced or in the VPN app reaches the PC
+     * within one [RouteChoice.POLL_MS] without restarting anything.
+     */
+    private suspend fun lookForRoute(): RouteChoice.Route? {
+        val manual = settings.upstreamProxy.takeIf { Settings.isUsableProxy(it) }.orEmpty()
+        val automatic = settings.automaticRoute
+        val inside = VpnStatus.isRelayInsideVpn(this)
+        // Knocked on only when the answer could change the route: inside the
+        // VPN, or with a typed proxy, or with automatic off, it cannot.
+        val found = if (manual.isEmpty() && automatic && !inside) ProxyScan.find() else null
+        return routes.next(manual, automatic, inside, found)
+    }
+
+    /** The log line a report needs to say which way the PC's traffic went, and why. */
+    private fun noteRoute(message: String, route: RouteChoice.Route) {
+        ConnectionRepository.setRoute(route)
+        LocalLog.info(
+            LocalLog.Area.TUNNEL, message,
+            "via" to route.proxy.ifEmpty { "phone" },
+            "why" to route.why.name,
+        )
+    }
+
+    /**
+     * Keeps the PC on the best way out for as long as sharing lasts (ADR-0011).
+     *
+     * A VPN app can open its proxy after sharing started, close it, or be
+     * switched between full-tunnel and proxy-only mode; the person can exclude
+     * Relay in its per-app list mid-session because the banner told them to.
+     * Each of those changes which route gives the PC the VPN, and none of them
+     * tells Relay. So it looks, every [RouteChoice.POLL_MS], and moves the
+     * endpoint's next flows to the right path without dropping the tunnel.
+     */
+    private fun startRouteWatcher(forwarder: WgForwarder) {
+        routeWatcher?.cancel()
+        routeWatcher = scope.launch {
+            while (isActive) {
+                delay(RouteChoice.POLL_MS)
+                val state = ConnectionRepository.state.value
+                if (state !is ConnectionState.Advertising && state !is ConnectionState.Connected) continue
+                val before = routes.current ?: continue
+                val next = lookForRoute()
+                if (next == null) {
+                    // Same path; the reason may still have changed.
+                    routes.current?.let { ConnectionRepository.setRoute(it) }
+                    continue
+                }
+                if (forwarder.setUpstream(next.proxy)) {
+                    noteRoute("Route switched", next)
+                } else {
+                    routes.restore(before)
+                    LocalLog.warn(
+                        LocalLog.Area.TUNNEL, "Could not switch route mid-session; it takes effect when sharing restarts",
+                        "wanted" to next.proxy.ifEmpty { "phone" },
+                    )
+                }
+            }
+        }
     }
 
     /**
@@ -765,6 +851,9 @@ class SharingService : Service() {
         // service has already said it is idle.
         peerWatcher?.cancel()
         peerWatcher = null
+        routeWatcher?.cancel()
+        routeWatcher = null
+        ConnectionRepository.setRoute(null)
         // Stop the endpoint and drop the per-pairing keys (§4.2).
         runCatching { wgForwarder?.stop() }
         wgKeys = null

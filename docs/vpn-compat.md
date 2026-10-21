@@ -138,8 +138,9 @@ So the honest order of preference is:
    PC gets the VPN. This is the only *VPN* setting that keeps both.
 2. **Turn off lockdown**, which has the same shape: it restores the local-route
    exemption without taking Relay out of the tunnel.
-3. **Exclude Relay per-app, and point Relay at the VPN's local proxy** — see
-   below. This is the arrangement that works when the VPN offers no exemption.
+3. **Exclude Relay per-app, or switch the VPN app to its proxy-only mode** —
+   Relay then finds the VPN's local proxy and uses it by itself (2.10.0, see
+   below). This is the arrangement that works when the VPN offers no exemption.
 4. **Exclude Relay per-app alone**, which always restores the connection and
    always costs the VPN.
 
@@ -185,6 +186,43 @@ Field 2 is `hex-address:hex-port` — `0100007F:071B` is `127.0.0.1:1819` — an
 More than one port is normal; only one of them is usually SOCKS5. **The app
 cannot do this for you:** Android 10 stopped showing an app any socket but its
 own, which is why Relay knocks on ports instead of reading that file.
+
+### Relay picks the route by itself (2.10.0, ADR-0011)
+
+Until 2.10.0 the found port was only *offered*, and the phones that needed it
+were the ones where the person had already done the hard part — excluded Relay
+because the banner said to — and then got the phone's bare connection, because
+the second half was a tap in a section nobody opens. The route is now chosen
+automatically, and chosen again every ten seconds while sharing:
+
+| What the phone says | Where the PC's traffic goes |
+|---|---|
+| A proxy is typed in Advanced | That proxy, always. Never dropped, never second-guessed |
+| Relay is **inside** the VPN | The phone's own route — which is the VPN |
+| Relay is **outside** the VPN and a VPN proxy answers | The VPN app's proxy — the PC gets the VPN |
+| Relay is outside and nothing answers | The phone's own route — the PC stays online |
+
+"Inside" is not a guess. Android gives each app the default network for its own
+UID — the VPN for an app inside it, Wi-Fi or mobile data for one the VPN
+excluded — so `VpnStatus.isRelayInsideVpn` reads the answer rather than
+predicting it.
+
+The same rule covers a **VPN app in proxy-only mode** (Oblivion's `SOCKS5 only`,
+and the proxy modes of v2ray- and sing-box-based clients). There is no system
+VPN, so nothing captures Relay's replies and the PC connects every time — and
+the VPN exists only behind the loopback port, which Relay finds. For a group-3
+phone this is often the simplest fix of all: switch the VPN app to proxy mode,
+then start Relay.
+
+A switch does not drop the PC. The endpoint keeps its keys and its handshake;
+new connections take the new path and open ones finish on the old. A proxy that
+was carrying the PC is given up only after two looks in a row miss, so one slow
+answer from a busy VPN client does not send the PC around the VPN. Advanced
+shows the route in force, and the log records each `Route chosen` and
+`Route switched` with its reason.
+
+**Automatic off** ("This phone's route only") is exactly what every release
+before 2.10.0 did with an empty field.
 
 ### Excluding Relay cannot be automated
 

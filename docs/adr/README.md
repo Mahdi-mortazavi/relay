@@ -12,3 +12,6 @@ Short, immutable records of significant decisions. New decision → new numbered
 | [0006](0006-in-repo-socks5-server.md) | In-repo minimal SOCKS5 server on Android | Accepted |
 | [0007](0007-bounded-auto-reconnect.md) | Bounded auto-reconnect as an internal policy, not a new state | Accepted |
 | [0008](0008-full-mode-wireguard-forwarder.md) | Full Mode — phone as a userspace WireGuard forwarding endpoint | Accepted |
+| [0009](0009-full-mode-only-and-code-pairing.md) | One transport, and a code that works for it | Accepted |
+| [0010](0010-forward-through-a-local-proxy.md) | Let the phone forward through a local proxy | Accepted |
+| [0011](0011-automatic-route.md) | Choose the PC's route automatically, and keep choosing | Accepted |

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.text.BidiFormatter
 import io.relay.app.R
 
 /**
@@ -35,7 +36,7 @@ object ApprovalNotice {
     private const val NOTIFICATION_ID = 3
 
     /** Shows the request, or does nothing if notifications are not granted. */
-    fun show(context: Context, address: String) {
+    fun show(context: Context, address: String, name: String? = null) {
         runCatching {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
 
@@ -52,7 +53,19 @@ object ApprovalNotice {
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_shortcut_start)
                 .setContentTitle(context.getString(R.string.approval_title))
-                .setContentText(context.getString(R.string.approval_body, address))
+                .setContentText(
+                    // Names the computer when it gave a name, as the dialog does;
+                    // both runs isolated so neither can reorder the sentence.
+                    if (name != null) {
+                        context.getString(
+                            R.string.approve_body_named,
+                            BidiFormatter.getInstance().unicodeWrap(name),
+                            BidiFormatter.getInstance().unicodeWrap(address),
+                        )
+                    } else {
+                        context.getString(R.string.approval_body, address)
+                    },
+                )
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 // Not dismissible by a swipe: a question that vanishes when

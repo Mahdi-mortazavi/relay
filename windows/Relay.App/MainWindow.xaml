@@ -77,6 +77,7 @@
                     <Ellipse x:Name="StatusDot" Width="8" Height="8" VerticalAlignment="Center"
                              Fill="{StaticResource LabelQuaternary}" />
                     <TextBlock x:Name="StatusChipText" Style="{StaticResource CaptionText}"
+                               AutomationProperties.LiveSetting="Polite"
                                VerticalAlignment="Center" />
                 </StackPanel>
             </Border>
@@ -182,7 +183,7 @@
                          FontSize="{StaticResource SizeCode}"
                          FontFamily="{StaticResource FontMono}"
                          TextAlignment="Center" CharacterSpacing="150"
-                         CornerRadius="{StaticResource ControlCorner}" Height="64"
+                         CornerRadius="{StaticResource ControlCorner}" MinHeight="64"
                          Background="{StaticResource FillSecondary}"
                          Foreground="{StaticResource LabelPrimary}"
                          BorderBrush="{StaticResource HairlineBrush}"
@@ -307,7 +308,8 @@
                 <!-- Errors get a headline that names the problem and a body that
                      says what to do about it, instead of one undifferentiated
                      paragraph the user has to parse under stress. -->
-                <TextBlock x:Name="ErrorTitle" Style="{StaticResource HeadlineText}" />
+                <TextBlock x:Name="ErrorTitle" Style="{StaticResource HeadlineText}"
+                           AutomationProperties.LiveSetting="Assertive" />
                 <TextBlock x:Name="ErrorText" Style="{StaticResource FootnoteText}"
                            Margin="4,0,4,0" />
                 <Button x:Name="ErrorPrimaryButton" Style="{StaticResource PrimaryButton}"
@@ -337,7 +339,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedVersionLabel" Style="{StaticResource CaptionText}"
                                Grid.Column="0" VerticalAlignment="Center"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                Margin="0,0,12,0" />
                     <TextBlock x:Name="AdvancedVersionValue" Grid.Column="1" HorizontalAlignment="Right"
                                Style="{StaticResource MonoText}"
@@ -352,7 +354,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedAddressLabel" Style="{StaticResource CaptionText}"
                                Grid.Column="0" VerticalAlignment="Center"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                Margin="0,0,12,0" />
                     <TextBlock x:Name="AdvancedAddressValue" Grid.Column="1" HorizontalAlignment="Right"
                                Style="{StaticResource MonoText}"
@@ -372,11 +374,28 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedLeakLabel" Style="{StaticResource CaptionText}"
                                Grid.Column="0" VerticalAlignment="Center"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                Margin="0,0,12,0" />
                     <ToggleSwitch x:Name="AdvancedLeakToggle" Grid.Column="1" HorizontalAlignment="Right"
                                   MinWidth="0" Margin="0,-6,0,-6"
                                   Toggled="OnLeakBlockToggled" />
+                </Grid>
+                <!-- Kill switch (#165). Off by default: on, a phone that stops
+                     answering holds the laptop's traffic inside a tunnel that
+                     drops it, instead of letting it fall back to the laptop's
+                     own connection. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="AdvancedKillSwitchLabel" Style="{StaticResource CaptionText}"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedKillSwitchToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnKillSwitchToggled" />
                 </Grid>
                 <!-- Start with Windows. A tray app that shares a connection is
                      only useful if it is already there when you need it, and the
@@ -388,7 +407,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedStartupLabel" Style="{StaticResource CaptionText}"
                                Grid.Column="0" VerticalAlignment="Center"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                Margin="0,0,12,0" />
                     <ToggleSwitch x:Name="AdvancedStartupToggle" Grid.Column="1" HorizontalAlignment="Right"
                                   MinWidth="0" Margin="0,-6,0,-6"
@@ -401,7 +420,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="AdvancedLogsLabel" Style="{StaticResource CaptionText}"
                                Grid.Column="0" VerticalAlignment="Center"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap"
                                Margin="0,0,12,0" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
                         <HyperlinkButton x:Name="AdvancedLogsShare" Padding="0"

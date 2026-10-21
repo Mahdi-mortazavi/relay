@@ -170,4 +170,14 @@ class ClientGateTest {
             while (gate.pending.value?.address != address) delay(5)
         }
     }
+
+    @Test
+    fun `the prompt carries the name the PC gave`() = runTest {
+        val gate = ClientGate()
+        val request = async { gate.authorize("192.168.1.30", "MAHDI-LAPTOP") }
+        waitForPrompt(gate, "192.168.1.30")
+        assertEquals(ClientGate.Pending("192.168.1.30", "MAHDI-LAPTOP"), gate.pending.value)
+        gate.resolve("192.168.1.30", allowed = true)
+        assertTrue(request.await())
+    }
 }

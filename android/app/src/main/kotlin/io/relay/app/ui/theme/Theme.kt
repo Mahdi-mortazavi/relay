@@ -49,7 +49,7 @@ data class GlassColors(
     val radiusLg = 24.dp
 }
 
-private val DarkGlass = GlassColors(
+internal val DarkGlass = GlassColors(
     backgroundBase = Color(0xFF0A0C10),
     backgroundGradientTop = Color(0xFF12151C),
     backgroundGradientBottom = Color(0xFF08090C),
@@ -71,14 +71,14 @@ private val DarkGlass = GlassColors(
     // pressed stays the same distance from rest rather than being re-picked.
     accentPressed = Color(0xFF38C2A3),
     accentSubtle = Color(0x294ADFBF),
-    error = Color(0xFFE5645F),
-    errorSubtle = Color(0x29E5645F),
+    error = Color(0xFFF07A75),
+    errorSubtle = Color(0x29F07A75),
     warning = Color(0xFFE0A458),
     onAccent = Color(0xFF0A0C10),
     isDark = true,
 )
 
-private val LightGlass = GlassColors(
+internal val LightGlass = GlassColors(
     backgroundBase = Color(0xFFEEF1F5),
     backgroundGradientTop = Color(0xFFF7F9FC),
     backgroundGradientBottom = Color(0xFFE4E8EE),
@@ -87,20 +87,21 @@ private val LightGlass = GlassColors(
     stroke = Color.Black.copy(alpha = 0.08f),
     strokeHighlight = Color.White.copy(alpha = 0.85f),
     textPrimary = Color(0xFF0C0E12).copy(alpha = 0.94f),
-    textSecondary = Color(0xFF0C0E12).copy(alpha = 0.58f),
+    textSecondary = Color(0xFF0C0E12).copy(alpha = 0.66f),
     // 0.36 alpha over the light glass panel composited to ~2.4:1 — below the
     // 4.5:1 AA floor for the 12sp labels this token carries (every caption,
     // hint and log line). 0.62 lands at ~5.0:1 and still reads as tertiary.
     textTertiary = Color(0xFF0C0E12).copy(alpha = 0.62f),
     // White on #17A98C is ~3.0:1 — the "Start Sharing" and "Try Again" labels
     // failed AA in light mode (the dark pairing is fine at ~10.6:1). Darkening
-    // the accent to #0F7A63 puts white at ~5.3:1 while keeping the same hue.
-    accent = Color(0xFF0F7A63),
-    accentPressed = Color(0xFF0B5F4D),
-    accentSubtle = Color(0x290F7A63),
-    error = Color(0xFFC7433E),
-    errorSubtle = Color(0x29C7433E),
-    warning = Color(0xFFB37417),
+    // the accent to #0D7059 puts white at ~6.0:1, and the accent itself clears
+    // 4.5:1 as text on the darkest light ground, while keeping the same hue.
+    accent = Color(0xFF0D7059),
+    accentPressed = Color(0xFF0A5A48),
+    accentSubtle = Color(0x290D7059),
+    error = Color(0xFFAD3833),
+    errorSubtle = Color(0x29AD3833),
+    warning = Color(0xFF8F5C0E),
     onAccent = Color(0xFFFFFFFF),
     isDark = false,
 )
@@ -111,6 +112,7 @@ private val glassTypography = Typography(
     displaySmall = TextStyle(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold),
     titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
     bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Normal),
+    bodySmall = TextStyle(fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.Normal),
     labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal),
     // pairing codes
     headlineMedium = TextStyle(

@@ -33,20 +33,20 @@
     <string name="warning_lockdown_body">این گزینه هر چیزی جز وی‌پی‌ان را قطع می‌کند — از جمله پاسخ‌های همین گوشی به کامپیوترتان، برای همین کامپیوتر به گوشی می‌رسد ولی جوابی نمی‌شنود. تنظیمات VPN را باز کنید، روی ⚙ کنار نام برنامهٔ وی‌پی‌ان بزنید و خاموشش کنید. وی‌پی‌ان‌تان روشن می‌ماند و رله همان را به اشتراک می‌گذارد.</string>
     <string name="warning_lockdown_action">تنظیمات VPN</string>
     <string name="warning_no_reply_title">کامپیوترتان جوابی نمی‌گیرد</string>
-    <string name="warning_no_reply_body">یک کامپیوتر تنظیمات رله را گرفت و تونلش را شروع کرد، ولی هیچ جوابی از این گوشی بیرون نرفت. اگر برنامهٔ وی‌پی‌ان‌تان گزینهٔ «دسترسی شبکهٔ محلی» دارد، روشنش کنید — هم این را حل می‌کند هم کامپیوتر همچنان وی‌پی‌ان را می‌گیرد. مستثنا کردن رله در فهرست هر-برنامه هم جواب می‌دهد، ولی آن‌وقت کامپیوتر به‌جای وی‌پی‌ان، اینترنت خودِ این گوشی را می‌گیرد.</string>
+    <string name="warning_no_reply_body">یک کامپیوتر تنظیمات رله را گرفت، ولی هیچ پاسخی از این گوشی بیرون نرفت — یک وی‌پی‌ان روی گوشی پاسخ‌ها را می‌گیرد.\n۱. بهترین راه: در برنامهٔ وی‌پی‌ان «دسترسی شبکهٔ محلی» (LAN access) را روشن کنید. کامپیوتر وی‌پی‌ان را نگه می‌دارد.\n۲. در غیر این صورت: رله را در فهرست هر-برنامهٔ وی‌پی‌ان مستثنا کنید یا برنامه را روی حالت فقط-پروکسی بگذارید، بعد وی‌پی‌ان را خاموش و روشن کنید. رله پروکسی محلی وی‌پی‌ان را خودش پیدا می‌کند، پس کامپیوتر همچنان وی‌پی‌ان را می‌گیرد.</string>
     <string name="warning_no_vpn_title">هیچ VPN فعالی نیست</string>
     <string name="warning_no_vpn_body">در حال اشتراک اتصال معمولی خود هستید. اگر می‌خواستید VPN را به‌اشتراک بگذارید، ابتدا آن را روشن کنید.</string>
 
     <!-- Advanced -->
     <string name="advanced">پیشرفته</string>
     <string name="advanced_version">نسخه</string>
-    <string name="advanced_ip">نشانی هات‌اسپات</string>
+    <string name="advanced_ip">نشانی گوشی</string>
     <string name="advanced_theme">ظاهر</string>
     <string name="theme_system">سیستم</string>
     <string name="theme_dark">تیره</string>
     <string name="theme_light">روشن</string>
-    <string name="advanced_upstream">ترافیک کامپیوتر را از یک پروکسی بفرست</string>
-    <string name="advanced_upstream_hint">خالی بگذارید تا از اتصال خودِ این گوشی استفاده شود. اگر برنامهٔ وی‌پی‌انی روی این گوشی پورت SOCKS5 محلی دارد، نوشتن آن اینجا همان چیزی است که اجازه می‌دهد کامپیوتر از آن وی‌پی‌ان استفاده کند.</string>
+    <string name="advanced_upstream">ترافیک کامپیوتر از کجا برود</string>
+    <string name="advanced_upstream_hint">حالت خودکار ترافیک را از هر راهی که کار کند از وی‌پی‌ان این گوشی می‌فرستد: مستقیم وقتی رله داخل وی‌پی‌ان است، یا از پروکسی محلیِ خودِ برنامهٔ وی‌پی‌ان وقتی نیست. برای ثابت کردن یک پروکسی آن را پایین بنویسید — آن‌وقت رله همیشه از همان استفاده می‌کند و هرگز به راه دیگری برنمی‌گردد.</string>
     <string name="advanced_upstream_placeholder">127.0.0.1:10808</string>
     <string name="advanced_upstream_invalid">باید یک پورت باشد، یا یک نشانی و یک پورت — مثل 127.0.0.1:10808 یا :10808.</string>
     <string name="advanced_upstream_looking">دنبال پروکسیِ وی‌پی‌ان روی این گوشی…</string>
@@ -54,6 +54,13 @@
     <string name="advanced_upstream_found_action">استفاده از پروکسی‌ای که پیدا شد</string>
     <string name="advanced_upstream_none">هیچ پروکسی‌ای روی این گوشی جواب نداد. پورت را از تنظیمات خودِ برنامهٔ وی‌پی‌ان بخوانید و بالا بنویسید. برای جست‌وجوی دوباره لمس کنید.</string>
     <string name="advanced_upstream_again">جست‌وجوی دوبارهٔ پروکسی</string>
+    <string name="advanced_route_auto">خودکار</string>
+    <string name="advanced_route_phone">فقط مسیر همین گوشی</string>
+    <string name="advanced_route_now_proxy">الان: از پروکسی وی‌پی‌ان روی %1$s</string>
+    <string name="advanced_route_now_vpn">الان: از وی‌پی‌انِ همین گوشی</string>
+    <string name="advanced_route_now_bare">الان: اتصال خودِ این گوشی — هیچ وی‌پی‌انی به رله نمی‌رسد و هیچ پروکسی وی‌پی‌انی جواب نداد</string>
+    <string name="advanced_route_now_phone">الان: مسیر خودِ این گوشی</string>
+    <string name="advanced_upstream_found_auto">یک پروکسی وی‌پی‌ان روی %1$s پیدا شد — رله هر وقت کامپیوتر لازم داشته باشد خودش از آن استفاده می‌کند.</string>
     <string name="advanced_logs">گزارش فعالیت (روی همین دستگاه می‌ماند)</string>
     <string name="advanced_logs_clear">پاک‌کردن</string>
     <string name="advanced_logs_empty">هنوز فعالیتی نیست</string>
@@ -70,9 +77,9 @@
     <string name="error_port_in_use_title">پورت‌ها در اشغال‌اند</string>
     <string name="error_port_in_use_body">برنامه دیگری از پورت‌های موردنیاز رله استفاده می‌کند. آن را ببندید و دوباره تلاش کنید.</string>
     <string name="error_service_failed_title">اندروید سرویس اشتراک‌گذاری را متوقف کرد</string>
-    <string name="error_service_failed_body">معمولاً به‌خاطر بهینه‌سازی باتری است، یا بسته‌شدن رله از فهرست برنامه‌های اخیر. در «پیشرفته» به رله اجازه دهید بهینه‌سازی باتری را نادیده بگیرد، بعد دوباره اشتراک‌گذاری را شروع کنید.</string>
-    <string name="error_hotspot_lost_title">اتصال هات‌اسپات قطع شد</string>
-    <string name="error_hotspot_lost_body">هات‌اسپات قطع شد و بازنگشت. مطمئن شوید روشن است و دوباره اشتراک‌گذاری را شروع کنید.</string>
+    <string name="error_service_failed_body">معمولاً به‌خاطر بهینه‌سازی باتری است، یا بسته‌شدن رله از فهرست برنامه‌های اخیر. از بنر صفحهٔ اصلی به رله اجازه دهید بهینه‌سازی باتری را نادیده بگیرد، بعد دوباره اشتراک‌گذاری را شروع کنید.</string>
+    <string name="error_hotspot_lost_title">شبکه قطع شد</string>
+    <string name="error_hotspot_lost_body">وای‌فای، هات‌اسپات یا اتصال USB که گوشی رویش اشتراک می‌گذاشت قطع شد و برنگشت. بررسی‌اش کنید و دوباره اشتراک‌گذاری را شروع کنید.</string>
     <string name="error_wg_start_title">تونل شروع نشد</string>
     <string name="error_wg_start_body">نقطهٔ پایانی WireGuard رله روی این گوشی شروع نشد — معمولاً چون برنامهٔ دیگری پورت موردنیاز را گرفته. دوباره اشتراک‌گذاری را شروع کنید؛ اگر باز هم نشد، برنامه‌های وی‌پی‌ان یا پروکسی دیگر را ببندید و یک بار دیگر امتحان کنید.</string>
     <string name="action_retry">تلاش دوباره</string>
@@ -133,7 +140,7 @@
 
     <!-- اجرای اول -->
     <string name="onboarding_title">رله را در دسترس نگه دار</string>
-    <string name="onboarding_body">رله وقتی بیشترین ارزش را دارد که لپ‌تاپ اینترنت ندارد. این‌ها آن لحظه را به یک ضربه می‌رسانند.</string>
+    <string name="onboarding_body">دو مورد از این‌ها اشتراک‌گذاری را روشن نگه می‌دارند. بقیه میان‌بُرند — حالا یا هر وقت بعداً اضافه‌شان کن.</string>
     <string name="onboarding_done">تمام</string>
     <string name="onboarding_skip">رد کن</string>
     <string name="onboarding_notif_title">اجازه بده رله وضعیتش را نشان دهد</string>
@@ -159,4 +166,29 @@
     <string name="approval_body">%1$s می‌خواهد از اینترنت شما استفاده کند.</string>
     <string name="approval_allow">اجازه بده</string>
     <string name="approval_deny">رد کن</string>
+
+    <!-- 2.11 UX pass (docs/ux-audit.md) -->
+    <string name="approve_body_named">%1$s (%2$s) می‌خواهد از اتصال شما استفاده کند.</string>
+    <string name="status_word_idle">خاموش</string>
+    <string name="status_word_starting">در حال شروع</string>
+    <string name="status_word_waiting">در انتظار</string>
+    <string name="status_word_connected">متصل</string>
+    <string name="status_word_reconnecting">اتصال دوباره</string>
+    <string name="status_word_error">مشکل</string>
+    <string name="connected_title">کامپیوترتان از طریق این گوشی آنلاین است</string>
+    <string name="connected_down">دریافت</string>
+    <string name="connected_up">ارسال</string>
+    <string name="traffic_rate">%1$s در ثانیه</string>
+    <string name="connected_totals">مجموع: %1$s دریافت · %2$s ارسال</string>
+    <string name="connected_show_code">نمایش کد جفت‌سازی</string>
+    <string name="connected_hide_code">پنهان کردن کد جفت‌سازی</string>
+    <string name="preparing_hint">در جست‌وجوی وای‌فای، هات‌اسپات یا اتصال USB…</string>
+    <string name="error_action_network">باز کردن تنظیمات شبکه</string>
+    <string name="error_tried_link">رله اول حدود ۸ ثانیه منتظر یک شبکهٔ قابل‌استفاده ماند.</string>
+    <string name="error_tried_lost">رله پیش از توقف چند بار برای اتصال دوباره تلاش کرد.</string>
+    <string name="error_tried_tunnel">رله تلاش کرد تونلش را شروع کند و گوشی اجازه نداد.</string>
+    <string name="error_details">جزئیات فنی</string>
+    <string name="error_details_code">کد: %1$s</string>
+    <string name="onboarding_section_needed">لازم برای اشتراک‌گذاری</string>
+    <string name="onboarding_section_optional">میان‌بُرها — اختیاری</string>
 </resources>

@@ -64,6 +64,27 @@ sixty seconds later. Triage with it; never conclude from it. What *does* mean th
 replies are lost is the `PC_GOT_NO_REPLY` warning — see
 [`vpn-compat.md`](vpn-compat.md).
 
+## Which way the PC's traffic left the phone
+
+Since 2.10.0 every Android log says it outright (ADR-0011):
+
+```
+Route chosen    via=127.0.0.1:1819  why=VPN_PROXY
+Route switched  via=phone           why=NO_PROXY
+```
+
+`via=phone` is an ordinary socket on the phone's default route. `why` is the
+reason: `RELAY_IN_VPN` (that route is the VPN), `VPN_PROXY` (Relay is outside
+the VPN and went in through its proxy), `NO_PROXY` (outside, and nothing
+answered — **the PC is on the phone's bare connection**), `MANUAL` (typed in
+Advanced) or `AUTOMATIC_OFF`. A report from someone whose PC "connects but does
+not get the VPN" with `why=NO_PROXY` has its answer in that line: the VPN app
+exposes no proxy Relay can find, so the port has to come from its settings.
+
+On Windows, `Kill switch on — …` at connect and `The phone stopped answering —
+kill switch holding traffic` mean the laptop's internet was deliberately held,
+not broken.
+
 ## Checking whether anything crosses the tunnel
 
 **Not with `ping`.** Relay forwards TCP and UDP and nothing else — there is no

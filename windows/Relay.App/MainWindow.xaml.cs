@@ -2,7 +2,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Relay.App.Services;
@@ -76,6 +79,17 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Guards the two paths that can resolve a code at the same moment.</summary>
     private bool _connecting;
+
+    /// <summary>
+    /// The last connection attempt, so "Try Again" can make it again.
+    ///
+    /// It used to be a label on a dismiss: every error whose button said
+    /// Try Again just went back to the idle screen, the same as Dismiss
+    /// beside it, so the one accented action promised something it did not
+    /// do (docs/ux-audit.md P-01). Null when nothing has been attempted, in
+    /// which case Try Again does what it always did.
+    /// </summary>
+    private Func<Task>? _lastAttempt;
 
     /// <summary>
     /// Whether the discovery socket actually came up. False means two digits
@@ -449,6 +463,14 @@ public sealed partial class MainWindow : Window
                     break;
 
                 case Windows.System.VirtualKey.Enter:
+                    // A focused button, link, switch or expander answers Enter
+                    // itself. This handler used to run anyway, so tabbing to
+                    // Dismiss and pressing Enter ran the primary action, and
+                    // Enter on a listed phone also opened the camera (P-26).
+                    if (FocusManager.GetFocusedElement(Root.XamlRoot) is ButtonBase or ToggleSwitch)
+                    {
+                        break;
+                    }
                     if (ErrorPanel.Visibility == Visibility.Visible &&
                         ErrorPrimaryButton.Visibility == Visibility.Visible)
                     {
@@ -532,6 +554,11 @@ public sealed partial class MainWindow : Window
         AdvancedLeakToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
         ToolTipService.SetToolTip(AdvancedLeakToggle, Strings.Get("AdvancedLeakBlockHint"));
         SyncLeakToggle();
+        AdvancedKillSwitchLabel.Text = Strings.Get("AdvancedKillSwitch");
+        AdvancedKillSwitchToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedKillSwitchToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedKillSwitchToggle, Strings.Get("AdvancedKillSwitchHint"));
+        SyncKillSwitchToggle();
         AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
         AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
         AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
@@ -628,6 +655,32 @@ public sealed partial class MainWindow : Window
             : "Leak protection OFF — DNS and IPv6 can leave outside the tunnel");
     }
 
+    /// <summary>Read, not remembered — see <see cref="SyncLeakToggle"/>.</summary>
+    private void SyncKillSwitchToggle()
+    {
+        _syncingKillSwitch = true;
+        try { AdvancedKillSwitchToggle.IsOn = KillSwitch.IsEnabled(); }
+        finally { _syncingKillSwitch = false; }
+    }
+
+    private bool _syncingKillSwitch;
+
+    private void OnKillSwitchToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingKillSwitch) return;
+
+        var wanted = AdvancedKillSwitchToggle.IsOn;
+        if (!KillSwitch.Set(wanted))
+        {
+            LocalLog.Add("Windows would not save that");
+            SyncKillSwitchToggle();
+            return;
+        }
+        LocalLog.Add(wanted
+            ? "Kill switch on — takes effect on the next connection"
+            : "Kill switch off — if the phone stops answering, the laptop uses its own connection");
+    }
+
     private void OnStartupToggled(object sender, RoutedEventArgs e)
     {
         if (_syncingStartup) return;
@@ -685,7 +738,7 @@ public sealed partial class MainWindow : Window
         {
             ShowOnly(ErrorPanel);
             ApplyError(_localError);
-            SetStatusChip("DangerBrush", Strings.Get("StatusIdle"));
+            SetStatusChip("DangerBrush", Strings.Get("StatusError"));
             return;
         }
 
@@ -734,6 +787,8 @@ public sealed partial class MainWindow : Window
             {
                 "Connected" => Strings.Get("StatusConnected"),
                 "Preparing" or "Advertising" => Strings.Get("StatusConnecting"),
+                // The dot was red and the word said "Not connected" (P-05).
+                "Error" => Strings.Get("StatusError"),
                 _ => Strings.Get("StatusIdle"),
             });
 
@@ -758,7 +813,7 @@ public sealed partial class MainWindow : Window
             // unrelated state notification arrives.
             SetPulsing(!reconnecting);
         }
-        if (state == "Error") ApplyError(_controller.ErrorCode ?? "ERR_PROXY_APPLY_FAILED");
+        if (state == "Error") ApplyError(_controller.ErrorCode ?? string.Empty);
 
         AdvancedAddressValue.Text = _controller.Payload is { } p ? $"{p.Host}:{p.Port}" : "—";
     }
@@ -846,9 +901,12 @@ public sealed partial class MainWindow : Window
                 ("ErrTitlePhoneBlocked", "ErrPhoneRepliesBlocked", "TryAgain"),
             "ERR_PAIRING_DENIED" => ("ErrTitlePairing", "ErrPairingDenied", "EnterCode"),
             "ERR_PAIRING_VERSION" => ("ErrTitlePairing", "ErrPairingVersion", "ScanQr"),
-            "ERR_WG_ALREADY_RUNNING" => ("ErrTitleTunnel", "ErrWgStartFailed", "TryAgain"),
-            "ERR_WG_STOP_FAILED" => ("ErrTitleTunnel", "ErrWgStopFailed", "TryAgain"),
-            _ => ("ErrTitleProxy", "ErrProxyApply", "TryAgain"),
+            "ERR_WG_ALREADY_RUNNING" => ("ErrTitleTunnel", "ErrWgAlreadyRunning", "Disconnect"),
+            "ERR_WG_STOP_FAILED" => ("ErrTitleTunnel", "ErrWgStopFailed", "Disconnect"),
+            // A code this build has no words for. It used to borrow the
+            // retired proxy's message, which told people about a system setting
+            // Relay no longer touches (P-02).
+            _ => ("ErrTitleGeneric", "ErrGeneric", "TryAgain"),
         };
 
         _errorAction = primary;
@@ -857,6 +915,25 @@ public sealed partial class MainWindow : Window
         ErrorPrimaryButton.Content = primary is null ? string.Empty : Strings.Get(primary);
         ErrorPrimaryButton.Visibility = Show(primary is not null);
         ErrorDismissButton.Content = Strings.Get("Dismiss");
+        Announce(ErrorTitle);
+    }
+
+    /// <summary>
+    /// Tells Narrator a live region changed. Nothing announced a state
+    /// change before (P-24): "Connected" and every error arrived silently.
+    /// </summary>
+    private static void Announce(FrameworkElement element)
+    {
+        try
+        {
+            var peer = FrameworkElementAutomationPeer.FromElement(element)
+                ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
+            peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        }
+        catch (Exception)
+        {
+            // Accessibility plumbing must never be why the window fails.
+        }
     }
 
     private void SetPulsing(bool on)
@@ -869,7 +946,9 @@ public sealed partial class MainWindow : Window
     private void SetStatusChip(string brushKey, string label)
     {
         StatusDot.Fill = ThemeBrush(brushKey);
+        if (StatusChipText.Text == label) return;
         StatusChipText.Text = label;
+        Announce(StatusChipText);
     }
 
     /// <summary>
@@ -983,7 +1062,9 @@ public sealed partial class MainWindow : Window
                 return;
             }
             _localError = null;
-            await _controller.ConnectAsync(decoded.Payload!);
+            var payload = decoded.Payload!;
+            _lastAttempt = () => _controller.ConnectAsync(payload);
+            await _controller.ConnectAsync(payload);
         });
     }
 
@@ -1279,11 +1360,13 @@ public sealed partial class MainWindow : Window
                 // against the phone. Then the link, when the phone said one:
                 // clicking this row commits to a path, and which path it is
                 // belongs on the row rather than being discovered afterwards.
-                Content = RowLabel(device),
+                Content = RowContent(device),
                 Tag = device,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
             };
+            // Narrator reads one sentence rather than a run of padded fragments.
+            AutomationProperties.SetName(button, RowLabel(device));
             // Never QuietButton: that style has no fill by design, so a row
             // drawn with it reads as a caption rather than something to click.
             var wanted = accentSingle && devices.Count == 1 ? "PrimaryButton" : "SecondaryButton";
@@ -1301,6 +1384,34 @@ public sealed partial class MainWindow : Window
     /// to the one it would take, so the link named here is the link a click will
     /// actually use.
     /// </summary>
+    /// <summary>
+    /// The row as separate runs rather than one string padded with spaces.
+    /// Joined, a Latin code, a Latin model name and a Persian link word were
+    /// one bidi paragraph whose order depended on the UI language; apart, each
+    /// keeps its own direction and the panel's flow lays them out (P-31).
+    /// </summary>
+    private static UIElement RowContent(LanDiscovery.Device device)
+    {
+        var who = device.Name is { Length: > 0 } name ? name : device.Host;
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        row.Children.Add(new TextBlock
+        {
+            Text = device.Code,
+            FlowDirection = FlowDirection.LeftToRight,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas"),
+        });
+        row.Children.Add(new TextBlock { Text = who, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (device.LinkStringKey is { } key)
+        {
+            row.Children.Add(new TextBlock { Text = Strings.Get(key), Opacity = 0.72 });
+        }
+        if (device.RepliesBlocked)
+        {
+            row.Children.Add(new TextBlock { Text = Strings.Get("PhoneCannotAnswer"), Opacity = 0.72 });
+        }
+        return row;
+    }
+
     private static string RowLabel(LanDiscovery.Device device)
     {
         var who = device.Name is { Length: > 0 } name ? name : device.Host;
@@ -1434,6 +1545,7 @@ public sealed partial class MainWindow : Window
 
         _connecting = true;
         _localError = null;
+        _lastAttempt = () => RetryPhoneAsync(device);
         try
         {
             var payload = await PairAsync(device.Host, device.PairingPort!.Value, device.Name);
@@ -1450,6 +1562,17 @@ public sealed partial class MainWindow : Window
         {
             _connecting = false;
         }
+    }
+
+    /// <summary>
+    /// The same phone again, found afresh by its code: by the time someone
+    /// presses Try Again it may have moved to a new address, and the device
+    /// remembered from the first attempt would dial the old one.
+    /// </summary>
+    private Task RetryPhoneAsync(LanDiscovery.Device previous)
+    {
+        var fresh = _discovery.MatchPhones(previous.Code);
+        return ConnectToAsync(fresh.Count == 1 ? fresh[0] : previous);
     }
 
     private async void OnCodeConnectClick(object sender, RoutedEventArgs e)
@@ -1485,8 +1608,13 @@ public sealed partial class MainWindow : Window
         // ADR-0009 that is enough: ask at that address, on the port every phone
         // offers, and the keys come back over the exchange.
         _localError = null;
-        var fetched = await PairAsync(decoded.Value.Host, PairingDefaultPort, null);
-        if (fetched is not null) await _controller.ConnectAsync(fetched);
+        var host = decoded.Value.Host;
+        _lastAttempt = async () =>
+        {
+            var again = await PairAsync(host, PairingDefaultPort, null);
+            if (again is not null) await _controller.ConnectAsync(again);
+        };
+        await _lastAttempt();
     }
 
     /// <summary>Where a phone offers configurations (/shared/pairing-beacon.md).</summary>
@@ -1503,7 +1631,9 @@ public sealed partial class MainWindow : Window
     private async Task<QrPayload?> PairAsync(string host, int pairingPort, string? name)
     {
         BusyText.Text = Strings.Get("BusyPairing");
-        BusyDetailText.Text = Strings.Get("BusyPairingDetail");
+        // The name the phone is shown, so the two screens can be checked
+        // against each other (P-15). PairingClient sends this same name.
+        BusyDetailText.Text = Strings.Format("BusyPairingDetail", Environment.MachineName);
         _mode = InputMode.Pairing;
         Render();
 
@@ -1587,12 +1717,12 @@ public sealed partial class MainWindow : Window
         }
         var r = reading.Value;
 
-        StatDownRate.Text = $"↓ {TunnelStats.Rate(r.DownPerSecond)}";
-        StatUpRate.Text = $"↑ {TunnelStats.Rate(r.UpPerSecond)}";
-        StatDownTotal.Text = $"{Strings.Get("StatDown")} {TunnelStats.Bytes(r.Received)}";
-        StatUpTotal.Text = $"{Strings.Get("StatUp")} {TunnelStats.Bytes(r.Sent)}";
+        StatDownRate.Text = $"↓ {FormatRate(r.DownPerSecond)}";
+        StatUpRate.Text = $"↑ {FormatRate(r.UpPerSecond)}";
+        StatDownTotal.Text = $"{Strings.Get("StatDown")} {FormatBytes(r.Received)}";
+        StatUpTotal.Text = $"{Strings.Get("StatUp")} {FormatBytes(r.Sent)}";
         StatLatency.Text = r.Latency is { } l
-            ? $"{Strings.Get("StatLatency")} {(int)l.TotalMilliseconds} ms"
+            ? $"{Strings.Get("StatLatency")} {Strings.Format("UnitMs", ((int)l.TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture))}"
             : Strings.Get("StatLatencyUnknown");
         StatDuration.Text = $"{Strings.Get("StatConnectedFor")} {TunnelStats.Duration(r.Duration)}";
     }
@@ -1615,6 +1745,27 @@ public sealed partial class MainWindow : Window
     /// The labels stay: "— " on its own says nothing about which figure is
     /// missing, and they are the localised half of each line.
     /// </summary>
+    /// <summary>
+    /// A byte count with its unit in the reader's language. The units were
+    /// English literals in Core, the only words in the stats panel with no
+    /// Persian (P-18). Keys are spelt out so the coverage test can see them.
+    /// </summary>
+    private static string FormatBytes(long value)
+    {
+        var (number, unit) = TunnelStats.BytesParts(value);
+        return unit switch
+        {
+            "KB" => Strings.Format("UnitKB", number),
+            "MB" => Strings.Format("UnitMB", number),
+            "GB" => Strings.Format("UnitGB", number),
+            "TB" => Strings.Format("UnitTB", number),
+            _ => Strings.Format("UnitB", number),
+        };
+    }
+
+    private static string FormatRate(double bytesPerSecond) =>
+        Strings.Format("UnitPerSecond", FormatBytes((long)bytesPerSecond));
+
     private void ShowStatsUnreadable()
     {
         StatDownRate.Text = $"↓ {Unreadable}";
@@ -1651,6 +1802,7 @@ public sealed partial class MainWindow : Window
                 _controller.DismissError();
                 _mode = InputMode.None;
                 Render();
+                if (action == "TryAgain" && _lastAttempt is { } again) await again();
                 break;
         }
     }

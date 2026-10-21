@@ -131,7 +131,10 @@ class PairingServer(
 
                 Request.PAIR -> {
                     LocalLog.info(LocalLog.Area.PAIRING, "A PC asked to pair", "pc" to address)
-                    val allowed = gate.authorize(address)
+                    // The PC's own name, so the prompt names a computer rather
+                    // than only an address — which is what the contract has
+                    // always said it shows, and what this phone used to drop.
+                    val allowed = gate.authorize(address, requestName(line))
                     val config = configuration(address)
                     if (!allowed || config == null) {
                         writer.appendLine(error(ERR_DENIED)); writer.flush()
@@ -184,6 +187,27 @@ class PairingServer(
          * the device, and a rule this consequential being untestable until it
          * reaches hardware is how it goes wrong quietly.
          */
+        /**
+         * The name a pairing request carries, cleaned for display, or null.
+         *
+         * Attacker-controlled like every other name on this port: control and
+         * bidi-override characters are removed so a name cannot reorder the
+         * sentence it is shown in, and it is cut to 32 characters as the
+         * contract allows. Blank means absent.
+         */
+        internal fun requestName(text: String): String? = try {
+            val raw = Json.parseToJsonElement(text).jsonObject["name"]?.jsonPrimitive
+                ?.takeIf { it.isString }?.content
+            raw?.filter { ch ->
+                !ch.isISOControl() && Character.getType(ch) != Character.FORMAT.toInt()
+            }?.trim()?.take(MAX_NAME)?.trim()?.takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        }
+
+        /** The longest name the contract lets a request carry. */
+        const val MAX_NAME = 32
+
         internal fun classify(text: String): Request = try {
             val obj = Json.parseToJsonElement(text).jsonObject
             val version = obj["v"]?.jsonPrimitive?.intOrNull
