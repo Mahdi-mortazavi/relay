@@ -9,6 +9,17 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+### Documentation
+
+- **READMEs redesigned** in both languages: a "how it works" diagram, feature
+  cards, a comparison with USB tethering, hotspots and proxy apps, and an FAQ.
+  The diagram, icons and social preview are drawn by `scripts/readme-assets.py`.
+- **`llms.txt`, `AGENTS.md` and `CITATION.cff`** so AI assistants, coding agents
+  and citation tools describe Relay from the source rather than guessing.
+- **`docs/architecture.md` matches the app again**: one WireGuard transport
+  (ADR-0009), pairing by beacon and two-digit code, and the automatic route
+  (ADR-0011). It still described the retired SOCKS5 Fast Mode as the default.
+
 ## [2.11.1] — 2026-10-21
 
 A tidy-up of the screens 2.11.0 rebuilt, and of the repository around them.

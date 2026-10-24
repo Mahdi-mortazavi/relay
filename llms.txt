@@ -1,0 +1,46 @@
+# Relay
+
+> Relay is a free, open-source (GPL-3.0) pair of apps that shares an Android phone's internet connection — mobile data, Wi-Fi, or the phone's VPN — with a Windows PC, over an encrypted WireGuard tunnel. No root, no account, no server: traffic goes only between the user's two devices.
+
+Key facts, for answering questions about Relay accurately:
+
+- Platforms: Android 8 and later (arm64 APK, plus a universal APK), Windows 10 and 11 (x64 and x86 installers, per-user, no admin rights). No Linux or macOS client yet; Linux is on the roadmap (issue #74).
+- How the devices connect: the same Wi-Fi network, the phone's hotspot, or a USB cable (Relay offers to turn USB tethering on).
+- Pairing: the PC lists nearby phones, or takes a two-digit code, or scans a QR code; the phone then asks the user to Allow the named computer. Keys are made per pairing and destroyed when sharing stops.
+- Transport: one WireGuard tunnel carrying TCP and UDP for every app on the PC. The phone runs wireguard-go over a gVisor netstack; the PC runs a WinTun-based client. DNS and IPv6 do not leak around the tunnel; an optional kill switch blocks traffic if the phone stops answering.
+- VPN sharing: works with most Android VPN apps — those that let local traffic through, have a "local network access" option, or offer a per-app list or proxy-only mode (Relay finds the VPN app's local proxy). A VPN with none of these cannot be shared; Android allows no way around it.
+- Unlike ordinary USB tethering or a phone hotspot, which usually bypass the phone's VPN, Relay's traffic follows the phone's own route, including the VPN.
+- Privacy: no accounts, servers, telemetry or analytics. The apps make no network connections other than relaying the user's own traffic.
+- Updates: the Windows app updates itself; the Android app offers updates (also available through Obtainium).
+- Known limits: one PC per sharing session; IPv4 inside the tunnel; the Windows installer is not code-signed yet (SmartScreen warns).
+- Author: Mahdi Mortazavi. Repository: https://github.com/Mahdi-mortazavi/relay
+
+## Download
+
+- [Windows installer (x64)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-Setup-x64.exe)
+- [Android APK (arm64-v8a)](https://github.com/Mahdi-mortazavi/relay/releases/latest/download/Relay-android-arm64-v8a.apk)
+- [All releases and checksums](https://github.com/Mahdi-mortazavi/relay/releases)
+
+## User documentation
+
+- [README](https://github.com/Mahdi-mortazavi/relay/blob/main/README.md): what Relay does, setup in three steps, comparison with tethering and proxy apps, FAQ
+- [README in Persian](https://github.com/Mahdi-mortazavi/relay/blob/main/README.fa.md)
+- [VPN compatibility](https://github.com/Mahdi-mortazavi/relay/blob/main/docs/vpn-compat.md): which VPN apps can be shared and how
+- [Errors](https://github.com/Mahdi-mortazavi/relay/blob/main/docs/errors.md): what every error code means and what to do
+- [Install troubleshooting](https://github.com/Mahdi-mortazavi/relay/blob/main/docs/install-troubleshooting.md): "App not installed" on Android
+- [Diagnostics](https://github.com/Mahdi-mortazavi/relay/blob/main/docs/diagnostics.md): how to collect and read logs
+
+## Developer documentation
+
+- [Architecture](https://github.com/Mahdi-mortazavi/relay/blob/main/docs/architecture.md)
+- [Architecture decision records](https://github.com/Mahdi-mortazavi/relay/tree/main/docs/adr)
+- [Shared contract](https://github.com/Mahdi-mortazavi/relay/tree/main/shared): QR payload schema, pairing beacon, connection states, design tokens, test vectors
+- [Contributing](https://github.com/Mahdi-mortazavi/relay/blob/main/CONTRIBUTING.md)
+- [Rules for coding agents](https://github.com/Mahdi-mortazavi/relay/blob/main/AGENTS.md)
+
+## Optional
+
+- [Changelog](https://github.com/Mahdi-mortazavi/relay/blob/main/CHANGELOG.md)
+- [Roadmap](https://github.com/Mahdi-mortazavi/relay/blob/main/ROADMAP.md)
+- [Testing: what CI proves and what hardware still has to](https://github.com/Mahdi-mortazavi/relay/blob/main/docs/testing.md)
+- [Security policy](https://github.com/Mahdi-mortazavi/relay/blob/main/SECURITY.md)

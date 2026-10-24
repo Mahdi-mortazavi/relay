@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" width="1200" height="430" role="img" aria-label="نمودار کارکرد رله: اینترنت گوشی، از جمله وی‌پی‌ان، از راه تونل رمزنگاری‌شدهٔ WireGuard به همهٔ برنامه‌های کامپیوتر می‌رسد.">
+  <title>نمودار کارکرد رله: اینترنت گوشی، از جمله وی‌پی‌ان، از راه تونل رمزنگاری‌شدهٔ WireGuard به همهٔ برنامه‌های کامپیوتر می‌رسد.</title>
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#0E1A2B"/>
+      <stop offset="100%" stop-color="#0A1520"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4ADFBF"/>
+      <stop offset="100%" stop-color="#37C6E0"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4ADFBF" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soften" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="430" rx="24" fill="url(#ground)"/>
+  <circle cx="1000" cy="190" r="170" fill="url(#halo)"/>
+  <circle cx="200" cy="190" r="170" fill="url(#halo)"/>
+  <text x="1000" y="66" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="16" font-weight="700" fill="#8FA3B8" direction="rtl" unicode-bidi="embed">گوشی تو</text>
+  <text x="200" y="66" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="16" font-weight="700" fill="#8FA3B8" direction="rtl" unicode-bidi="embed">کامپیوتر تو</text>
+  <line x1="938" y1="190" x2="290" y2="190" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="2" stroke-dasharray="6 8"><animate attributeName="stroke-dashoffset" values="-28;0" dur="1.6s" repeatCount="indefinite"/></line>
+  <circle cy="190" r="4" fill="#7CF5DC" filter="url(#soften)" opacity="0"><animate attributeName="cx" values="938;290" dur="2.4s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.85;1" dur="2.4s" begin="0s" repeatCount="indefinite"/></circle>
+  <circle cy="190" r="4" fill="#7CF5DC" filter="url(#soften)" opacity="0"><animate attributeName="cx" values="938;290" dur="2.4s" begin="1.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.85;1" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+  <circle cx="614.0" cy="190" r="24" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.5"/>
+  <path d="M606.5 188 v-5 a7.5 7.5 0 0 1 15 0 v5" fill="none" stroke="#4ADFBF" stroke-width="2.2"/>
+  <rect x="604.5" y="188" width="19" height="15" rx="3" fill="#4ADFBF"/>
+  <text x="600" y="144" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="22" font-weight="600" fill="#F2F7FC" direction="rtl" unicode-bidi="embed">تونل رمزنگاری‌شدهٔ WireGuard</text>
+  <g transform="translate(950, 106)">
+    <rect width="100" height="168" rx="20" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <rect x="37" y="12" width="26" height="4" rx="2" fill="#26384E"/>
+    <circle cx="50" cy="84" r="24" fill="none" stroke="#4ADFBF" stroke-opacity="0.28" stroke-width="1.6"/>
+    <circle cx="50" cy="84" r="8.5" fill="#4ADFBF">
+      <animate attributeName="r" values="8.5;10;8.5" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  <g transform="translate(128, 132)">
+    <rect width="144" height="100" rx="10" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <circle cx="72" cy="46" r="16" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="2"/>
+    <circle cx="72" cy="46" r="6" fill="#4ADFBF" opacity="0.85">
+      <animate attributeName="opacity" values="0.85;1;0.85" dur="2.1s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+    <rect x="-14" y="104" width="172" height="8" rx="4" fill="#0E1726" stroke="#26384E" stroke-width="1.4"/>
+  </g>
+  <rect x="847.0" y="300" width="86.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="890.0" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">وی‌پی‌ان</text>
+  <rect x="943.0" y="300" width="79.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="982.5" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">وای‌فای</text>
+  <rect x="1032.0" y="300" width="121.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="1092.5" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">اینترنت همراه</text>
+  <rect x="443.5" y="300" width="86.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="486.5" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">کابل USB</text>
+  <rect x="539.5" y="300" width="93.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="586.0" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">هات‌اسپات</text>
+  <rect x="642.5" y="300" width="114.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="699.5" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">همان وای‌فای</text>
+  <rect x="84.5" y="300" width="93.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="131.0" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">TCP + UDP</text>
+  <rect x="187.5" y="300" width="128.0" height="34" rx="17" fill="#4ADFBF" fill-opacity="0.08" stroke="#4ADFBF" stroke-opacity="0.35"/>
+  <text x="251.5" y="322" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="15" font-weight="600" fill="#BFF5E8" direction="rtl" unicode-bidi="embed">همهٔ برنامه‌ها</text>
+  <text x="1000" y="364" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="14" font-weight="400" fill="#8FA3B8" direction="rtl" unicode-bidi="embed">هر اتصالی که گوشی دارد</text>
+  <text x="600" y="364" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="14" font-weight="400" fill="#8FA3B8" direction="rtl" unicode-bidi="embed">هرچه دو دستگاه را به هم وصل می‌کند</text>
+  <text x="200" y="364" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="14" font-weight="400" fill="#8FA3B8" direction="rtl" unicode-bidi="embed">بازی، تماس و نصب‌کننده‌ها هم</text>
+  <line x1="80" y1="390" x2="1120" y2="390" stroke="#26384E" stroke-width="1"/>
+  <text x="600" y="414" text-anchor="middle" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="14" font-weight="400" fill="#6F8399" direction="rtl" unicode-bidi="embed">بدون سرور، بدون حساب کاربری · کلیدها برای هر جفت‌شدن ساخته و بعدش نابود می‌شوند</text>
+</svg>
