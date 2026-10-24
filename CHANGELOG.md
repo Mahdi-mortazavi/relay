@@ -16,6 +16,12 @@ Artifacts for every version are on the
   The diagram, icons and social preview are drawn by `scripts/readme-assets.py`.
 - **`llms.txt`, `AGENTS.md` and `CITATION.cff`** so AI assistants, coding agents
   and citation tools describe Relay from the source rather than guessing.
+- **A new README cover in the iOS 27 / Liquid Glass style**: a drifting aurora,
+  floating glass, the phone showing its code and the PC's window going live,
+  with traffic riding the encrypted link between them. It is CSS and SMIL
+  inside the SVG, still under `prefers-reduced-motion`, and a finished
+  picture with animation off. `scripts/readme-cover.py` draws it, the
+  narrow version and the matching social preview.
 - **`docs/architecture.md` matches the app again**: one WireGuard transport
   (ADR-0009), pairing by beacon and two-digit code, and the automatic route
   (ADR-0011). It still described the retired SOCKS5 Fast Mode as the default.

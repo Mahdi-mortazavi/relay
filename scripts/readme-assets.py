@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the README's diagram, feature icons and social preview as SVG.
+"""Draws the README's diagram and feature icons as SVG.
 
 Why a script and not hand-edited files: the English and Persian diagrams are
 the same picture mirrored, and keeping two hand-drawn copies in step is how
@@ -7,11 +7,10 @@ they would drift. Change the geometry or a label here and run it again.
 
 Usage:  python3 scripts/readme-assets.py docs/assets
 
-It writes docs/assets/readme/*.svg and docs/assets/social-preview.svg. The
-social preview is uploaded by hand (Settings -> Social preview) as a PNG; render
-it with any browser at 1280x640.
+It writes docs/assets/readme/*.svg. The cover and the social preview are
+drawn by scripts/readme-cover.py.
 
-Same rules as docs/assets/cover.svg: everything visible at rest, motion is
+Same rules as the cover (scripts/readme-cover.py): everything visible at rest, motion is
 SMIL only (GitHub shows these through <img>), nothing outside the viewBox,
 and Persian text is centred so an RTL base direction cannot push it off.
 """
@@ -198,34 +197,8 @@ def icon(name, glyph):
             f'{glyph}</g></svg>\n')
 
 
-def social():
-    W, H = 1280, 640
-    parts = [
-        f'<rect width="{W}" height="{H}" fill="url(#ground)"/>',
-        f'<circle cx="960" cy="320" r="330" fill="url(#halo)"/>',
-        '<g transform="translate(118, 150)"><rect x="-34" y="-34" width="68" height="68" rx="19" fill="url(#accent)"/>'
-        '<path d="M-12 12 L0 -13 L12 12 Z" fill="#0B1220" opacity="0.92"/><circle cx="0" cy="-6" r="5" fill="#0B1220"/></g>',
-        text(172, 168, "Relay", 52, weight=700, anchor="start", spacing="-0.5"),
-        text(84, 278, "Your phone's internet,", 50, weight=700, anchor="start"),
-        text(84, 340, "on your PC.", 50, weight=700, anchor="start"),
-        # Persian line, centred on its own column so its RTL run cannot drift.
-        # RTL with anchor "end" puts the run's left edge on the margin.
-        text(84, 410, "اینترنت گوشی‌ات، روی کامپیوترت", 32, fa=True, weight=700, fill="#4ADFBF", anchor="end"),
-        text(84, 476, "Android → Windows · WireGuard · works with your phone's VPN", 22, anchor="start", fill="#A9BACB"),
-        text(84, 512, "Free and open source · no root · no account · no server", 22, anchor="start", fill="#A9BACB"),
-        text(84, 584, "github.com/Mahdi-mortazavi/relay", 20, anchor="start", fill="#6F8399", spacing="0.3"),
-        phone(820, 320),
-        link(882, 1050, 320),
-        laptop(1140, 320),
-    ]
-    body = "\n  ".join(parts)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
-            f'aria-label="Relay — your phone\'s internet, on your PC.">{DEFS}\n  {body}\n</svg>\n')
-
-
 (OUT / "readme" / "how-it-works.svg").write_text(how_it_works(False), encoding="utf-8")
 (OUT / "readme" / "how-it-works-fa.svg").write_text(how_it_works(True), encoding="utf-8")
 for name, glyph in ICONS.items():
     (OUT / "readme" / f"icon-{name}.svg").write_text(icon(name, glyph), encoding="utf-8")
-(OUT / "social-preview.svg").write_text(social(), encoding="utf-8")
 print("written to", OUT)
