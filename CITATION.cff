@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you refer to Relay in your work, please cite it as below."
+type: software
+title: "Relay: share an Android phone's internet with a Windows PC over WireGuard"
+abstract: >-
+  Relay shares an Android phone's internet connection, including the phone's
+  VPN, with a Windows PC over an encrypted WireGuard tunnel carried on the same
+  Wi-Fi, the phone's hotspot or a USB cable. It needs no root, no account and
+  no server.
+authors:
+  - given-names: Mahdi
+    family-names: Mortazavi
+repository-code: "https://github.com/Mahdi-mortazavi/relay"
+url: "https://mahdi-mortazavi.github.io/p/relay/"
+license: GPL-3.0-or-later
+keywords:
+  - reverse tethering
+  - internet sharing
+  - android
+  - windows
+  - wireguard
+  - vpn
+  - tethering

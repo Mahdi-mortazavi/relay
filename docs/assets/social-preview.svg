@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Relay — your phone's internet, on your PC.">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#0E1A2B"/>
+      <stop offset="100%" stop-color="#0A1520"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4ADFBF"/>
+      <stop offset="100%" stop-color="#37C6E0"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4ADFBF" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#4ADFBF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soften" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="640" fill="url(#ground)"/>
+  <circle cx="960" cy="320" r="330" fill="url(#halo)"/>
+  <g transform="translate(118, 150)"><rect x="-34" y="-34" width="68" height="68" rx="19" fill="url(#accent)"/><path d="M-12 12 L0 -13 L12 12 Z" fill="#0B1220" opacity="0.92"/><circle cx="0" cy="-6" r="5" fill="#0B1220"/></g>
+  <text x="172" y="168" text-anchor="start" font-family="'Segoe UI', Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="52" font-weight="700" fill="#F2F7FC" letter-spacing="-0.5">Relay</text>
+  <text x="84" y="278" text-anchor="start" font-family="'Segoe UI', Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="50" font-weight="700" fill="#F2F7FC">Your phone's internet,</text>
+  <text x="84" y="340" text-anchor="start" font-family="'Segoe UI', Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="50" font-weight="700" fill="#F2F7FC">on your PC.</text>
+  <text x="84" y="410" text-anchor="end" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Iranian Sans', sans-serif" font-size="32" font-weight="700" fill="#4ADFBF" direction="rtl" unicode-bidi="embed">اینترنت گوشی‌ات، روی کامپیوترت</text>
+  <text x="84" y="476" text-anchor="start" font-family="'Segoe UI', Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="22" font-weight="400" fill="#A9BACB">Android → Windows · WireGuard · works with your phone's VPN</text>
+  <text x="84" y="512" text-anchor="start" font-family="'Segoe UI', Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="22" font-weight="400" fill="#A9BACB">Free and open source · no root · no account · no server</text>
+  <text x="84" y="584" text-anchor="start" font-family="'Segoe UI', Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="20" font-weight="400" fill="#6F8399" letter-spacing="0.3">github.com/Mahdi-mortazavi/relay</text>
+  <g transform="translate(770, 236)">
+    <rect width="100" height="168" rx="20" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <rect x="37" y="12" width="26" height="4" rx="2" fill="#26384E"/>
+    <circle cx="50" cy="84" r="24" fill="none" stroke="#4ADFBF" stroke-opacity="0.28" stroke-width="1.6"/>
+    <circle cx="50" cy="84" r="8.5" fill="#4ADFBF">
+      <animate attributeName="r" values="8.5;10;8.5" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  <line x1="882" y1="320" x2="1050" y2="320" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="2" stroke-dasharray="6 8"><animate attributeName="stroke-dashoffset" values="28;0" dur="1.6s" repeatCount="indefinite"/></line>
+  <circle cy="320" r="4" fill="#7CF5DC" filter="url(#soften)" opacity="0"><animate attributeName="cx" values="882;1050" dur="2.4s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.85;1" dur="2.4s" begin="0s" repeatCount="indefinite"/></circle>
+  <circle cy="320" r="4" fill="#7CF5DC" filter="url(#soften)" opacity="0"><animate attributeName="cx" values="882;1050" dur="2.4s" begin="1.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.85;1" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+  <circle cx="966.0" cy="320" r="24" fill="#0E1726" stroke="#4ADFBF" stroke-opacity="0.5"/>
+  <path d="M958.5 318 v-5 a7.5 7.5 0 0 1 15 0 v5" fill="none" stroke="#4ADFBF" stroke-width="2.2"/>
+  <rect x="956.5" y="318" width="19" height="15" rx="3" fill="#4ADFBF"/>
+  <g transform="translate(1068, 262)">
+    <rect width="144" height="100" rx="10" fill="#0E1726" stroke="#26384E" stroke-width="1.6"/>
+    <circle cx="72" cy="46" r="16" fill="none" stroke="#4ADFBF" stroke-opacity="0.30" stroke-width="2"/>
+    <circle cx="72" cy="46" r="6" fill="#4ADFBF" opacity="0.85">
+      <animate attributeName="opacity" values="0.85;1;0.85" dur="2.1s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+    <rect x="-14" y="104" width="172" height="8" rx="4" fill="#0E1726" stroke="#26384E" stroke-width="1.4"/>
+  </g>
+</svg>
