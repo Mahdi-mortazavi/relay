@@ -2,6 +2,7 @@ package io.relay.app
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -52,6 +53,24 @@ class MainActivity : ComponentActivity() {
      */
     private val startRequested = MutableStateFlow(false)
 
+    /**
+     * API 37 is the first Android that gates local-network traffic. Below it the
+     * permission does not exist, so asking would only show a dialog for nothing.
+     */
+    private fun needsLocalNetworkPermission(): Boolean =
+        Build.VERSION.SDK_INT >= 37 &&
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+            PackageManager.PERMISSION_GRANTED
+
+    /** The rest of the way to sharing once local-network access has been dealt with. */
+    private fun requestStart(askNotifications: (String) -> Unit) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            askNotifications(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.startSharing()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readStartRequest(intent)
@@ -80,6 +99,23 @@ class MainActivity : ComponentActivity() {
                         ActivityResultContracts.RequestPermission(),
                     ) { viewModel.startSharing() } // start regardless; the notification just may not show
 
+                    // Android 17 blocks local-network traffic for an app that targets
+                    // API 37 until the person allows it, and does so silently: the
+                    // beacon never leaves the phone and the pairing port never
+                    // completes a handshake, while sharing reports nothing wrong.
+                    // Asked before the notification prompt, and sharing starts either
+                    // way -- a refusal should leave the app usable, not stuck.
+                    val localNetworkPermission = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission(),
+                    ) { requestStart { notificationPermission.launch(it) } }
+                    val startSharing = {
+                        if (needsLocalNetworkPermission()) {
+                            localNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                        } else {
+                            requestStart { notificationPermission.launch(it) }
+                        }
+                    }
+
                     // Re-check the exemption whenever the user returns from Settings,
                     // and watch the cable for as long as the screen is in front of
                     // someone. watchCable suspends forever, so it is cancelled on
@@ -107,11 +143,7 @@ class MainActivity : ComponentActivity() {
                         if (!wantsStart) return@LaunchedEffect
                         startRequested.value = false
                         if (state !is ConnectionState.Idle) return@LaunchedEffect
-                        if (Build.VERSION.SDK_INT >= 33) {
-                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            viewModel.startSharing()
-                        }
+                        startSharing()
                     }
 
                     // First launch only. Everything it offers is reachable
@@ -136,13 +168,7 @@ class MainActivity : ComponentActivity() {
                         themeMode = themeMode,
                         fullModeAvailable = viewModel.fullModeAvailable,
                         logs = logs,
-                        onStart = {
-                            if (Build.VERSION.SDK_INT >= 33) {
-                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                viewModel.startSharing()
-                            }
-                        },
+                        onStart = startSharing,
                         onStop = viewModel::stopSharing,
                         onRetry = viewModel::retry,
                         onDismissError = viewModel::dismissError,
