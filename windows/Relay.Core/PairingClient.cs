@@ -13,13 +13,22 @@ namespace Relay.Core;
 /// so this can sit waiting for up to a minute and that is the normal case, not
 /// a fault.
 ///
+/// <para>With an <paramref name="identity"/>, the request also carries this PC's
+/// public key, and a phone that knows about keys answers with a challenge before
+/// anything else; this signs it and carries on (/shared/pairing-beacon.md →
+/// "Trusted computers"; ADR-0012). A phone that does not know about keys ignores
+/// the field and never challenges, and with no identity the request is exactly
+/// what it was before.</para>
+///
 /// Everything that comes back is untrusted until the tunnel handshakes. A phone
 /// is whatever answered on that address, and the beacon that named the address
 /// was an unauthenticated broadcast — so a malformed or incomplete
 /// configuration is a failure to report, never something to hand to the tunnel
 /// and hope.
 /// </summary>
-public sealed class PairingClient(PairingClient.IConnector? connector = null)
+public sealed class PairingClient(
+    PairingClient.IConnector? connector = null,
+    IDeviceIdentity? identity = null)
 {
     /// <summary>The exchange's outcome, with a stable code from docs/errors.md.</summary>
     public sealed record Result(WgParams? Wg, string? Host, int Port, string? ErrorCode)
@@ -85,9 +94,21 @@ public sealed class PairingClient(PairingClient.IConnector? connector = null)
         {
             try
             {
-                exchange.Send(Request(clientName));
+                exchange.Send(Request(clientName, identity?.PublicKey));
                 var reply = exchange.Receive(ApprovalTimeout);
                 if (reply is null) return Result.Fail("ERR_HOST_UNREACHABLE");
+
+                // A phone that was sent a key asks for proof of it before it
+                // asks the person anything. Answering is what lets it skip the
+                // prompt next time, or offer "Always allow" this time; whether
+                // it does is the phone's business and not visible from here.
+                if (identity is not null && ReadChallenge(reply) is { } challenge)
+                {
+                    exchange.Send(ProofLine(identity.Sign(challenge)));
+                    reply = exchange.Receive(ApprovalTimeout);
+                    if (reply is null) return Result.Fail("ERR_HOST_UNREACHABLE");
+                }
+
                 return Parse(reply);
             }
             catch (Exception)
@@ -97,14 +118,54 @@ public sealed class PairingClient(PairingClient.IConnector? connector = null)
         }
     }
 
-    /// <summary>The request from the contract. Asserted byte-for-byte by the shared vectors.</summary>
-    public static string Request(string? clientName = null)
+    /// <summary>
+    /// The request from the contract. Asserted byte-for-byte by the shared vectors.
+    /// <paramref name="key"/> is this PC's public key (65 bytes, base64) and is
+    /// left out unless it is exactly that: it goes into the JSON as written, so
+    /// it has to be known to need no escaping, and a malformed one would only
+    /// make the phone ignore it anyway.
+    /// </summary>
+    public static string Request(string? clientName = null, string? key = null)
     {
         var name = Sanitize(clientName);
+        var keyPart = key is not null && KeyShape.IsMatch(key) ? $",\"key\":\"{key}\"" : "";
         return name is null
-            ? $$"""{"v":{{Version}},"pair":1}"""
-            : $$"""{"v":{{Version}},"pair":1,"name":{{JsonSerializer.Serialize(name)}}}""";
+            ? $$"""{"v":{{Version}},"pair":1{{keyPart}}}"""
+            : $$"""{"v":{{Version}},"pair":1,"name":{{JsonSerializer.Serialize(name)}}{{keyPart}}}""";
     }
+
+    /// <summary>65 bytes is 22 base64 groups with one pad: 87 characters and an '='.</summary>
+    private static readonly System.Text.RegularExpressions.Regex KeyShape =
+        new("^[A-Za-z0-9+/]{87}=$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The challenge in <paramref name="reply"/>, or null if this is not one: not
+    /// JSON, not our version, no <c>challenge</c>, or not exactly 32 bytes. A
+    /// reply that is not a challenge goes to <see cref="Parse"/> like any other.
+    /// </summary>
+    public static byte[]? ReadChallenge(string reply)
+    {
+        try
+        {
+            using var json = JsonDocument.Parse(reply);
+            var root = json.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            if (!root.TryGetProperty("v", out var v) || v.ValueKind != JsonValueKind.Number
+                || v.GetInt32() != Version) return null;
+            if (!root.TryGetProperty("challenge", out var c) || c.ValueKind != JsonValueKind.String)
+                return null;
+            var bytes = Convert.FromBase64String(c.GetString()!);
+            return bytes.Length == DeviceIdentity.ChallengeBytes ? bytes : null;
+        }
+        catch (Exception e) when (e is JsonException or FormatException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The line that answers a challenge. Asserted byte-for-byte by the shared vectors.</summary>
+    public static string ProofLine(byte[] proof) =>
+        $$"""{"v":{{Version}},"proof":"{{Convert.ToBase64String(proof)}}"}""";
 
     /// <summary>≤ 32 chars and no control characters; this is display data on someone else's phone.</summary>
     private static string? Sanitize(string? name)

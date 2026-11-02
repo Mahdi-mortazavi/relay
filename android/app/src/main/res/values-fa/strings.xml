@@ -187,4 +187,17 @@
     <string name="advanced_section_diagnostics">عیب‌یابی</string>
     <string name="advanced_route_hint">حالت خودکار وی‌پی‌ان گوشی را از هر راهی که کار کند به اشتراک می‌گذارد و هر چند ثانیه دوباره بررسی می‌کند.</string>
     <string name="advanced_upstream_manual">استفاده از یک پروکسی مشخص</string>
+
+    <!-- Trusted computers (ADR-0012) -->
+    <string name="approve_always">همیشه اجازه بده</string>
+    <string name="approve_always_hint">رله دیگر درباره این رایانه نمی‌پرسد. بعداً می‌توانید آن را از بخش پیشرفته حذف کنید.</string>
+    <string name="advanced_section_trusted">رایانه‌های مورد اعتماد</string>
+    <string name="trusted_empty">هنوز هیچ‌کدام. وقتی رایانه‌ای درخواست اتصال می‌کند، «همیشه اجازه بده» را بزنید.</string>
+    <string name="trusted_hint">این رایانه‌ها بدون پرسش وصل می‌شوند. اگر یکی را حذف کنید، دوباره از آن پرسیده می‌شود.</string>
+    <string name="trusted_unnamed">رایانه بدون نام</string>
+    <string name="trusted_added">افزوده‌شده %1$s</string>
+    <string name="trusted_used">آخرین استفاده %1$s</string>
+    <string name="trusted_remove">حذف</string>
+    <string name="trusted_remove_named">حذف %1$s از رایانه‌های مورد اعتماد</string>
+    <string name="trusted_remove_all">حذف همه</string>
 </resources>

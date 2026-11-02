@@ -62,7 +62,21 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(KEY_AUTOMATIC_ROUTE, true)
         set(value) = prefs.edit().putBoolean(KEY_AUTOMATIC_ROUTE, value).apply()
 
+    /**
+     * The computers the person chose "Always allow" for, as JSON, or null.
+     *
+     * Public keys and display names, which is why it lives with the other
+     * preferences. It is the one setting here that decides who may use the
+     * phone's connection without being asked, so [TrustedDevices] -- not this
+     * class -- owns reading it: anything it cannot make sense of means nobody
+     * is trusted.
+     */
+    var trustedDevicesJson: String?
+        get() = prefs.getString(KEY_TRUSTED, null)
+        set(value) = prefs.edit().putString(KEY_TRUSTED, value).apply()
+
     companion object {
+        private const val KEY_TRUSTED = "trusted_devices"
         private const val KEY_AUTOMATIC_ROUTE = "automatic_route"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_ONBOARDED = "onboarded"

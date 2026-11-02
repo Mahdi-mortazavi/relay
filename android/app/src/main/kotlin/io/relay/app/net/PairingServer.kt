@@ -1,7 +1,9 @@
 package io.relay.app.net
 
+import io.relay.app.core.TrustProof
 import io.relay.app.core.WgParams
 import io.relay.app.service.LocalLog
+import io.relay.app.service.TrustedDevices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +52,13 @@ class PairingServer(
     private val configuration: (client: String) -> Configuration?,
     /** Overridable so a test can prove the idle close without waiting it out. */
     private val idleTimeoutMs: Int = IDLE_TIMEOUT_MS,
+    /**
+     * The computers the person chose "Always allow" for, or null for a phone
+     * that remembers nobody. ADR-0012.
+     */
+    private val trust: TrustedDevices? = null,
+    /** Overridable so a test can know the challenge it is expected to sign. */
+    private val newChallenge: () -> ByteArray = { TrustProof.newChallenge() },
 ) {
     /** Everything a client needs, matching the `wg` block in qr-payload.schema.json. */
     data class Configuration(val host: String, val port: Int, val wg: WgParams)
@@ -134,7 +143,25 @@ class PairingServer(
                     // The PC's own name, so the prompt names a computer rather
                     // than only an address — which is what the contract has
                     // always said it shows, and what this phone used to drop.
-                    val allowed = gate.authorize(address, requestName(line))
+                    val name = requestName(line)
+
+                    // A PC that sent a key is asked to prove it holds it, always
+                    // -- not only when the key is on the list -- so this phone's
+                    // answer never reveals who is on it. Failing to prove is not
+                    // an error: the request simply carries on as an ordinary one,
+                    // and an unproven key is never offered "Always allow".
+                    val proven = proveKey(line, reader, writer)
+                    val trusted = proven != null && trust?.isTrusted(proven) == true
+                    if (trusted && proven != null) {
+                        gate.admit(address)
+                        trust?.used(proven, name)
+                        LocalLog.info(
+                            LocalLog.Area.PAIRING, "A trusted PC paired without asking",
+                            "pc" to address,
+                            "id" to TrustProof.fingerprint(proven),
+                        )
+                    }
+                    val allowed = trusted || gate.authorize(address, name, proven)
                     val config = configuration(address)
                     if (!allowed || config == null) {
                         writer.appendLine(error(ERR_DENIED)); writer.flush()
@@ -158,6 +185,28 @@ class PairingServer(
         } finally {
             runCatching { client.close() }
         }
+    }
+
+    /**
+     * Sends the challenge for the key in [line] and checks the answer. The key
+     * if the PC proved it holds it; null for no key, a malformed one, silence,
+     * or a wrong proof -- all of which mean the same thing to everything after.
+     */
+    private fun proveKey(
+        line: String,
+        reader: java.io.BufferedReader,
+        writer: java.io.BufferedWriter,
+    ): ByteArray? {
+        val key = requestKey(line) ?: return null
+        val challenge = newChallenge()
+        writer.appendLine(challengeLine(challenge)); writer.flush()
+        val reply = try {
+            reader.readLine()
+        } catch (_: SocketTimeoutException) {
+            null
+        } ?: return null
+        val proof = proofOf(reply) ?: return null
+        return if (TrustProof.verify(key, challenge, proof)) key else null
     }
 
     internal enum class Request { PAIR, WRONG_VERSION, IGNORE }
@@ -207,6 +256,35 @@ class PairingServer(
 
         /** The longest name the contract lets a request carry. */
         const val MAX_NAME = 32
+
+        /**
+         * The PC's key from a request, or null if there is none or it is not an
+         * uncompressed P-256 point on the curve. Untrusted like everything else
+         * here; [TrustProof.decodeKey] does the checking.
+         */
+        internal fun requestKey(text: String): ByteArray? = try {
+            val raw = Json.parseToJsonElement(text).jsonObject["key"]?.jsonPrimitive
+                ?.takeIf { it.isString }?.content
+            TrustProof.decodeKey(raw)
+        } catch (_: Exception) {
+            null
+        }
+
+        /** The proof's 64 bytes from a `{"v":1,"proof":"…"}` line, or null. */
+        internal fun proofOf(text: String): ByteArray? = try {
+            val obj = Json.parseToJsonElement(text).jsonObject
+            val ours = obj["v"]?.jsonPrimitive?.intOrNull == VERSION
+            val raw = obj["proof"]?.jsonPrimitive?.takeIf { it.isString }?.content
+            if (ours) TrustProof.decode(raw)?.takeIf { it.size == TrustProof.PROOF_BYTES } else null
+        } catch (_: Exception) {
+            null
+        }
+
+        /** The line that asks a PC to prove its key. Pinned by the shared vectors. */
+        internal fun challengeLine(challenge: ByteArray): String = buildJsonObject {
+            put("v", VERSION)
+            put("challenge", TrustProof.encode(challenge))
+        }.toString()
 
         internal fun classify(text: String): Request = try {
             val obj = Json.parseToJsonElement(text).jsonObject

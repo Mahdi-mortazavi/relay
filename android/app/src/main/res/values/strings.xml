@@ -190,4 +190,17 @@
     <string name="advanced_section_diagnostics">Diagnostics</string>
     <string name="advanced_route_hint">Automatic shares the phone\'s VPN whichever way works, and checks again every few seconds.</string>
     <string name="advanced_upstream_manual">Use a specific proxy</string>
+
+    <!-- Trusted computers (ADR-0012) -->
+    <string name="approve_always">Always allow</string>
+    <string name="approve_always_hint">Relay will stop asking about this computer. You can remove it later in Advanced.</string>
+    <string name="advanced_section_trusted">Trusted computers</string>
+    <string name="trusted_empty">None yet. Choose “Always allow” when a computer asks to connect.</string>
+    <string name="trusted_hint">These computers connect without asking. Remove one and it is asked about again.</string>
+    <string name="trusted_unnamed">Unnamed computer</string>
+    <string name="trusted_added">Added %1$s</string>
+    <string name="trusted_used">Last used %1$s</string>
+    <string name="trusted_remove">Remove</string>
+    <string name="trusted_remove_named">Remove %1$s from trusted computers</string>
+    <string name="trusted_remove_all">Remove all</string>
 </resources>
