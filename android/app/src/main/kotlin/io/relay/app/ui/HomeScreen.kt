@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.text.BidiFormatter
 import android.os.SystemClock
+import android.text.format.DateUtils
 import io.relay.app.R
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.ErrorCode
@@ -91,6 +92,7 @@ import io.relay.app.core.RouteChoice
 import io.relay.app.net.UsbLink
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
+import io.relay.app.service.TrustedDevice
 import io.relay.app.ui.theme.LocalGlass
 import io.relay.app.ui.theme.glassPanel
 import java.util.Locale
@@ -123,6 +125,17 @@ fun HomeScreen(
     /** Opens the system's network settings, for the errors only a setting can fix. */
     onOpenNetworkSettings: () -> Unit = {},
     onApproveClient: (Boolean) -> Unit = {},
+    /**
+     * Whether the waiting computer proved a key, which is what lets the prompt
+     * offer "Always allow" (ADR-0012). False for a computer that sent none, or
+     * could not prove the one it sent.
+     */
+    pendingClientCanTrust: Boolean = false,
+    onApproveClientAlways: () -> Unit = {},
+    /** The computers the person chose "Always allow" for, most recent first. */
+    trustedDevices: List<TrustedDevice> = emptyList(),
+    onRemoveTrusted: (String) -> Unit = {},
+    onClearTrusted: () -> Unit = {},
     /** What the USB cable is doing. See [UsbLink.Cable]. */
     cable: UsbLink.Cable = UsbLink.Cable.Absent,
     onTurnOnUsb: () -> Unit = {},
@@ -245,13 +258,20 @@ fun HomeScreen(
                 upstreamProxy, onSetUpstreamProxy,
                 proxyScan, onScanForProxy, onUseFoundProxy,
                 automaticRoute, onSetAutomaticRoute, currentRoute,
+                trustedDevices, onRemoveTrusted, onClearTrusted,
             )
         }
 
         // Inside the Box and after the scrolling Column, so it sits above the
         // whole screen rather than scrolling away with the content.
         if (pendingClient != null) {
-            ApprovalDialog(address = pendingClient, name = pendingClientName, onAnswer = onApproveClient)
+            ApprovalDialog(
+                address = pendingClient,
+                name = pendingClientName,
+                canTrust = pendingClientCanTrust,
+                onAnswer = onApproveClient,
+                onAlways = onApproveClientAlways,
+            )
         }
     }
 }
@@ -561,7 +581,13 @@ private fun PreparingPanel() {
  * The person has to choose, or let it time out, which the gate counts as no.
  */
 @Composable
-private fun ApprovalDialog(address: String, name: String?, onAnswer: (Boolean) -> Unit) {
+private fun ApprovalDialog(
+    address: String,
+    name: String?,
+    canTrust: Boolean,
+    onAnswer: (Boolean) -> Unit,
+    onAlways: () -> Unit,
+) {
     val glass = LocalGlass.current
     // The name the PC gave, beside the address it came from. A name alone is
     // whatever the sender typed; an address alone is something nobody can
@@ -577,7 +603,26 @@ private fun ApprovalDialog(address: String, name: String?, onAnswer: (Boolean) -
         titleContentColor = glass.textPrimary,
         textContentColor = glass.textSecondary,
         title = { Text(stringResource(R.string.approve_title)) },
-        text = { Text(body) },
+        text = {
+            Column {
+                Text(body)
+                // Only for a computer that proved it holds its key: an unproven
+                // one cannot be remembered, so offering it would be a button
+                // that quietly does nothing.
+                if (canTrust) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.approve_always_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = glass.textTertiary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = onAlways) {
+                        Text(stringResource(R.string.approve_always), color = glass.textSecondary)
+                    }
+                }
+            }
+        },
         confirmButton = {
             TextButton(onClick = { onAnswer(true) }) {
                 Text(stringResource(R.string.approve_allow))
@@ -1085,6 +1130,9 @@ private fun AdvancedSection(
     automaticRoute: Boolean,
     onSetAutomaticRoute: (Boolean) -> Unit,
     currentRoute: RouteChoice.Route?,
+    trustedDevices: List<TrustedDevice>,
+    onRemoveTrusted: (String) -> Unit,
+    onClearTrusted: () -> Unit,
 ) {
     val glass = LocalGlass.current
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -1292,6 +1340,12 @@ private fun AdvancedSection(
                     }
                 }
 
+                // Computers the person said "Always allow" to (ADR-0012). Between
+                // the connection and the look of the app because it is the other
+                // setting here that changes who may use the phone.
+                AdvancedHeading(R.string.advanced_section_trusted)
+                TrustedComputers(trustedDevices, onRemoveTrusted, onClearTrusted)
+
                 // Appearance
                 AdvancedHeading(R.string.advanced_theme)
                 Column {
@@ -1386,6 +1440,72 @@ private fun installedVersion(): String {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "unknown"
+    }
+}
+
+/**
+ * The computers the phone no longer asks about, and the way to take one back.
+ *
+ * Each row names the computer by what it called itself and tells it apart from a
+ * namesake by its fingerprint -- the name is whatever the sender typed, so on
+ * its own it identifies nobody. Removing is one tap with no confirmation: the
+ * cost of being wrong is one prompt, and a security control that asks "are you
+ * sure?" before it tightens is one people stop using.
+ */
+@Composable
+private fun TrustedComputers(
+    devices: List<TrustedDevice>,
+    onRemove: (String) -> Unit,
+    onRemoveAll: () -> Unit,
+) {
+    val glass = LocalGlass.current
+    if (devices.isEmpty()) {
+        Text(
+            stringResource(R.string.trusted_empty),
+            style = MaterialTheme.typography.bodySmall,
+            color = glass.textTertiary,
+        )
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            stringResource(R.string.trusted_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = glass.textTertiary,
+        )
+        devices.forEach { device ->
+            val label = device.name?.let(::isolate) ?: stringResource(R.string.trusted_unnamed)
+            val removeLabel = stringResource(R.string.trusted_remove_named, label)
+            val relative = DateUtils.getRelativeTimeSpanString(
+                device.activeAtMs, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
+            ).toString()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(label, style = MaterialTheme.typography.bodyMedium, color = glass.textPrimary)
+                    Text(
+                        isolate(device.fingerprint) + " · " + stringResource(
+                            if (device.lastUsedAtMs != null) R.string.trusted_used else R.string.trusted_added,
+                            relative,
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = glass.textTertiary,
+                    )
+                }
+                Text(
+                    stringResource(R.string.trusted_remove),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = glass.textSecondary,
+                    modifier = Modifier
+                        .clickable(role = Role.Button) { onRemove(device.key) }
+                        .minimumInteractiveComponentSize()
+                        .padding(4.dp)
+                        .semantics { contentDescription = removeLabel },
+                )
+            }
+        }
+        if (devices.size > 1) {
+            QuietAction(stringResource(R.string.trusted_remove_all), onClick = onRemoveAll)
+        }
     }
 }
 

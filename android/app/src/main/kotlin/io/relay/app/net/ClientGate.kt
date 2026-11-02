@@ -1,5 +1,6 @@
 package io.relay.app.net
 
+import io.relay.app.core.TrustProof
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,12 +21,20 @@ import java.util.concurrent.ConcurrentHashMap
  * first connection from an address nobody has approved stops and waits for a
  * human. Contract: /shared/pairing-beacon.md, "Approval".
  *
- * Decisions last for the sharing session and are never persisted. A decision
- * remembered across sessions is a decision made about a network you may have
- * since left.
+ * Decisions about an *address* last for the sharing session and are never
+ * persisted. A decision remembered across sessions is a decision made about a
+ * network you may have since left, and an address is something anyone can hold
+ * for a moment. What can be remembered is a *key*: see [TrustedDevices] and
+ * ADR-0012, which is why [authorize] can carry one and [admit] exists.
  */
 class ClientGate(
     private val timeoutMs: Long = TIMEOUT_MS,
+    /**
+     * Called when the person chose "Always allow" for a computer that proved its
+     * key, with that key and the name it gave. Where the list lives is not this
+     * class's business; it only knows the moment a person decided.
+     */
+    private val onRemember: (key: ByteArray, name: String?) -> Unit = { _, _ -> },
 ) {
     enum class Decision { ALLOWED, DENIED }
 
@@ -37,7 +46,17 @@ class ClientGate(
      * decision is still keyed by [address], because a name is whatever the
      * sender chose to type.
      */
-    data class Pending(val address: String, val name: String? = null)
+    data class Pending(
+        val address: String,
+        val name: String? = null,
+        /**
+         * The computer's P-256 key, base64, **only if it proved it holds it**
+         * (/shared/pairing-beacon.md → "Trusted computers"). Non-null is what
+         * lets the prompt offer "Always allow"; an unproven key is never put
+         * here, so a key cannot be enrolled by someone who does not own it.
+         */
+        val provenKey: String? = null,
+    )
 
     private val decisions = ConcurrentHashMap<String, Decision>()
 
@@ -68,7 +87,7 @@ class ClientGate(
      * Silence is a denial. A phone in a pocket must fail closed, or "I did not
      * notice the prompt" becomes "anyone on this network may use my data".
      */
-    suspend fun authorize(address: String, name: String? = null): Boolean {
+    suspend fun authorize(address: String, name: String? = null, provenKey: ByteArray? = null): Boolean {
         decisions[address]?.let { return it == Decision.ALLOWED }
 
         // One prompt at a time: two computers connecting together must not race
@@ -78,7 +97,7 @@ class ClientGate(
             decisions[address]?.let { return@withLock it == Decision.ALLOWED }
             val answer = CompletableDeferred<Decision>()
             waiters[address] = answer
-            _pending.value = Pending(address, name)
+            _pending.value = Pending(address, name, provenKey?.let(TrustProof::encode))
             var answered = true
             val decision = try {
                 withTimeout(timeoutMs) { answer.await() }
@@ -113,11 +132,27 @@ class ClientGate(
      * the promise hands the waiting coroutine back to its own dispatcher rather
      * than running it here.
      */
-    fun resolve(address: String, allowed: Boolean) {
+    fun resolve(address: String, allowed: Boolean, remember: Boolean = false) {
         val decision = if (allowed) Decision.ALLOWED else Decision.DENIED
+        // Read before the prompt is cleared below. Remembering needs a key that
+        // was proven for *this* prompt: nothing else can make a computer trusted.
+        val pending = _pending.value?.takeIf { it.address == address }
+        if (allowed && remember) {
+            pending?.provenKey?.let(TrustProof::decode)?.let { onRemember(it, pending.name) }
+        }
         decisions[address] = decision
         waiters.remove(address)?.complete(decision)
         if (_pending.value?.address == address) _pending.value = null
+    }
+
+    /**
+     * Lets [address] through for the rest of this sharing session without asking,
+     * because the computer behind it proved a key the person already trusts.
+     * The address decision is still per session and dies with it, exactly as if
+     * the person had tapped Allow.
+     */
+    fun admit(address: String) {
+        decisions[address] = Decision.ALLOWED
     }
 
     /** True when [address] has already been decided, either way. */

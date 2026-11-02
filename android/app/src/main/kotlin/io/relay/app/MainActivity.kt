@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val pendingClient by ConnectionRepository.clientGate.pending.collectAsState()
+                    val trustedDevices by viewModel.trustedDevices.collectAsState()
                     val updateAvailable by viewModel.updateAvailable.collectAsState()
                     val cable by viewModel.cable.collectAsState()
 
@@ -181,6 +182,15 @@ class MainActivity : ComponentActivity() {
                         updateAvailable = updateAvailable,
                         pendingClient = pendingClient?.address,
                         pendingClientName = pendingClient?.name,
+                        pendingClientCanTrust = pendingClient?.provenKey != null,
+                        onApproveClientAlways = {
+                            pendingClient?.let {
+                                ConnectionRepository.clientGate.resolve(it.address, allowed = true, remember = true)
+                            }
+                        },
+                        trustedDevices = trustedDevices,
+                        onRemoveTrusted = viewModel::removeTrusted,
+                        onClearTrusted = viewModel::clearTrusted,
                         onOpenNetworkSettings = ::openNetworkSettings,
                         onApproveClient = { allowed ->
                             pendingClient?.let {

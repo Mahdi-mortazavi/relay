@@ -14,6 +14,7 @@ import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.InstallSource
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
+import io.relay.app.service.TrustedDevice
 import io.relay.app.service.SharingService
 import io.relay.app.core.UpdateCheck
 import io.relay.app.service.UpdateFetcher
@@ -31,6 +32,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 
     private val settings = Settings(application)
+
+    init {
+        // The sharing service does the same on start; whichever runs first
+        // loads the list and the other is a no-op. The screen needs it before a
+        // session exists, to show who is already trusted.
+        ConnectionRepository.trustedDevices.attach(
+            load = { settings.trustedDevicesJson },
+            save = { settings.trustedDevicesJson = it },
+        )
+    }
+
+    /** The computers the person chose "Always allow" for, most recent first. */
+    val trustedDevices: StateFlow<List<TrustedDevice>> = ConnectionRepository.trustedDevices.devices
+
+    /** Stops trusting one computer; it is asked about again from its next request. */
+    fun removeTrusted(key: String) = ConnectionRepository.trustedDevices.remove(key)
+
+    /** Stops trusting every computer. */
+    fun clearTrusted() = ConnectionRepository.trustedDevices.clear()
 
     val state: StateFlow<ConnectionState> = ConnectionRepository.state
     val warnings: StateFlow<Set<WarningCode>> = ConnectionRepository.warnings

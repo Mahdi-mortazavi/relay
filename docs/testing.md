@@ -403,6 +403,35 @@ What only a person with the devices can say, and has not yet been checked:
    same phone without retyping.
 7. Android with *Remove animations* on: no pulsing dot or "Starting…".
 
+### Trusted computers ("Always allow") — awaiting hardware (ADR-0012)
+
+What is proved, and where: the proof itself (`shared/test-vectors.json` →
+`trustedComputers`, asserted by Android's `TrustProofTest` and Windows'
+`TrustedComputerTest`, and cross-checked with `openssl` when the vectors were
+made); the phone's list (`TrustedDevicesTest`: persistence, the bound of 16, a
+damaged store trusting nobody); the gate (`ClientGateTrustTest`: nothing is
+remembered unless the person asked, a denial is never remembered, an unproven
+key cannot be remembered); and the whole exchange over real loopback sockets
+(`PairingServerTrustTest`: a trusted computer is not asked, an unknown one is
+challenged and offered Always allow, a wrong, missing or replayed proof is asked
+like anyone else, a copied name earns nothing). Windows asserts its side of the
+conversation against a scripted phone (`TrustedComputerTest`).
+
+What only the two devices can say, and has not yet been checked:
+
+1. The prompt on a real phone shows **Always allow** for the Windows app and not
+   for a PC that sent no key (an older Relay build).
+2. After Always allow, stopping and restarting sharing, then connecting from the
+   same PC: no prompt, and connected.
+3. Advanced → Trusted computers lists the PC with a fingerprint, and Remove makes
+   the next connection ask again. Two PCs with the same name are told apart.
+4. The Always allow button, the list and the hint read correctly in Persian and
+   at 200% font size.
+5. A Windows install with the key file deleted (`%LOCALAPPDATA%\Relay\device-identity.p8`)
+   is asked again, and the old entry is still on the phone until removed.
+6. An older phone (a build without this feature) still pairs with the new
+   Windows app, with the prompt it always had.
+
 ### An unanswered UAC prompt is indistinguishable from a hang — 2026-09-16
 
 Worth writing down because it cost a diagnosis twice in one day, and because it
