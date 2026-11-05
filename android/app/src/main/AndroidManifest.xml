@@ -24,6 +24,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Android 17 gates traffic on the local network behind this runtime
+         permission for apps that target API 37. Without it, the system drops
+         the phone's UDP broadcasts and the PC's incoming connection to the
+         pairing port without telling the app: sharing looks healthy, the log
+         has no errors, and no PC can find or pair with the phone. Earlier
+         Android versions ignore it. MainActivity asks for it before sharing. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Handing a downloaded APK to the system installer. Android still shows
          its own prompt; this only allows Relay to be the app that asks. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

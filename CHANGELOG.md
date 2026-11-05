@@ -9,6 +9,16 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+### Fixed
+
+- **Android 17: the PC could not find or pair with the phone.** Android 17
+  blocks an app that targets API 37 from using the local network until it holds
+  `ACCESS_LOCAL_NETWORK`, and Relay neither declared nor asked for it. The block
+  is silent: the beacon never left the phone and the pairing port dropped the
+  PC's connection, while sharing looked healthy and the diagnostic report showed
+  no errors. Relay now declares the permission and asks for it, once, when
+  sharing starts on Android 17. Earlier versions are unchanged.
+
 ### Documentation
 
 - **READMEs redesigned** in both languages: a "how it works" diagram, feature
