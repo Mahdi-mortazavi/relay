@@ -207,6 +207,10 @@ public partial class App : Application
         // Windows user stayed on whatever they first installed. The service
         // waits for an idle moment before replacing the app, because the
         // installer stops Relay and a live tunnel would go with it.
+        // Off by the person's choice (#173): no service, so no check, no download
+        // and no install-on-close. Every use of _updates below is null-safe.
+        if (AutoUpdate.IsEnabled())
+        {
         _updates = new UpdateService(
             AppVersion.Current,
             () => AppController.Instance.StateName,
@@ -262,6 +266,11 @@ public partial class App : Application
             // nothing to update to, in the log and everywhere else.
             log: LocalLog.Add);
         _updates.Start();
+        }
+        else
+        {
+            LocalLog.Add("Automatic updates are off");
+        }
 
         var previousState = AppController.Instance.StateName;
         AppController.Instance.StateChanged += () =>

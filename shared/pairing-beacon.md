@@ -382,6 +382,41 @@ connection, UTF-8 JSON, one object per line, `\n`-terminated.
 prompt names a computer rather than only an address. It is attacker-controlled
 display data like every other name here.
 
+`key` is optional too: this PC's identity for [Trusted computers](#trusted-computers),
+the base64 of a 65-byte uncompressed P-256 public key (`0x04 ‖ X ‖ Y`). A phone
+that does not know the field ignores it, and a PC that sends none is served
+exactly as before, so neither side needs the other to be new.
+
+```json
+{"v":1,"pair":1,"name":"MAHDI-LAPTOP","key":"BCTS…"}
+```
+
+**If the request carries a well-formed `key`, the phone answers with a challenge
+before anything else**, on its own line:
+
+```json
+{"v":1,"challenge":"AAECAwQF…"}
+```
+
+`challenge` is 32 bytes from a cryptographic RNG, base64, fresh for this
+connection and never reused. The PC replies, within the same 10 s the phone gives
+any silent connection, with a proof — its signature over the challenge:
+
+```json
+{"v":1,"proof":"MEUCIQ…"}
+```
+
+`proof` is the base64 of 64 bytes: an ECDSA signature over SHA-256 of
+
+    "relay-trust-v1" ‖ LF ‖ challenge ‖ key
+
+as the IEEE P1363 pair `r ‖ s` (32 bytes each, big-endian), **not** DER. Then the
+exchange carries on exactly as below — the phone holds the request, asks the
+person, and answers once. What the proof changes is decided in
+[Trusted computers](#trusted-computers). A PC that sent a `key` and gets a
+`challenge` MUST answer it; a PC that gets no `challenge` is talking to a phone
+that does not know about keys, and waits for the final reply as before.
+
 **The phone answers, once, after the person decides.** On Allow:
 
 ```json
@@ -445,9 +480,14 @@ gave one, and the code that was used.
 - No answer within **60 s** → treated as denied, so a phone in a pocket fails
   closed.
 
-Approval state is per sharing session and never persisted: stopping and starting
-sharing asks again. This is deliberate — a remembered decision on a network you
-have since left is a decision made on the wrong network.
+What the phone decides about an **address** is per sharing session and never
+persisted: stopping and starting sharing asks again. This is deliberate — a
+remembered decision on a network you have since left is a decision made on the
+wrong network, and an address is something anyone can hold for a moment.
+
+The one thing that *is* persisted is a [trusted computer](#trusted-computers)'s
+key, which a person put there on purpose and which, unlike an address or a name,
+cannot be presented by someone who merely copied it: it takes the private key.
 
 **This gates the code path, not the tunnel.** A client that already holds a
 configuration — from a QR, or from an earlier allowed exchange in this session —
@@ -456,6 +496,63 @@ delivery, so a peer completing a WireGuard handshake *is* the device that was
 given it. There is nothing left for a prompt to establish there, and one would
 only teach people to tap Allow without reading it. The prompt belongs where a
 key is about to be **handed out**, which is exactly and only this exchange.
+
+## Trusted computers
+
+Tapping Allow on every pairing is the right default and a poor way to use a
+laptop you own. A person can instead choose **Always allow** for a computer, and
+the phone then stops asking *that computer* — while still asking everything else.
+The design is [ADR-0012](../docs/adr/0012-trusted-computers.md); this section is
+the contract.
+
+**Identity.** A PC is identified by a P-256 key pair it makes once, on first use,
+and keeps. The private key never leaves it and is never sent. The public key is
+the `key` in the request. A name and an address are not identity: either can be
+typed by anyone on the network, which is why neither can be what is remembered.
+Reinstalling makes a new identity, and the phone asks about it afresh.
+
+**What the phone does with a request that carries a `key`:**
+
+1. It always sends a `challenge` — whether or not it has seen the key. A phone
+   that answered only for keys it trusted would let anything on the network ask
+   which computers are on its list.
+2. It verifies the `proof` against that `key` and that `challenge`. A missing,
+   late, malformed or wrong proof is **not an error** and gets no special reply:
+   the key is simply treated as unproven, and the request carries on as an
+   ordinary one.
+3. **Proven and on the list** → no prompt. The phone serves the configuration,
+   records the use, and treats the address as allowed for this sharing session.
+4. **Proven and not on the list** → the ordinary prompt, with an extra choice,
+   *Always allow*. Choosing it adds the key. An unproven key is never offered
+   this choice, so a key cannot be enrolled by someone who does not hold it.
+5. **Unproven** → the ordinary prompt, with Allow and Deny only.
+
+**What a trusted key buys, and nothing more.** It skips the prompt for the
+pairing exchange. Everything else is unchanged: one client per sharing session,
+keys per pairing and discarded when sharing stops, the QR path, and an address
+decided as allowed or denied for the session only.
+
+**Where trust comes from.** Only a person, by tapping Always allow, on a prompt
+for a proven key. Not a notification button, not a setting, not a request. The
+notification's Allow stays a one-time Allow.
+
+**The list.** The phone keeps, per computer: the key, the name it last gave
+(display data, never trusted), when it was added and when it last paired. It
+shows a short fingerprint — the first 8 hex digits of SHA-256 of the 65 key
+bytes, in groups of four, upper case, for example `E0EB-C2E6` — so two
+computers with the same name can be told apart. The person can remove one
+computer, or all of them; removal takes effect at the next request. A removal
+while that computer is connected does not cut its tunnel (the configuration is
+already in its hands); stopping sharing does. The list holds at most **16**
+computers; adding a seventeenth replaces the one that paired longest ago, which
+costs that computer one prompt and nothing else.
+
+**What this does not do.** It proves the PC to the phone, not the phone to the
+PC: a PC will still accept a configuration from whatever answered at the address
+the beacon named. And a trusted key is as safe as the file that holds its private
+half; a lost laptop is removed from the phone's list.
+
+Shared vectors: `test-vectors.json` → `trustedComputers`.
 
 ## Compatibility
 

@@ -15,3 +15,4 @@ Short, immutable records of significant decisions. New decision → new numbered
 | [0009](0009-full-mode-only-and-code-pairing.md) | One transport, and a code that works for it | Accepted |
 | [0010](0010-forward-through-a-local-proxy.md) | Let the phone forward through a local proxy | Accepted |
 | [0011](0011-automatic-route.md) | Choose the PC's route automatically, and keep choosing | Accepted |
+| [0012](0012-trusted-computers.md) | Trusted computers — remember a PC by a key it holds, not a name it types | Accepted |

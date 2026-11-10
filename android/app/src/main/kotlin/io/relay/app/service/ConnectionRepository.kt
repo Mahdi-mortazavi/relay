@@ -15,11 +15,22 @@ import kotlinx.coroutines.flow.update
  */
 object ConnectionRepository {
     /**
+     * The computers the phone no longer asks about. Declared above the gate
+     * because the gate's callback reads it. Empty until [TrustedDevices.attach]
+     * gives it storage, which the service and the view model each do on start.
+     */
+    val trustedDevices = TrustedDevices()
+
+    /**
      * Who is allowed to use the proxy. Lives here rather than in the service
      * because the answer comes from the UI and the question comes from the
      * network, and this is the one object both of them already hold.
      */
-    val clientGate = io.relay.app.net.ClientGate()
+    val clientGate = io.relay.app.net.ClientGate(
+        // "Always allow" lands here: the gate knows the moment a person decided,
+        // this object holds the list (ADR-0012).
+        onRemember = { key, name -> trustedDevices.add(key, name) },
+    )
 
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Idle)
     val state: StateFlow<ConnectionState> = _state.asStateFlow()

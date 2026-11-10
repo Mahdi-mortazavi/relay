@@ -9,6 +9,35 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.12.0] — 2026-11-10
+
+### Added
+
+- **Trusted computers: "Always allow".** The phone's approval prompt gains a
+  third choice for a Windows PC, and the computers you choose it for stop being
+  asked about. Manage them under Advanced → Trusted computers: each shows its
+  name and a short fingerprint, and can be removed one at a time or all at once.
+  A computer is recognised by a key it holds, not by a name or an address — both
+  of which anyone on the network can type — so a stranger copying your laptop's
+  name still gets the prompt. The Windows app makes its key on first use and
+  keeps it under `%LOCALAPPDATA%\Relay`. Older phones and older PCs are
+  unaffected in either direction. Design: [ADR-0012](docs/adr/0012-trusted-computers.md);
+  contract: `shared/pairing-beacon.md` → "Trusted computers". Not yet checked on
+  hardware; the list of what to check is in `docs/testing.md`.
+
+- **Windows: automatic updates can be turned off (#173).** Advanced → "Update Relay automatically".
+  When off, Relay never checks for, downloads or installs a version by itself; it applies from the next launch.
+
+### Fixed
+
+- **Android 17: the PC could not find or pair with the phone.** Android 17
+  blocks an app that targets API 37 from using the local network until it holds
+  `ACCESS_LOCAL_NETWORK`, and Relay neither declared nor asked for it. The block
+  is silent: the beacon never left the phone and the pairing port dropped the
+  PC's connection, while sharing looked healthy and the diagnostic report showed
+  no errors. Relay now declares the permission and asks for it, once, when
+  sharing starts on Android 17. Earlier versions are unchanged.
+
 ### Documentation
 
 - **READMEs redesigned** in both languages: a "how it works" diagram, feature
