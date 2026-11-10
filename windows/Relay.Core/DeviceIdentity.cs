@@ -184,7 +184,7 @@ public sealed class DeviceIdentity : IDeviceIdentity, IDisposable
                 Message(challenge, key), proof, HashAlgorithmName.SHA256,
                 DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         }
-        catch (Exception e) when (e is CryptographicException or ArgumentException)
+        catch (Exception) // PlatformNotSupportedException for an off-curve point on Windows CNG; a verifier must never throw
         {
             return false;
         }
