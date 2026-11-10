@@ -9,6 +9,8 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+## [2.12.0] — 2026-11-10
+
 ### Added
 
 - **Trusted computers: "Always allow".** The phone's approval prompt gains a
