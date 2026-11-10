@@ -559,6 +559,11 @@ public sealed partial class MainWindow : Window
         AdvancedKillSwitchToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
         ToolTipService.SetToolTip(AdvancedKillSwitchToggle, Strings.Get("AdvancedKillSwitchHint"));
         SyncKillSwitchToggle();
+        AdvancedAutoUpdateLabel.Text = Strings.Get("AdvancedAutoUpdate");
+        AdvancedAutoUpdateToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedAutoUpdateToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedAutoUpdateToggle, Strings.Get("AdvancedAutoUpdateHint"));
+        SyncAutoUpdateToggle();
         AdvancedStartupLabel.Text = Strings.Get("AdvancedStartup");
         AdvancedStartupToggle.OnContent = Strings.Get("AdvancedStartupOn");
         AdvancedStartupToggle.OffContent = Strings.Get("AdvancedStartupOff");
@@ -653,6 +658,31 @@ public sealed partial class MainWindow : Window
         LocalLog.Add(wanted
             ? "Leak protection on — takes effect on the next connection"
             : "Leak protection OFF — DNS and IPv6 can leave outside the tunnel");
+    }
+
+    private void SyncAutoUpdateToggle()
+    {
+        _syncingAutoUpdate = true;
+        try { AdvancedAutoUpdateToggle.IsOn = AutoUpdate.IsEnabled(); }
+        finally { _syncingAutoUpdate = false; }
+    }
+
+    private bool _syncingAutoUpdate;
+
+    private void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingAutoUpdate) return;
+
+        var wanted = AdvancedAutoUpdateToggle.IsOn;
+        if (!AutoUpdate.Set(wanted))
+        {
+            LocalLog.Add("Windows would not save that");
+            SyncAutoUpdateToggle();
+            return;
+        }
+        LocalLog.Add(wanted
+            ? "Automatic updates on — from the next launch"
+            : "Automatic updates OFF — Relay will not check or install by itself");
     }
 
     /// <summary>Read, not remembered — see <see cref="SyncLeakToggle"/>.</summary>

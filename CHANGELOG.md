@@ -23,6 +23,9 @@ Artifacts for every version are on the
   contract: `shared/pairing-beacon.md` → "Trusted computers". Not yet checked on
   hardware; the list of what to check is in `docs/testing.md`.
 
+- **Windows: automatic updates can be turned off (#173).** Advanced → "Update Relay automatically".
+  When off, Relay never checks for, downloads or installs a version by itself; it applies from the next launch.
+
 ### Fixed
 
 - **Android 17: the PC could not find or pair with the phone.** Android 17
