@@ -1637,8 +1637,12 @@ public sealed partial class MainWindow : Window
         _mode = InputMode.Pairing;
         Render();
 
+        // With this PC's identity, so the phone can offer "Always allow" and
+        // recognise this computer next time (ADR-0012). Null if no key can be
+        // kept, and then the request is exactly the one it always was.
         var result = await Task.Run(() =>
-            new PairingClient().Fetch(host, pairingPort, Environment.MachineName));
+            new PairingClient(identity: DeviceIdentity.ForThisPc)
+                .Fetch(host, pairingPort, Environment.MachineName));
 
         // Both lines, not just the headline: leaving the pairing detail behind
         // put "Tap Allow on your phone" under "Setting up the connection", which

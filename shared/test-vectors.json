@@ -530,5 +530,99 @@
         "accept": false
       }
     ]
+  },
+  "trustedComputers": {
+    "$comment": "The proof a PC gives when it asks to be remembered, and how a phone verifies it (pairing-beacon.md → Trusted computers, ADR-0012). The key is an uncompressed P-256 point (65 bytes, 0x04 || X || Y), the challenge is 32 bytes, and the proof is an ECDSA/SHA-256 signature as the 64-byte IEEE P1363 pair r || s (NOT DER). The signed message is the ASCII bytes `relay-trust-v1` + LF, then the challenge, then the key. Generated with RFC 6979 deterministic signing, so it is reproducible, and cross-checked with openssl. Android and Windows both verify every `valid` case and refuse every `invalid` one; Windows also asserts that signing the first case's challenge with its own key verifies.",
+    "domain": "relay-trust-v1\n",
+    "request": "{\"v\":1,\"pair\":1,\"name\":\"MAHDI-LAPTOP\",\"key\":\"BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=\"}",
+    "challengeLine": "{\"v\":1,\"challenge\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\"}",
+    "proofLine": "{\"v\":1,\"proof\":\"+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA==\"}",
+    "fingerprint": {
+      "$comment": "SHA-256 of the 65 key bytes, shown as the first 8 hex digits in groups of four, upper case. A label for a person to compare, not a security boundary.",
+      "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+      "value": "E0EB-C2E6"
+    },
+    "valid": [
+      {
+        "name": "computer A",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "computer B",
+        "key": "BCusxeK5HplVnR0AsVmNADH/k2H1HkpRkmkvxpNsLPF/YIe1IyIMRo0Hz43vgT31kbFyIT4K7+MKUGEDk/XNGv0=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "XUhDvLhEla7luc7lNR79QGohgHuOaElww+/rPZteJjVY3MdJofSCsAzNyD6AwXLzTVxRp7YN5wQudA3AdYB7pg=="
+      }
+    ],
+    "invalid": [
+      {
+        "name": "signature altered",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+Rx83Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "proof is for a different challenge",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "proof is from a different key",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "XUhDvLhEla7luc7lNR79QGohgHuOaElww+/rPZteJjVY3MdJofSCsAzNyD6AwXLzTVxRp7YN5wQudA3AdYB7pg=="
+      },
+      {
+        "name": "DER instead of r||s",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "MEUCIQD7m+eZcVBVH3/5HXzcRziaWtKykBGTXcn09WLuI70cSQIgRyOIyzemtwOhsOgUyaMVHAdoRmnGc851VQ6YVUz4nRw="
+      },
+      {
+        "name": "key is not on the curve",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVs=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "key is compressed (33 bytes)",
+        "key": "AiTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3r",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "key is one byte short",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvQ==",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "challenge is too short",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODw==",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      },
+      {
+        "name": "proof is one byte short",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPid"
+      },
+      {
+        "name": "proof is empty",
+        "key": "BCTSNbHVb2J4szi+42Pp0JEoqXYDKxhN/vZ+2NUmVW3rnYK2uE/B8GmqBAcPn6IvZeayiGEaFAso23kkoxTfvVo=",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": ""
+      },
+      {
+        "name": "key is not base64",
+        "key": "not base64!!",
+        "challenge": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "proof": "+5vnmXFQVR9/+R183Ec4mlrSspARk13J9PVi7iO9HElHI4jLN6a3A6Gw6BTJoxUcB2hGacZzznVVDphVTPidHA=="
+      }
+    ]
   }
 }

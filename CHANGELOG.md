@@ -9,6 +9,20 @@ Artifacts for every version are on the
 
 ## [Unreleased]
 
+### Added
+
+- **Trusted computers: "Always allow".** The phone's approval prompt gains a
+  third choice for a Windows PC, and the computers you choose it for stop being
+  asked about. Manage them under Advanced → Trusted computers: each shows its
+  name and a short fingerprint, and can be removed one at a time or all at once.
+  A computer is recognised by a key it holds, not by a name or an address — both
+  of which anyone on the network can type — so a stranger copying your laptop's
+  name still gets the prompt. The Windows app makes its key on first use and
+  keeps it under `%LOCALAPPDATA%\Relay`. Older phones and older PCs are
+  unaffected in either direction. Design: [ADR-0012](docs/adr/0012-trusted-computers.md);
+  contract: `shared/pairing-beacon.md` → "Trusted computers". Not yet checked on
+  hardware; the list of what to check is in `docs/testing.md`.
+
 ### Fixed
 
 - **Android 17: the PC could not find or pair with the phone.** Android 17

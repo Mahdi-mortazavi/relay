@@ -127,6 +127,13 @@ class SharingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        // The list of computers the person said "Always allow" to. The pairing
+        // server consults it, so it must be loaded before the first request
+        // whichever of the activity and this service starts first.
+        ConnectionRepository.trustedDevices.attach(
+            load = { settings.trustedDevicesJson },
+            save = { settings.trustedDevicesJson = it },
+        )
         scope.launch {
             // Only when something these two actually show has changed.
             //
@@ -539,6 +546,7 @@ class SharingService : Service() {
         val server = PairingServer(
             preferredPort = PairingServer.DEFAULT_PORT,
             gate = clientGate,
+            trust = ConnectionRepository.trustedDevices,
             // Read at approval time, not captured: a rebind onto a new hotspot
             // address mid-session would otherwise send the laptop to where this
             // phone used to be.
