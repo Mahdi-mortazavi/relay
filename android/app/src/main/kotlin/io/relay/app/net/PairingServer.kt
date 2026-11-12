@@ -331,6 +331,10 @@ class PairingServer(
                 put("allowedIps", config.wg.allowedIps)
                 put("endpointPort", config.wg.endpointPort)
                 put("dns", config.wg.dns)
+                config.wg.clientAddress?.let { put("clientAddress", it) }
+                config.wg.clientIpv6?.let { put("clientIpv6", it) }
+                config.wg.dnsIpv6?.let { put("dnsIpv6", it) }
+                config.wg.dohUrl?.let { put("dohUrl", it) }
             }
         }.toString()
     }

@@ -6,9 +6,11 @@ import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
 import io.relay.app.core.ConnectionState
 import io.relay.app.core.WarningCode
+import io.relay.app.net.AccelHelper
 import io.relay.app.net.ProxyScan
 import io.relay.app.net.UsbLink
 import io.relay.app.net.VpnLockdown
+import io.relay.app.net.VpnPreFlight
 import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.InstallSource
@@ -54,7 +56,107 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val state: StateFlow<ConnectionState> = ConnectionRepository.state
     val warnings: StateFlow<Set<WarningCode>> = ConnectionRepository.warnings
+    val telemetry: StateFlow<ConnectionRepository.LiveTelemetry> = ConnectionRepository.telemetry
+    val preFlight: StateFlow<VpnPreFlight.Report?> = ConnectionRepository.preFlight
     val logs: StateFlow<List<LocalLog.Entry>> = LocalLog.entries
+
+    val accelCapabilities: AccelHelper.Capabilities by lazy { AccelHelper.probe() }
+
+    private val _customDns = MutableStateFlow(settings.customDns)
+    val customDns: StateFlow<String> = _customDns.asStateFlow()
+
+    fun setCustomDns(value: String) {
+        settings.customDns = value
+        _customDns.value = settings.customDns
+    }
+
+    private val _dohUrl = MutableStateFlow(settings.dohUrl)
+    val dohUrl: StateFlow<String> = _dohUrl.asStateFlow()
+
+    fun setDohUrl(value: String) {
+        settings.dohUrl = value
+        _dohUrl.value = value.trim()
+    }
+
+    private val _tetherTtl65 = MutableStateFlow(settings.tetherTtl65)
+    val tetherTtl65: StateFlow<Boolean> = _tetherTtl65.asStateFlow()
+
+    fun setTetherTtl65(enabled: Boolean) {
+        settings.tetherTtl65 = enabled
+        _tetherTtl65.value = enabled
+    }
+
+    private val _icmpRelay = MutableStateFlow(settings.icmpRelay)
+    val icmpRelay: StateFlow<Boolean> = _icmpRelay.asStateFlow()
+
+    fun setIcmpRelay(enabled: Boolean) {
+        settings.icmpRelay = enabled
+        _icmpRelay.value = enabled
+    }
+
+    private val _uploadLimitKbps = MutableStateFlow(settings.uploadLimitKbps)
+    val uploadLimitKbps: StateFlow<Int> = _uploadLimitKbps.asStateFlow()
+
+    fun setUploadLimitKbps(kbps: Int) {
+        settings.uploadLimitKbps = kbps
+        _uploadLimitKbps.value = kbps.coerceAtLeast(0)
+    }
+
+    private val _downloadLimitKbps = MutableStateFlow(settings.downloadLimitKbps)
+    val downloadLimitKbps: StateFlow<Int> = _downloadLimitKbps.asStateFlow()
+
+    fun setDownloadLimitKbps(kbps: Int) {
+        settings.downloadLimitKbps = kbps
+        _downloadLimitKbps.value = kbps.coerceAtLeast(0)
+    }
+
+    private val _quotaMb = MutableStateFlow(settings.quotaMb)
+    val quotaMb: StateFlow<Int> = _quotaMb.asStateFlow()
+
+    fun setQuotaMb(mb: Int) {
+        settings.quotaMb = mb
+        _quotaMb.value = mb.coerceAtLeast(0)
+    }
+
+    private val _inboundForwardsSpec = MutableStateFlow(settings.inboundForwardsSpec)
+    val inboundForwardsSpec: StateFlow<String> = _inboundForwardsSpec.asStateFlow()
+
+    fun addInboundForwardRule(ruleText: String): Boolean {
+        val parsed = Settings.parseInboundForwardRule(ruleText) ?: return false
+        val existing = Settings.parseInboundForwards(settings.inboundForwardsSpec)
+            .filterNot { it.proto == parsed.proto && it.listenPort == parsed.listenPort }
+        val updated = (existing + parsed).joinToString(";") { it.encode() }
+        settings.inboundForwardsSpec = updated
+        _inboundForwardsSpec.value = updated
+        return true
+    }
+
+    fun removeInboundForwardRule(proto: String, listenPort: Int) {
+        val updated = Settings.parseInboundForwards(settings.inboundForwardsSpec)
+            .filterNot { it.proto == proto && it.listenPort == listenPort }
+            .joinToString(";") { it.encode() }
+        settings.inboundForwardsSpec = updated
+        _inboundForwardsSpec.value = updated
+    }
+
+    private val _adbBridgeEnabled = MutableStateFlow(settings.adbBridgeEnabled)
+    val adbBridgeEnabled: StateFlow<Boolean> = _adbBridgeEnabled.asStateFlow()
+
+    fun setAdbBridgeEnabled(enabled: Boolean) {
+        settings.adbBridgeEnabled = enabled
+        _adbBridgeEnabled.value = enabled
+    }
+
+    fun refreshPreFlight() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val report = VpnPreFlight.inspect(getApplication(), settings.upstreamProxy)
+            ConnectionRepository.setPreFlight(report)
+        }
+    }
+
+    fun startWifiDirect() = SharingService.startWifiDirect(getApplication())
+
+    fun startAdbBridge() = SharingService.startAdbBridge(getApplication())
 
     /**
      * The newer release, once a check has found one. Null covers both "this is

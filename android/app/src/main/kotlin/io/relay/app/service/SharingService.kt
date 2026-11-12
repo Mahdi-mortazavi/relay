@@ -22,11 +22,13 @@ import io.relay.app.core.DirectPairingStrategy
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.HandshakeWatch
 import io.relay.app.core.LinkWait
+import io.relay.app.core.PeerPool
 import io.relay.app.core.QrPayload
 import io.relay.app.core.ReconnectPolicy
 import io.relay.app.core.RouteChoice
 import io.relay.app.core.WarningCode
 import io.relay.app.core.WgConfig
+import io.relay.app.net.AdbBridge
 import io.relay.app.net.LinkSnapshot
 import io.relay.app.net.LocalAddress
 import io.relay.app.core.PairingCode
@@ -35,11 +37,19 @@ import io.relay.app.net.PairingServer
 import io.relay.app.net.ProxyScan
 import io.relay.app.net.VpnCapture
 import io.relay.app.net.VpnLockdown
+import io.relay.app.net.VpnPreFlight
 import io.relay.app.net.VpnStatus
+import io.relay.app.net.WifiDirectLink
 import io.relay.app.net.wg.WgForwarder
 import io.relay.app.net.wg.WgForwarderException
 import io.relay.app.net.wg.WgForwarderProvider
 import io.relay.app.net.wg.WgKeys
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -90,9 +100,15 @@ class SharingService : Service() {
     /** Where the PC's traffic goes, decided while sharing. See [RouteChoice]. */
     private var routes = RouteChoice.Switcher()
 
-    // The session's forwarder and this pairing's keys (ADR-0008).
+    // The session's forwarder, initial keys, and multi-peer pool (ADR-0008).
     private var wgForwarder: WgForwarder? = WgForwarderProvider.create()
     private var wgKeys: WgConfig.KeySet? = null
+    private var peerPool: PeerPool? = null
+    private var wifiDirectLink: WifiDirectLink? = null
+    private var wifiDirectTransport: Boolean = false
+    private var adbTransportOnly: Boolean = false
+    private var activeAdbStatus: AdbBridge.Status = AdbBridge.Status()
+    private var appliedSettingsSignature: String = ""
 
     /**
      * When a PC last took a configuration, which is when a handshake starts
@@ -209,16 +225,16 @@ class SharingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             // Null intent = START_STICKY restart after a system kill: resume sharing.
-            ACTION_START, null -> {
+            ACTION_START, ACTION_START_WIFI_DIRECT, ACTION_START_ADB, null -> {
+                val preferWifiDirect = intent?.action == ACTION_START_WIFI_DIRECT
+                val preferAdb = intent?.action == ACTION_START_ADB
                 // Must be synchronous: startForegroundService() gives us a few
                 // seconds to post the notification or the process is killed.
                 startInForeground()
-                // Everything else is blocking IO — enumerating interfaces (slow
-                // with a tun up, which is Relay's normal case) and binding up to
-                // four sockets. onStartCommand runs on the main thread, so doing
-                // it here froze the UI on "Starting…" and risked an ANR.
                 scope.launch {
-                    if (ConnectionRepository.state.value is ConnectionState.Idle) startSharing()
+                    if (ConnectionRepository.state.value is ConnectionState.Idle) {
+                        startSharing(preferWifiDirect = preferWifiDirect, preferAdbOnly = preferAdb)
+                    }
                 }
             }
             ACTION_STOP -> stopSharing()
@@ -257,44 +273,72 @@ class SharingService : Service() {
         )
     }
 
-    private suspend fun startSharing() {
+    private suspend fun startSharing(
+        preferWifiDirect: Boolean = false,
+        preferAdbOnly: Boolean = false,
+    ) {
         if (!ConnectionRepository.dispatch("start") { ConnectionState.Preparing }) return
-        // Recorded on every start, whether or not anything goes wrong. It is the
-        // one fact that explains a whole category of reports -- a PC that finds
-        // the phone and never hears back -- and by the time someone is asking
-        // about it, they are being asked to go and look at a settings screen
-        // and report what they saw. This is that answer, already in the log.
-        val vpnActive = VpnStatus.isVpnActive(this)
+        val preFlight = VpnPreFlight.inspect(this, settings.upstreamProxy)
+        ConnectionRepository.setPreFlight(preFlight)
+
+        val vpnActive = preFlight.vpnActive
         LocalLog.info(
             LocalLog.Area.SERVICE, "Starting sharing",
             "vpn" to vpnActive.toString(),
-            // Not the same question: a VPN can be up while Relay is excluded
-            // from it, which is the arrangement ADR-0011's route depends on.
-            "relay_in_vpn" to VpnStatus.isRelayInsideVpn(this).toString(),
-            "lockdown" to VpnLockdown.describe(VpnLockdown.read(this)),
+            "relay_in_vpn" to preFlight.relayInsideVpn.toString(),
+            "lockdown" to VpnLockdown.describe(preFlight.lockdown),
+            "preflight" to preFlight.finding.name,
+            "mode" to when {
+                preferAdbOnly -> "adb_bridge"
+                preferWifiDirect -> "wifi_direct"
+                else -> "lan"
+            },
         )
         ConnectionRepository.clearWarnings()
-
-        // Non-blocking advisory: sharing works either way, but the user may have
-        // meant to share a VPN that isn't on (docs/errors.md → NO_VPN_ACTIVE).
         ConnectionRepository.setWarning(WarningCode.NO_VPN_ACTIVE, !vpnActive)
 
-        // Works on the phone's hotspot, a shared Wi-Fi/LAN, or a USB cable.
-        val host = awaitAdvertisableIpv4()
+        wifiDirectTransport = false
+        adbTransportOnly = false
+
+        val host: String? = when {
+            preferAdbOnly -> {
+                adbTransportOnly = true
+                "127.0.0.1"
+            }
+            preferWifiDirect -> {
+                val p2p = WifiDirectLink(this).also { wifiDirectLink = it }
+                val group = p2p.startGroup()
+                if (group != null) {
+                    wifiDirectTransport = true
+                    group.ownerIp
+                } else {
+                    awaitAdvertisableIpv4()
+                }
+            }
+            else -> {
+                val lan = awaitAdvertisableIpv4()
+                if (lan != null) {
+                    lan
+                } else {
+                    // Fallback automatically to Wi-Fi Direct if permission is already granted.
+                    val p2p = WifiDirectLink(this)
+                    val group = if (p2p.hasRequiredPermission()) {
+                        wifiDirectLink = p2p
+                        p2p.startGroup()
+                    } else null
+                    if (group != null) {
+                        wifiDirectTransport = true
+                        group.ownerIp
+                    } else null
+                }
+            }
+        }
+
         if (host == null) {
-            // The links themselves, not just the conclusion. A report saying
-            // only "no usable link" cannot tell a cable that is not plugged in
-            // from one whose tethering is off from one that is still getting an
-            // address -- three faults, three different things to tell someone,
-            // and answering that used to take a message to the user and a day.
-            // Taken once and used twice: the same look at the phone's links
-            // decides both what the log records and which of the four failures
-            // this is. Two looks could disagree, and a message that contradicts
-            // the log underneath it is worse than either alone.
             val links = LinkSnapshot.take()
             val code = LinkSnapshot.diagnose(links)
             LocalLog.error(
-                LocalLog.Area.LINK, "No usable Wi-Fi, hotspot or USB link",
+                LocalLog.Area.LINK, "No usable Wi-Fi, hotspot, Wi-Fi Direct or USB link",
                 "code" to code.name,
                 "waited_ms" to LinkWait.totalBoundMs.toString(),
                 "looks" to LinkWait.looks.toString(),
@@ -305,22 +349,15 @@ class SharingService : Service() {
             return
         }
 
-        // One transport since ADR-0009. Preparation dispatches its own error.
         val payload = prepareFull(host) ?: return
 
         currentHost = host
-        noteReplyPath(host)
+        if (!adbTransportOnly) {
+            noteReplyPath(host)
+        }
 
-        // Drawn once per sharing session and kept for its life, so the number on
-        // screen never changes under someone who is mid-way through typing it.
-        //
-        // Drawn blind: surveying the network for codes already in use would
-        // block this thread for over a second, and this runs on the main thread
-        // from onStartCommand. A collision is rare and already has an answer --
-        // the PC shows both device names and asks which one -- so paying an ANR
-        // risk to make it rarer is the wrong trade.
         val code = PairingCode.draw()
-        val announcer = Beacon(
+        val announcer = if (adbTransportOnly) null else Beacon(
             code = code,
             mode = payload.mode,
             host = payload.host,
@@ -331,15 +368,7 @@ class SharingService : Service() {
         ).also { it.start() }
         beacon = announcer
 
-        // Only show the two digits if they can actually be found. They carry no
-        // address of their own, so on a network where this phone can neither
-        // broadcast nor answer a probe they are a dead end: the PC searches for
-        // them forever and the person is left comparing two screens that look
-        // right. Withholding the short code makes the UI fall back to the
-        // eight-character code, which describes the address itself and needs no
-        // discovery — and makes the PC's "my phone shows a longer code" link
-        // true rather than aspirational.
-        val announced = announcer.canAnnounce
+        val announced = announcer?.canAnnounce == true
         pairingCode = code
         shortCode = code.takeIf { announced }
         if (announced) {
@@ -347,7 +376,7 @@ class SharingService : Service() {
         } else {
             LocalLog.warn(
                 LocalLog.Area.PAIRING,
-                "Cannot announce on this network; showing the 8-character code instead",
+                "Cannot announce on this network; showing fallback code instead",
                 "code" to code,
             )
         }
@@ -366,20 +395,19 @@ class SharingService : Service() {
             fail(ErrorCode.WG_START_FAILED)
             return null
         }
-        val keys = WgKeys.generate()
+        val keys = WgKeys.generate(dns = settings.customDns)
+        val pool = PeerPool(
+            serverPublicKey = keys.serverPublicKey,
+            endpointPort = keys.endpointPort,
+            initialKeys = keys,
+            generateClientKeyPair = { WgKeys.generateClientPair() },
+        )
         routes = RouteChoice.Switcher()
-        // The first look, before the endpoint exists, so the very first packet
-        // from the PC already takes the right way out.
         var route = lookForRoute() ?: RouteChoice.Route("", RouteChoice.Why.NO_PROXY)
         try {
             try {
                 forwarder.start(WgConfig.serverConfig(keys), route.proxy)
             } catch (e: WgForwarderException) {
-                // A proxy Relay chose for itself must never be why sharing did
-                // not start: it answered a probe a moment ago, and if it will not
-                // carry the endpoint now the phone's own route still will. A
-                // typed one is different — that is somebody saying where the
-                // traffic must go, and going elsewhere would be a leak.
                 if (route.why != RouteChoice.Why.VPN_PROXY) throw e
                 LocalLog.warn(
                     LocalLog.Area.TUNNEL, "The VPN's proxy would not take the endpoint; using the phone's route",
@@ -397,19 +425,96 @@ class SharingService : Service() {
             fail(ErrorCode.WG_START_FAILED)
             return null
         }
+        // Enable dual-stack IPv6 allowed-ip on the primary peer cleanly without breaking canonical WgConfig.serverConfig.
+        forwarder.addPeer(keys.clientPublicKey, pool.initialAllocation.allowedIpsForServer)
+        applyPowerUserSettings(forwarder, force = true)
         noteRoute("Route chosen", route)
         wgKeys = keys
+        peerPool = pool
         LocalLog.info(
             LocalLog.Area.TUNNEL, "WireGuard endpoint up",
             "host" to host, "port" to keys.endpointPort.toString(),
         )
+        startPairingServer()
+        activeAdbStatus = if (settings.adbBridgeEnabled || adbTransportOnly) {
+            AdbBridge.start(
+                forwarder = forwarder,
+                pairingPort = pairingServer?.boundPort ?: PairingServer.DEFAULT_PORT,
+                wgUdpPort = keys.endpointPort,
+            )
+        } else {
+            AdbBridge.Status()
+        }
         startPeerWatcher(forwarder)
         startRouteWatcher(forwarder)
-        startPairingServer()
+
+        val transport = when {
+            adbTransportOnly -> QrPayload.TRANSPORT_ADB
+            wifiDirectTransport -> QrPayload.TRANSPORT_WIFI_DIRECT
+            else -> QrPayload.TRANSPORT_LAN
+        }
         return pairing.issuePayload(
-            mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
-            deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
+            mode = QrPayload.MODE_WIREGUARD,
+            host = host,
+            port = keys.endpointPort,
+            deviceName = Build.MODEL.take(64),
+            wg = pool.toWgParams(
+                allocation = pool.initialAllocation,
+                dns = settings.customDns,
+                dohUrl = settings.dohUrl.ifBlank { null },
+            ),
+        ).copy(transport = transport)
+    }
+
+    private fun applyPowerUserSettings(forwarder: WgForwarder, force: Boolean = false) {
+        val sig = listOf(
+            settings.customDns,
+            settings.dohUrl,
+            settings.uploadLimitKbps.toString(),
+            settings.downloadLimitKbps.toString(),
+            settings.quotaMb.toString(),
+            settings.tetherTtl65.toString(),
+            settings.icmpRelay.toString(),
+            settings.inboundForwardsSpec,
+        ).joinToString("|")
+        if (!force && sig == appliedSettingsSignature) return
+        appliedSettingsSignature = sig
+
+        forwarder.setTunnelDns(settings.customDns, settings.dohUrl)
+        forwarder.setTrafficLimits(
+            upBytesPerSec = settings.uploadLimitKbps * 1024L,
+            downBytesPerSec = settings.downloadLimitKbps * 1024L,
+            quotaBytes = settings.quotaMb * 1024L * 1024L,
         )
+        forwarder.setTetherTtl(if (settings.tetherTtl65) 65 else 0)
+        forwarder.enableIcmpRelay(settings.icmpRelay)
+
+        // Sync inbound port forwards cleanly with Settings.
+        val desired = Settings.parseInboundForwards(settings.inboundForwardsSpec)
+        val desiredByKey = desired.associateBy { "${it.proto}:${it.listenPort}" }
+        val unchangedKeys = mutableSetOf<String>()
+        runCatching {
+            val active = Json.parseToJsonElement(forwarder.inboundForwardsJson()).jsonArray
+            for (el in active) {
+                val obj = el.jsonObject
+                val proto = obj["proto"]?.jsonPrimitive?.contentOrNull ?: continue
+                val port = obj["listenPort"]?.jsonPrimitive?.longOrNull?.toInt() ?: continue
+                val targetIp = obj["targetIp"]?.jsonPrimitive?.contentOrNull
+                val targetPort = obj["targetPort"]?.jsonPrimitive?.longOrNull?.toInt()
+                val key = "$proto:$port"
+                val wanted = desiredByKey[key]
+                if (wanted == null) {
+                    forwarder.removeInboundForward(proto, port)
+                } else if (wanted.targetHost == targetIp && wanted.targetPort == targetPort) {
+                    unchangedKeys += key
+                }
+            }
+        }
+        for (rule in desired) {
+            if ("${rule.proto}:${rule.listenPort}" !in unchangedKeys) {
+                forwarder.addInboundForward(rule.proto, rule.listenPort, rule.targetHost, rule.targetPort)
+            }
+        }
     }
 
     /**
@@ -458,6 +563,7 @@ class SharingService : Service() {
                 val state = ConnectionRepository.state.value
                 if (state !is ConnectionState.Advertising && state !is ConnectionState.Connected) continue
                 val before = routes.current ?: continue
+                applyPowerUserSettings(forwarder)
                 val next = lookForRoute()
                 if (next == null) {
                     // Same path; the reason may still have changed.
@@ -564,7 +670,7 @@ class SharingService : Service() {
                 // has been seen to say "swallowed" on a link that then carried a
                 // pairing and 35 MB of traffic, so it is worth having in a report
                 // and not worth alarming anyone with.
-                if (host != null) {
+                if (host != null && !adbTransportOnly) {
                     val swallowed = VpnCapture.wouldSwallow(client = client, advertisedHost = host)
                     LocalLog.info(
                         LocalLog.Area.LINK, "Reply path checked for the PC that asked",
@@ -573,12 +679,34 @@ class SharingService : Service() {
                         "verdict" to if (swallowed) "would-leave-by-vpn" else "leaves-by-the-link",
                     )
                 }
-                if (keys == null || host == null) null
-                else PairingServer.Configuration(
-                    host = host,
-                    port = keys.endpointPort,
-                    wg = WgConfig.toWgParams(keys),
-                )
+                val pool = peerPool
+                if (keys == null || host == null || pool == null) {
+                    null
+                } else {
+                    val (allocation, created) = pool.allocateFor(client)
+                    if (created) {
+                        val added = wgForwarder?.addPeer(
+                            allocation.clientPublicKey,
+                            allocation.allowedIpsForServer,
+                        ) ?: false
+                        LocalLog.info(
+                            LocalLog.Area.TUNNEL,
+                            "Allocated multi-peer WireGuard slot",
+                            "pc" to client,
+                            "slot_ip" to allocation.ipv4,
+                            "added" to added.toString(),
+                        )
+                    }
+                    PairingServer.Configuration(
+                        host = host,
+                        port = keys.endpointPort,
+                        wg = pool.toWgParams(
+                            allocation = allocation,
+                            dns = settings.customDns,
+                            dohUrl = settings.dohUrl.ifBlank { null },
+                        ),
+                    )
+                }
             },
         )
         pairingServer = try {
@@ -610,41 +738,25 @@ class SharingService : Service() {
     private fun startPeerWatcher(forwarder: WgForwarder) {
         peerWatcher?.cancel()
         peerWatcher = scope.launch {
-            var present = false
+            var lastCount = 0
             var saidNoReply = false
-            // Which of the two no-reply warnings went up, so the right one comes
-            // down. They are separate codes because the log should record which
-            // message the user was actually shown.
             var raised: WarningCode? = null
             while (isActive) {
                 delay(PEER_POLL_MS)
-                val handshake = forwarder.lastHandshakeUnix()
-                val age = System.currentTimeMillis() / 1000 - handshake
+                val nowSec = System.currentTimeMillis() / 1000
+                val peers = parsePeerSummaries(forwarder.peersStatsJson())
+                val handshake = peers.maxOfOrNull { it.lastHandshake } ?: forwarder.lastHandshakeUnix()
+                val age = nowSec - handshake
 
-                // The one fault the phone can see that the laptop can only
-                // guess at: a PC asked for the settings and the endpoint was
-                // never handshaked, so the replies are not getting out. The
-                // laptop reaches its own verdict at the same moment and its
-                // message promises this banner is here, so it has to be.
                 val noReply = HandshakeWatch.replyLost(
                     configuredAtMs = configuredAtMs,
                     lastHandshakeUnix = handshake,
                     nowMs = System.currentTimeMillis(),
                 )
-                // Raised on the edge, not every tick. Pushing it once a second
-                // would put the banner back a second after anyone dismissed it,
-                // which is the whole of the dismiss button's job.
-                // Told to the beacon as well as to this phone's own screen. A
-                // capture severe enough to stop the pairing means the phone
-                // never learns a PC tried -- but a phone that got this far did
-                // learn, and the broadcast still leaves.
                 pcWentUnanswered = noReply
                 if (noReply != saidNoReply) {
                     saidNoReply = noReply
                     if (noReply) {
-                        // Read only now, not every tick: the fault is already
-                        // established, and this decides nothing except how
-                        // precisely Relay is allowed to describe it.
                         val lockdown = VpnLockdown.read(this@SharingService)
                         val code = VpnLockdown.warningFor(lockdown)
                         raised = code
@@ -663,18 +775,38 @@ class SharingService : Service() {
                         raised = null
                     }
                 }
-                // Three minutes is what wg(8)'s own tooling treats as alive:
-                // rekeying happens at two, so this leaves a minute of margin
-                // without holding "connected" on screen long after the laptop
-                // has closed its lid.
-                val nowPresent = handshake > 0 && age in 0..PEER_ALIVE_SECONDS
-                if (nowPresent != present) {
-                    present = nowPresent
-                    onClientsChanged(if (nowPresent) 1 else 0)
+
+                val activePeers = if (peers.isNotEmpty()) {
+                    peers.count { it.lastHandshake > 0 && (nowSec - it.lastHandshake) in 0..PEER_ALIVE_SECONDS }
+                } else {
+                    if (handshake > 0 && age in 0..PEER_ALIVE_SECONDS) 1 else 0
                 }
-                if (nowPresent) {
-                    // Named from the phone's side: what the laptop sent up is
-                    // what this endpoint received.
+                if (activePeers != lastCount) {
+                    val prev = lastCount
+                    lastCount = activePeers
+                    if (prev == 0 || activePeers == 0) {
+                        onClientsChanged(activePeers)
+                    } else {
+                        ConnectionRepository.dispatch("clientCountChanged") { current ->
+                            (current as ConnectionState.Connected).copy(clientCount = activePeers)
+                        }
+                    }
+                }
+
+                val flows = parseFlowSummaries(forwarder.activeFlowsJson())
+                ConnectionRepository.setTelemetry(
+                    ConnectionRepository.LiveTelemetry(
+                        peers = peers,
+                        flows = flows,
+                        quotaUsedBytes = forwarder.quotaUsedBytes(),
+                        quotaLimitBytes = settings.quotaMb * 1024L * 1024L,
+                        quotaExceeded = forwarder.quotaExceeded(),
+                        adbStatus = activeAdbStatus,
+                        wifiDirect = wifiDirectLink?.state?.value ?: WifiDirectLink.State.Inactive,
+                    ),
+                )
+
+                if (activePeers > 0) {
                     onTraffic(
                         bytesUp = forwarder.bytesReceived(),
                         bytesDown = forwarder.bytesSent(),
@@ -683,6 +815,33 @@ class SharingService : Service() {
             }
         }
     }
+
+    private fun parsePeerSummaries(raw: String): List<ConnectionRepository.PeerSummary> = runCatching {
+        Json.parseToJsonElement(raw).jsonArray.map { el ->
+            val obj = el.jsonObject
+            ConnectionRepository.PeerSummary(
+                publicKey = obj["publicKey"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                endpoint = obj["endpoint"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                lastHandshake = obj["lastHandshake"]?.jsonPrimitive?.longOrNull ?: 0L,
+                rxBytes = obj["rxBytes"]?.jsonPrimitive?.longOrNull ?: 0L,
+                txBytes = obj["txBytes"]?.jsonPrimitive?.longOrNull ?: 0L,
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    private fun parseFlowSummaries(raw: String): List<ConnectionRepository.FlowSummary> = runCatching {
+        Json.parseToJsonElement(raw).jsonArray.map { el ->
+            val obj = el.jsonObject
+            ConnectionRepository.FlowSummary(
+                id = obj["id"]?.jsonPrimitive?.longOrNull ?: 0L,
+                proto = obj["proto"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                client = obj["client"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                target = (obj["destination"] ?: obj["target"])?.jsonPrimitive?.contentOrNull.orEmpty(),
+                txBytes = (obj["bytesUp"] ?: obj["txBytes"])?.jsonPrimitive?.longOrNull ?: 0L,
+                rxBytes = (obj["bytesDown"] ?: obj["rxBytes"])?.jsonPrimitive?.longOrNull ?: 0L,
+            )
+        }
+    }.getOrDefault(emptyList())
 
     /**
      * Watches for the hotspot interface disappearing while sharing and drives
@@ -696,6 +855,7 @@ class SharingService : Service() {
                 delay(HOTSPOT_POLL_MS)
                 val state = ConnectionRepository.state.value
                 if (state !is ConnectionState.Advertising && state !is ConnectionState.Connected) continue
+                if (adbTransportOnly || wifiDirectTransport) continue
 
                 val host = LocalAddress.findAdvertisableIpv4()
                 if (host != null) {
@@ -759,13 +919,29 @@ class SharingService : Service() {
     private fun rebind(host: String) {
         currentHost = host
         val keys = wgKeys ?: return
+        val pool = peerPool
         LocalLog.info(
             LocalLog.Area.TUNNEL, "Re-advertising WireGuard",
             "host" to host, "port" to keys.endpointPort.toString(),
         )
+        val wg = if (pool != null) {
+            pool.toWgParams(
+                allocation = pool.initialAllocation,
+                dns = settings.customDns,
+                dohUrl = settings.dohUrl.ifBlank { null },
+            )
+        } else {
+            WgConfig.toWgParams(keys)
+        }
         val payload = pairing.issuePayload(
             mode = QrPayload.MODE_WIREGUARD, host = host, port = keys.endpointPort,
-            deviceName = Build.MODEL.take(64), wg = WgConfig.toWgParams(keys),
+            deviceName = Build.MODEL.take(64), wg = wg,
+        ).copy(
+            transport = when {
+                adbTransportOnly -> QrPayload.TRANSPORT_ADB
+                wifiDirectTransport -> QrPayload.TRANSPORT_WIFI_DIRECT
+                else -> QrPayload.TRANSPORT_LAN
+            },
         )
         // The beacon was built with the address the phone had a moment ago, and
         // it carries that address in every datagram. Left alone it goes on
@@ -862,11 +1038,18 @@ class SharingService : Service() {
         routeWatcher?.cancel()
         routeWatcher = null
         ConnectionRepository.setRoute(null)
-        // Stop the endpoint and drop the per-pairing keys (§4.2).
+        AdbBridge.stop(wgForwarder)
+        activeAdbStatus = AdbBridge.Status()
+        wifiDirectLink?.stopGroup()
+        wifiDirectLink = null
+        wifiDirectTransport = false
+        adbTransportOnly = false
+        ConnectionRepository.setTelemetry(ConnectionRepository.LiveTelemetry())
         runCatching { wgForwarder?.stop() }
         wgKeys = null
+        peerPool = null
+        appliedSettingsSignature = ""
         currentHost = null
-        // Nobody is owed a handshake once there is no endpoint to give them one.
         configuredAtMs = null
         pcWentUnanswered = false
         releaseWakeLock()
@@ -1005,6 +1188,8 @@ class SharingService : Service() {
 
     companion object {
         const val ACTION_START = "io.relay.app.action.START"
+        const val ACTION_START_WIFI_DIRECT = "io.relay.app.action.START_WIFI_DIRECT"
+        const val ACTION_START_ADB = "io.relay.app.action.START_ADB"
         const val ACTION_STOP = "io.relay.app.action.STOP"
 
         /** Answers to the approval notification, carrying the address asked about. */
@@ -1016,16 +1201,23 @@ class SharingService : Service() {
         const val HOTSPOT_POLL_MS = 2000L
         const val PEER_POLL_MS = 1000L
 
-        /**
-         * How stale a handshake may be before Full Mode stops calling the peer
-         * present. Matches what wg(8)'s own tooling treats as a live peer:
-         * rekeying happens at two minutes, so this leaves a minute of margin.
-         */
         const val PEER_ALIVE_SECONDS = 180L
 
         fun start(context: Context) {
             context.startForegroundService(
                 Intent(context, SharingService::class.java).setAction(ACTION_START)
+            )
+        }
+
+        fun startWifiDirect(context: Context) {
+            context.startForegroundService(
+                Intent(context, SharingService::class.java).setAction(ACTION_START_WIFI_DIRECT)
+            )
+        }
+
+        fun startAdbBridge(context: Context) {
+            context.startForegroundService(
+                Intent(context, SharingService::class.java).setAction(ACTION_START_ADB)
             )
         }
 

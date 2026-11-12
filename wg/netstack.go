@@ -1,6 +1,7 @@
 package relaywg
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -67,10 +68,13 @@ const (
 	icmpv6EchoRequest = 128
 )
 
-// Relay's own end of the tunnel as a number, so the per-packet filter compares
-// four bytes instead of parsing a string. [isEchoForElsewhere] runs on every
+// Relay's own end of the tunnel as numbers, so the per-packet filter compares
+// bytes instead of parsing a string. [isEchoForElsewhere] runs on every
 // packet the peer sends.
-var tunnelIPv4 = binary.BigEndian.Uint32(net.ParseIP(tunnelAddress).To4())
+var (
+	tunnelIPv4 = binary.BigEndian.Uint32(net.ParseIP(tunnelAddress).To4())
+	tunnelIPv6 = net.ParseIP(tunnelAddressV6).To16()
+)
 
 // netTun is a wireguard-go tun.Device backed by a gVisor stack we control.
 //
@@ -95,6 +99,13 @@ type netTun struct {
 	// an established TCP stream to another path is not something TCP allows.
 	out atomic.Pointer[upstreamRef]
 
+	tetherTTL atomic.Int32
+	flows     *flowTracker
+	limiter   *trafficLimiter
+	dns       *tunnelDNS
+	icmp      *icmpRelay
+	forwards  *portForwardManager
+
 	// Cancelled by Close, so a Read blocked on an empty queue returns instead
 	// of waiting for a packet that is never coming.
 	ctx       context.Context
@@ -108,9 +119,15 @@ type netTun struct {
 // opinion about egress, and a zero value that behaves like the old code is
 // worth more than three call sites that must remember to set a field.
 func (d *netTun) dial(network, address string) (net.Conn, error) {
+	if err := d.limiter.checkQuota(); err != nil {
+		return nil, err
+	}
 	ref := d.out.Load()
 	if ref == nil {
-		return direct{}.Dial(network, address)
+		return (direct{ttl: &d.tetherTTL}).Dial(network, address)
+	}
+	if _, isDirect := ref.upstream.(direct); isDirect {
+		return (direct{ttl: &d.tetherTTL}).Dial(network, address)
 	}
 	return ref.Dial(network, address)
 }
@@ -122,6 +139,10 @@ type upstreamRef struct{ upstream }
 // setUpstream points every flow opened from now on at out.
 func (d *netTun) setUpstream(out upstream) {
 	d.out.Store(&upstreamRef{out})
+	if _, isSocks := out.(socks5); isSocks && d.icmp != nil {
+		// Never allow direct raw ICMP sockets to bypass an active SOCKS5 VPN upstream.
+		d.icmp.setEnabled(false)
+	}
 }
 
 func newNetTun(mtu int) (*netTun, error) {
@@ -174,8 +195,8 @@ func newNetTun(mtu int) (*netTun, error) {
 		return nil, fmt.Errorf("relaywg: spoofing refused: %v", err)
 	}
 
-	// The tunnel's own address, so the peer can reach the endpoint itself --
-	// a ping to it is the simplest "is the tunnel up?" a person can run.
+	// The tunnel's own addresses (IPv4 + IPv6), so peers can reach the endpoint
+	// itself -- a ping to it is the simplest "is the tunnel up?" a person can run.
 	tunnelAddr := tcpip.AddrFromSlice(net.ParseIP(tunnelAddress).To4())
 	protocolAddress := tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
@@ -183,6 +204,15 @@ func newNetTun(mtu int) (*netTun, error) {
 	}
 	if err := s.AddProtocolAddress(nicID, protocolAddress, stack.AddressProperties{}); err != nil {
 		return nil, fmt.Errorf("relaywg: could not assign the tunnel address: %v", err)
+	}
+
+	tunnelAddr6 := tcpip.AddrFromSlice(net.ParseIP(tunnelAddressV6).To16())
+	protocolAddress6 := tcpip.ProtocolAddress{
+		Protocol:          ipv6.ProtocolNumber,
+		AddressWithPrefix: tunnelAddr6.WithPrefix(),
+	}
+	if err := s.AddProtocolAddress(nicID, protocolAddress6, stack.AddressProperties{}); err != nil {
+		return nil, fmt.Errorf("relaywg: could not assign the IPv6 tunnel address: %v", err)
 	}
 
 	// Everything, both families, goes to this NIC. There is nowhere else.
@@ -197,9 +227,14 @@ func newNetTun(mtu int) (*netTun, error) {
 		endpoint: endpoint,
 		events:   make(chan tun.Event, 2),
 		mtu:      mtu,
+		flows:    newFlowTracker(),
+		limiter:  newTrafficLimiter(),
+		dns:      newTunnelDNS(),
 		ctx:      ctx,
 		cancel:   cancel,
 	}
+	device.icmp = newICMPRelay(device)
+	device.forwards = newPortForwardManager(device)
 	device.events <- tun.EventUp
 
 	return device, nil
@@ -327,6 +362,11 @@ func (d *netTun) Write(bufs [][]byte, offset int) (int, error) {
 		// cannot carry it at all, so forwarding would work in one configuration
 		// and not the other. Not counted as written, like the non-IP case above.
 		if isEchoForElsewhere(packet) {
+			if d.icmp != nil && d.icmp.active() && packet[0]>>4 == 4 {
+				if d.icmp.forwardEchoV4(packet) {
+					written++
+				}
+			}
 			continue
 		}
 
@@ -374,15 +414,16 @@ func isEchoForElsewhere(packet []byte) bool {
 		return binary.BigEndian.Uint32(packet[16:20]) != tunnelIPv4
 
 	case 6:
-		// The tunnel is IPv4-only -- the Windows client refuses IPv6 outright
-		// because nothing here carries it -- so the stack owns no IPv6 address
-		// and every echo request is for somewhere else. Extension headers are
-		// not walked: with any present, the next-header byte is not ICMPv6 and
-		// this returns false, which is the safe direction.
+		// Dual-stack IPv6 tunnel: fd13:37::1 answers echo requests; echo requests
+		// for external IPv6 hosts are dropped unless relayed, so bogus single-hop
+		// replies never masquerade as reachable internet hosts.
 		if len(packet) < ipv6HeaderLength+1 {
 			return false
 		}
-		return packet[6] == protocolICMPv6 && packet[ipv6HeaderLength] == icmpv6EchoRequest
+		if packet[6] != protocolICMPv6 || packet[ipv6HeaderLength] != icmpv6EchoRequest {
+			return false
+		}
+		return !bytes.Equal(packet[24:40], tunnelIPv6)
 	}
 	return false
 }
@@ -400,11 +441,28 @@ func (d *netTun) BatchSize() int { return batchSize }
 func (d *netTun) Close() error {
 	d.closeOnce.Do(func() {
 		d.cancel()
+		if d.forwards != nil {
+			d.forwards.closeAll()
+		}
+		if d.icmp != nil {
+			d.icmp.close()
+		}
 		d.endpoint.Close()
 		d.stack.Close()
 		close(d.events)
 	})
 	return nil
+}
+
+func isTunnelHostAddr(addr tcpip.Address) bool {
+	s := addr.AsSlice()
+	if len(s) == 4 {
+		return binary.BigEndian.Uint32(s) == tunnelIPv4
+	}
+	if len(s) == 16 {
+		return bytes.Equal(s, tunnelIPv6)
+	}
+	return false
 }
 
 // installForwarders is what makes this an exit node rather than a client.
@@ -416,8 +474,26 @@ func (d *netTun) Close() error {
 func (d *netTun) installForwarders() {
 	tcpForwarder := tcp.NewForwarder(d.stack, 0, 512, func(req *tcp.ForwarderRequest) {
 		id := req.ID()
+		if err := d.limiter.checkQuota(); err != nil {
+			req.Complete(true)
+			return
+		}
 		destination := net.JoinHostPort(
 			addrToString(id.LocalAddress), strconv.Itoa(int(id.LocalPort)))
+		client := addrToString(id.RemoteAddress)
+
+		if id.LocalPort == 53 && d.dns.active() && (isTunnelHostAddr(id.LocalAddress) || d.dns.hasDoH()) {
+			var wq waiter.Queue
+			ep, tcpErr := req.CreateEndpoint(&wq)
+			if tcpErr != nil {
+				req.Complete(true)
+				return
+			}
+			req.Complete(false)
+			entry := d.flows.start("dns-tcp", client, destination)
+			go d.dns.serveTCP(d, gonet.NewTCPConn(&wq, ep), entry)
+			return
+		}
 
 		outbound, err := d.dial("tcp", destination)
 		if err != nil {
@@ -436,14 +512,33 @@ func (d *netTun) installForwarders() {
 		}
 		req.Complete(false)
 
-		go forward(gonet.NewTCPConn(&wq, ep), outbound, tcpIdleTimeout)
+		entry := d.flows.start("tcp", client, destination)
+		go func() {
+			defer d.flows.finish(entry)
+			forwardTracked(gonet.NewTCPConn(&wq, ep), outbound, tcpIdleTimeout, d.ctx, d.flows, d.limiter, entry)
+		}()
 	})
 	d.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
 	udpForwarder := udp.NewForwarder(d.stack, func(req *udp.ForwarderRequest) {
 		id := req.ID()
+		if err := d.limiter.checkQuota(); err != nil {
+			return
+		}
 		destination := net.JoinHostPort(
 			addrToString(id.LocalAddress), strconv.Itoa(int(id.LocalPort)))
+		client := addrToString(id.RemoteAddress)
+
+		if id.LocalPort == 53 && d.dns.active() && (isTunnelHostAddr(id.LocalAddress) || d.dns.hasDoH()) {
+			var wq waiter.Queue
+			ep, udpErr := req.CreateEndpoint(&wq)
+			if udpErr != nil {
+				return
+			}
+			entry := d.flows.start("dns-udp", client, destination)
+			go d.dns.serveUDP(d, gonet.NewUDPConn(d.stack, &wq, ep), entry)
+			return
+		}
 
 		outbound, err := d.dial("udp", destination)
 		if err != nil {
@@ -457,7 +552,11 @@ func (d *netTun) installForwarders() {
 			return
 		}
 
-		go forward(gonet.NewUDPConn(d.stack, &wq, ep), outbound, udpIdleTimeout)
+		entry := d.flows.start("udp", client, destination)
+		go func() {
+			defer d.flows.finish(entry)
+			forwardTracked(gonet.NewUDPConn(d.stack, &wq, ep), outbound, udpIdleTimeout, d.ctx, d.flows, d.limiter, entry)
+		}()
 	})
 	d.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 }

@@ -39,6 +39,11 @@
       "minimum": 0,
       "description": "Unix seconds at generation time. Informational in v1; reserved for expiry in a future pairing strategy."
     },
+    "transport": {
+      "type": "string",
+      "enum": ["lan", "wifi_direct", "adb"],
+      "description": "Optional transport hint (LAN/hotspot/Wi-Fi Direct/ADB USB bridge)."
+    },
     "wg": {
       "type": "object",
       "description": "WireGuard parameters. Present if and only if mode == 'wireguard'.",
@@ -49,7 +54,11 @@
         "clientPrivateKey": { "type": "string", "pattern": "^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$", "description": "Per-pairing client private key, base64. Discarded on disconnect." },
         "allowedIps": { "type": "string", "description": "Comma-separated CIDR list routed through the tunnel." },
         "endpointPort": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "WireGuard UDP listen port on the phone." },
-        "dns": { "type": "string", "description": "DNS server the client should use while tunneled." }
+        "dns": { "type": "string", "description": "DNS server the client should use while tunneled." },
+        "clientAddress": { "type": "string", "description": "Assigned client IPv4 tunnel CIDR (defaults to 10.13.37.2/32 when omitted)." },
+        "clientIpv6": { "type": "string", "description": "Assigned client IPv6 tunnel CIDR when dual-stack IPv6 is enabled." },
+        "dnsIpv6": { "type": "string", "description": "Optional IPv6 DNS resolver inside the tunnel." },
+        "dohUrl": { "type": "string", "description": "Optional DNS-over-HTTPS resolver URL inside the tunnel." }
       }
     }
   },

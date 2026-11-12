@@ -362,4 +362,92 @@ public class WgTunnelSessionTests
         Assert.False(session.PeerLost);
         Assert.True(session.IsRunning);
     }
+
+    [Fact]
+    public void ExclusionsAreForwardedOnlyWhenEnabled()
+    {
+        var host = new StubHost(ReadyProcess());
+        var excl = new LeakExclusions
+        {
+            AllowLan = true,
+            AllowDiscovery = true,
+            StrictLeakBlock = false,
+            PersistKillSwitch = true,
+            ExcludeApps = [@"C:\Tools\helper.exe"],
+            ExcludeCidrs = ["198.51.100.12/24"],
+        };
+
+        var args = WgTunnelSession.Arguments(Params(), blockLeaks: true, holdOnLoss: true, exclusions: excl);
+
+        Assert.Contains(WgTunnelSession.AllowLanArgument, args);
+        Assert.Contains(WgTunnelSession.AllowDiscoveryArgument, args);
+        Assert.Contains(WgTunnelSession.DisableStrictLeakBlockArgument, args);
+        Assert.Contains(WgTunnelSession.PersistKillSwitchArgument, args);
+        Assert.Contains(@"-exclude-apps C:\Tools\helper.exe", args);
+        Assert.Contains("-exclude-cidrs 198.51.100.0/24", args);
+        _ = host;
+    }
+
+    [Fact]
+    public void PersistentKillSwitchSendsDisconnectBeforeClosingPipeOnIntentionalStop()
+    {
+        var process = ReadyProcess();
+        var session = new WgTunnelSession(new StubHost(process));
+        var excl = new LeakExclusions { PersistKillSwitch = true };
+
+        Assert.True(session.Connect(Params(), "192.168.1.13", blockLeaks: true, holdOnLoss: true, exclusions: excl).Ok);
+        Assert.True(session.Disconnect().Ok);
+
+        Assert.Equal(WgTunnelSession.DisconnectCommand, process.Written[^1]);
+        Assert.True(process.InputClosed);
+    }
+
+    [Fact]
+    public void DualStackAndAdbBridgeArgumentsAreForwardedCleanly()
+    {
+        var wg = Params() with
+        {
+            ClientAddress = "10.13.37.3/32",
+            ClientIpv6 = "fd13:37::3/128",
+            DnsIpv6 = "fd13:37::1",
+            AllowedIps = "0.0.0.0/0, ::/0",
+        };
+
+        var args = WgTunnelSession.Arguments(
+            wg,
+            blockLeaks: true,
+            holdOnLoss: true,
+            wgTcpBridgeEndpoint: "127.0.0.1:51821",
+            emitStats: true);
+
+        Assert.Contains("-address 10.13.37.3/32", args);
+        Assert.Contains("-routes 0.0.0.0/0", args);
+        Assert.DoesNotContain("-routes 0.0.0.0/0,::/0", args);
+        Assert.Contains("-address6 fd13:37::3/128", args);
+        Assert.Contains("-routes6 ::/0", args);
+        Assert.Contains("-dns6 fd13:37::1", args);
+        Assert.Contains("-wg-tcp-bridge 127.0.0.1:51821", args);
+        Assert.Contains("-emit-stats", args);
+    }
+
+    [Fact]
+    public void TunnelStatsLinesAreParsedAndRaisedOverPipe()
+    {
+        var process = ReadyProcess();
+        process.Output.Enqueue("STATS rx=1234 tx=5678");
+        var session = new WgTunnelSession(new StubHost(process));
+
+        WgTunnelSession.TunnelStatsSnapshot? received = null;
+        using var done = new ManualResetEventSlim();
+        session.TunnelStatsChanged += snap =>
+        {
+            received = snap;
+            done.Set();
+        };
+
+        Assert.True(session.Connect(Params(), "192.168.1.13", emitStats: true).Ok);
+        Assert.True(done.Wait(TimeSpan.FromSeconds(5)), "STATS line was never reported");
+        Assert.Equal(new WgTunnelSession.TunnelStatsSnapshot(1234, 5678), received);
+        Assert.Equal(received, session.LatestTunnelStats);
+    }
 }

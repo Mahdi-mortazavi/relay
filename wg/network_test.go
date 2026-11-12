@@ -1,6 +1,7 @@
 package relaywg
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
@@ -198,7 +199,9 @@ allowed_ip=10.13.37.2/32
 // exchangeThrough opens a connection and echoes one message, which reports
 // whether the tunnel is carrying traffic right now.
 func exchangeThrough(clientNet *netstack.Net, destination string, timeout time.Duration) error {
-	conn, err := clientNet.Dial("tcp", destination)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	conn, err := clientNet.DialContext(ctx, "tcp", destination)
 	if err != nil {
 		return err
 	}

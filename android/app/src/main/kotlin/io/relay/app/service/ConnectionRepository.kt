@@ -55,6 +55,47 @@ object ConnectionRepository {
         _route.value = route
     }
 
+    data class LiveTelemetry(
+        val peers: List<PeerSummary> = emptyList(),
+        val flows: List<FlowSummary> = emptyList(),
+        val quotaUsedBytes: Long = 0L,
+        val quotaLimitBytes: Long = 0L,
+        val quotaExceeded: Boolean = false,
+        val adbStatus: io.relay.app.net.AdbBridge.Status = io.relay.app.net.AdbBridge.Status(),
+        val wifiDirect: io.relay.app.net.WifiDirectLink.State = io.relay.app.net.WifiDirectLink.State.Inactive,
+    )
+
+    data class PeerSummary(
+        val publicKey: String,
+        val endpoint: String,
+        val lastHandshake: Long,
+        val rxBytes: Long,
+        val txBytes: Long,
+    )
+
+    data class FlowSummary(
+        val id: Long,
+        val proto: String,
+        val client: String,
+        val target: String,
+        val txBytes: Long,
+        val rxBytes: Long,
+    )
+
+    private val _telemetry = MutableStateFlow(LiveTelemetry())
+    val telemetry: StateFlow<LiveTelemetry> = _telemetry.asStateFlow()
+
+    fun setTelemetry(telemetry: LiveTelemetry) {
+        _telemetry.value = telemetry
+    }
+
+    private val _preFlight = MutableStateFlow<io.relay.app.net.VpnPreFlight.Report?>(null)
+    val preFlight: StateFlow<io.relay.app.net.VpnPreFlight.Report?> = _preFlight.asStateFlow()
+
+    fun setPreFlight(report: io.relay.app.net.VpnPreFlight.Report?) {
+        _preFlight.value = report
+    }
+
     fun clearWarnings() {
         _warnings.value = emptySet()
     }
