@@ -254,6 +254,10 @@ public sealed class PairingClient(
             AllowedIps = allowedIps,
             EndpointPort = endpointPort,
             Dns = dns,
+            ClientAddress = Text(wg, "clientAddress"),
+            ClientIpv6 = Text(wg, "clientIpv6"),
+            DnsIpv6 = Text(wg, "dnsIpv6"),
+            DohUrl = Text(wg, "dohUrl"),
         };
     }
 

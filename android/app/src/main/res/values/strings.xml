@@ -203,4 +203,39 @@
     <string name="trusted_remove">Remove</string>
     <string name="trusted_remove_named">Remove %1$s from trusted computers</string>
     <string name="trusted_remove_all">Remove all</string>
+
+    <!-- Multi-peer, fallback transports, pre-flight VPN & power-user controls -->
+    <string name="connected_devices_count">%1$d device(s) connected</string>
+    <string name="connected_quota_used">Quota: %1$s / %2$s</string>
+    <string name="connected_quota_exceeded">Session quota reached — new connections paused</string>
+    <string name="monitor_toggle_show">Live connection monitor</string>
+    <string name="monitor_toggle_hide">Hide live monitor</string>
+    <string name="monitor_peers_heading">Connected peers</string>
+    <string name="monitor_flows_heading">Active flows (%1$d)</string>
+    <string name="monitor_empty">No active flows right now.</string>
+    <string name="preflight_lockdown_title">Strict VPN lockdown detected</string>
+    <string name="preflight_lockdown_body">“Block connections without VPN” is enabled, which blocks LAN sharing replies. Disable it in VPN settings or connect via ADB USB Bridge.</string>
+    <string name="preflight_strict_vpn_body">A VPN captures Relay and no local proxy answered. Enable LAN access in your VPN, exclude Relay, or start via ADB USB Bridge.</string>
+    <string name="transport_adb_button">ADB USB Bridge</string>
+    <string name="transport_wifi_direct_button">Wi-Fi Direct</string>
+    <string name="adb_bridge_title">ADB USB forwarding bridge</string>
+    <string name="adb_bridge_hint">Run on your PC over USB debugging (bypasses strict VPN lockdown and AP isolation):</string>
+    <string name="adb_bridge_toggle">Keep ADB TCP bridge ready</string>
+    <string name="wifi_direct_credentials">Wi-Fi Direct: %1$s · Passphrase: %2$s · Host: %3$s</string>
+    <string name="advanced_section_power">Power-user controls</string>
+    <string name="power_dns_label">In-tunnel DNS server</string>
+    <string name="power_doh_label">DNS-over-HTTPS (DoH)</string>
+    <string name="power_doh_off">Off</string>
+    <string name="power_doh_placeholder">https://cloudflare-dns.com/dns-query</string>
+    <string name="power_tether_ttl">Carrier TTL=65 anti-hotspot-throttling</string>
+    <string name="power_icmp_relay">Unprivileged ICMP echo relay (ping/traceroute)</string>
+    <string name="power_up_limit">Upload cap KB/s (0 = off)</string>
+    <string name="power_down_limit">Download cap KB/s (0 = off)</string>
+    <string name="power_quota_mb">Session quota MB (0 = off)</string>
+    <string name="power_forwards_label">Inbound LAN-to-PC port forwards</string>
+    <string name="power_forwards_hint">Format: tcp:8080-&gt;10.13.37.2:8080</string>
+    <string name="power_forwards_add">Add forward</string>
+    <string name="power_forwards_invalid">Use proto:port-&gt;10.13.37.x:port (e.g. tcp:8080-&gt;10.13.37.2:8080)</string>
+    <string name="power_accel_label">Root / kernel diagnostics</string>
+    <string name="power_accel_status">su: %1$s · kernel WG: %2$s</string>
 </resources>

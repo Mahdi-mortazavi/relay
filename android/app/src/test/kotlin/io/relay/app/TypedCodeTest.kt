@@ -58,8 +58,27 @@ class TypedCodeTest {
     }
 
     @Test
-    fun `hosts outside 192-168 are not encodable`() {
-        assertNull(TypedCode.encode("10.0.0.1", 1080))
-        assertNull(TypedCode.encode("172.16.5.1", 1080))
+    fun `10-dot and 172-16-to-31 RFC1918 addresses round-trip as 10-character codes`() {
+        val cases = listOf(
+            "10.0.0.1" to 1080,
+            "10.255.254.1" to 47655,
+            "172.16.5.1" to 1080,
+            "172.31.255.254" to 51820,
+        )
+        for ((host, port) in cases) {
+            val encoded = TypedCode.encode(host, port)
+            assertEquals(10, encoded?.length)
+            assertEquals(TypedCode.Decoded(host, port), TypedCode.decode(encoded!!))
+            assertEquals(TypedCode.Decoded(host, port), TypedCode.decode(TypedCode.format(encoded).lowercase()))
+        }
+    }
+
+    @Test
+    fun `non-RFC1918 hosts are not encodable`() {
+        assertNull(TypedCode.encode("8.8.8.8", 1080))
+        assertNull(TypedCode.encode("172.15.0.1", 1080))
+        assertNull(TypedCode.encode("172.32.0.1", 1080))
+        assertNull(TypedCode.encode("192.169.1.1", 1080))
+        assertNull(TypedCode.encode("127.0.0.1", 1080))
     }
 }

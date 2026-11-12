@@ -14,11 +14,15 @@ data class QrPayload(
     val port: Int,
     val name: String? = null,
     val issuedAt: Long? = null,
+    val transport: String? = null,
     val wg: WgParams? = null,
 ) {
     companion object {
         const val MODE_SOCKS5 = "socks5"
         const val MODE_WIREGUARD = "wireguard"
+        const val TRANSPORT_LAN = "lan"
+        const val TRANSPORT_WIFI_DIRECT = "wifi_direct"
+        const val TRANSPORT_ADB = "adb"
     }
 }
 
@@ -29,4 +33,8 @@ data class WgParams(
     val allowedIps: String,
     val endpointPort: Int,
     val dns: String,
+    val clientAddress: String? = null,
+    val clientIpv6: String? = null,
+    val dnsIpv6: String? = null,
+    val dohUrl: String? = null,
 )

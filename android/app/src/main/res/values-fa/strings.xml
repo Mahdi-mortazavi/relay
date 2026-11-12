@@ -200,4 +200,39 @@
     <string name="trusted_remove">حذف</string>
     <string name="trusted_remove_named">حذف %1$s از رایانه‌های مورد اعتماد</string>
     <string name="trusted_remove_all">حذف همه</string>
+
+    <!-- Multi-peer, fallback transports, pre-flight VPN & power-user controls -->
+    <string name="connected_devices_count">%1$d دستگاه متصل</string>
+    <string name="connected_quota_used">سهمیه: %1$s / %2$s</string>
+    <string name="connected_quota_exceeded">سهمیه جلسه پر شد — اتصال‌های جدید متوقف شدند</string>
+    <string name="monitor_toggle_show">نمایشگر زندهٔ اتصال‌ها</string>
+    <string name="monitor_toggle_hide">پنهان‌کردن نمایشگر زنده</string>
+    <string name="monitor_peers_heading">دستگاه‌های متصل</string>
+    <string name="monitor_flows_heading">جریان‌های فعال (%1$d)</string>
+    <string name="monitor_empty">در حال حاضر جریان فعالی نیست.</string>
+    <string name="preflight_lockdown_title">قفل سخت‌گیرانهٔ VPN فعال است</string>
+    <string name="preflight_lockdown_body">گزینهٔ «Block connections without VPN» روشن است و پاسخ‌های شبکهٔ محلی را مسدود می‌کند. آن را در تنظیمات VPN خاموش کنید یا از پل USB ADB استفاده کنید.</string>
+    <string name="preflight_strict_vpn_body">یک VPN ترافیک رله را می‌گیرد و پروکسی محلی پیدا نشد. دسترسی LAN را در VPN روشن کنید، رله را مستثنا کنید یا از پل USB ADB استفاده کنید.</string>
+    <string name="transport_adb_button">پل USB ADB</string>
+    <string name="transport_wifi_direct_button">Wi-Fi Direct</string>
+    <string name="adb_bridge_title">پل انتقال USB ADB</string>
+    <string name="adb_bridge_hint">این دستور را با USB debugging روی رایانه اجرا کنید (قفل VPN و ایزوله‌سازی AP را دور می‌زند):</string>
+    <string name="adb_bridge_toggle">آماده نگه‌داشتن پل TCP ADB</string>
+    <string name="wifi_direct_credentials">Wi-Fi Direct: %1$s · گذرواژه: %2$s · نشانی: %3$s</string>
+    <string name="advanced_section_power">کنترل‌های حرفه‌ای</string>
+    <string name="power_dns_label">سرور DNS داخل تونل</string>
+    <string name="power_doh_label">DNS از روی HTTPS (DoH)</string>
+    <string name="power_doh_off">خاموش</string>
+    <string name="power_doh_placeholder">https://cloudflare-dns.com/dns-query</string>
+    <string name="power_tether_ttl">تنظیم TTL=65 برای دورزدن محدودیت تتر اپراتور</string>
+    <string name="power_icmp_relay">رلهٔ ICMP بدون دسترسی ریشه (ping/traceroute)</string>
+    <string name="power_up_limit">محدودیت ارسال کیلوبایت/ثانیه (۰ = نامحدود)</string>
+    <string name="power_down_limit">محدودیت دریافت کیلوبایت/ثانیه (۰ = نامحدود)</string>
+    <string name="power_quota_mb">سهمیه جلسه مگابایت (۰ = نامحدود)</string>
+    <string name="power_forwards_label">انتقال پورت ورودی از LAN به رایانه</string>
+    <string name="power_forwards_hint">قالب: tcp:8080-&gt;10.13.37.2:8080</string>
+    <string name="power_forwards_add">افزودن</string>
+    <string name="power_forwards_invalid">قالب درست: proto:port-&gt;10.13.37.x:port (مثل tcp:8080-&gt;10.13.37.2:8080)</string>
+    <string name="power_accel_label">تشخیص دسترسی ریشه و هسته</string>
+    <string name="power_accel_status">su: %1$s · کرنل WG: %2$s</string>
 </resources>

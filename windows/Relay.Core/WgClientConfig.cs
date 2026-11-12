@@ -36,11 +36,19 @@ public static class WgClientConfig
     {
         Validate(wg, host);
 
+        var address = wg.ClientAddress ?? ClientTunnelAddress;
+        var addresses = string.IsNullOrWhiteSpace(wg.ClientIpv6)
+            ? address
+            : $"{address}, {wg.ClientIpv6}";
+        var dnsLine = string.IsNullOrWhiteSpace(wg.DnsIpv6)
+            ? wg.Dns
+            : $"{wg.Dns}, {wg.DnsIpv6}";
+
         var config = new StringBuilder();
         config.AppendLine("[Interface]");
         config.AppendLine($"PrivateKey = {wg.ClientPrivateKey}");
-        config.AppendLine($"Address = {ClientTunnelAddress}");
-        config.AppendLine($"DNS = {wg.Dns}");
+        config.AppendLine($"Address = {addresses}");
+        config.AppendLine($"DNS = {dnsLine}");
         config.AppendLine($"MTU = {Mtu}");
         config.AppendLine();
         config.AppendLine("[Peer]");

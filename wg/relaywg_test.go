@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/curve25519"
-	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun/netstack"
 )
@@ -298,7 +297,7 @@ func wireguardClient(t testing.TB, privateKey, serverPublic string, port int) (*
 	if err != nil {
 		t.Fatalf("client stack: %v", err)
 	}
-	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(),
+	dev := device.NewDevice(tunDevice, newResilientBind(),
 		device.NewLogger(device.LogLevelError, "client: "))
 
 	config := strings.Join([]string{

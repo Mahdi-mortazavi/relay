@@ -80,9 +80,25 @@ public class TypedCodeTests
     }
 
     [Fact]
-    public void Hosts_outside_192_168_are_not_encodable()
+    public void Extended_rfc1918_ranges_encode_as_ten_character_codes()
     {
-        Assert.Null(TypedCode.Encode("10.0.0.1", 1080));
-        Assert.Null(TypedCode.Encode("172.16.5.1", 1080));
+        var ten = TypedCode.Encode("10.0.0.1", 1080);
+        Assert.NotNull(ten);
+        Assert.Equal(TypedCode.ExtendedLength, ten!.Length);
+        Assert.Equal(("10.0.0.1", 1080), TypedCode.Decode(TypedCode.Format(ten)));
+
+        var oneSevenTwo = TypedCode.Encode("172.16.5.1", 47655);
+        Assert.NotNull(oneSevenTwo);
+        Assert.Equal(TypedCode.ExtendedLength, oneSevenTwo!.Length);
+        Assert.Equal(("172.16.5.1", 47655), TypedCode.Decode(oneSevenTwo));
+    }
+
+    [Fact]
+    public void Hosts_outside_rfc1918_are_not_encodable()
+    {
+        Assert.Null(TypedCode.Encode("8.8.8.8", 1080));
+        Assert.Null(TypedCode.Encode("172.15.0.1", 1080));
+        Assert.Null(TypedCode.Encode("172.32.0.1", 1080));
+        Assert.Null(TypedCode.Encode("127.0.0.1", 1080));
     }
 }

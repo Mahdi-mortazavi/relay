@@ -18,8 +18,9 @@ import (
 // bent around the bridge's limitations.
 
 var (
-	activeMu sync.Mutex
-	active   *Endpoint
+	activeMu     sync.Mutex
+	active       *Endpoint
+	activeBridge *TcpBridge
 )
 
 // StartEndpoint brings up Full Mode from a wireguard-go IPC configuration.
@@ -83,6 +84,10 @@ func SetEndpointUpstream(upstreamProxy string) error {
 func StopEndpoint() {
 	activeMu.Lock()
 	defer activeMu.Unlock()
+	if activeBridge != nil {
+		activeBridge.Stop()
+		activeBridge = nil
+	}
 	if active != nil {
 		active.Stop()
 		active = nil
@@ -123,4 +128,152 @@ func BytesSent() int64 {
 	activeMu.Lock()
 	defer activeMu.Unlock()
 	return active.BytesSent()
+}
+
+// AddPeer adds or updates a client peer on the running endpoint.
+func AddPeer(publicKeyHex, allowedIPs string) error {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.AddPeer(publicKeyHex, allowedIPs)
+}
+
+// RemovePeer removes a client peer from the running endpoint.
+func RemovePeer(publicKeyHex string) error {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.RemovePeer(publicKeyHex)
+}
+
+// PeerCount reports how many peers are currently configured.
+func PeerCount() int {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.PeerCount()
+}
+
+// PeersStatsJSON returns a JSON array of per-peer WireGuard statistics.
+func PeersStatsJSON() string {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.PeersStatsJSON()
+}
+
+// ActiveFlowsJSON returns a JSON array of live forwarded TCP/UDP flows.
+func ActiveFlowsJSON() string {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.ActiveFlowsJSON()
+}
+
+// SetTunnelDNS configures custom DNS IP and/or DoH URL inside the tunnel.
+func SetTunnelDNS(customDNS, dohURL string) error {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.SetTunnelDNS(customDNS, dohURL)
+}
+
+// SetTrafficLimits configures upload/download throttles (bytes/sec) and session byte quota.
+func SetTrafficLimits(upBytesPerSec, downBytesPerSec, quotaBytes int64) {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	ep.SetTrafficLimits(upBytesPerSec, downBytesPerSec, quotaBytes)
+}
+
+func QuotaUsedBytes() int64 {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.QuotaUsedBytes()
+}
+
+func QuotaExceeded() bool {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.QuotaExceeded()
+}
+
+func SetTetherTTL(ttl int) {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	ep.SetTetherTTL(ttl)
+}
+
+func EnableICMPRelay(on bool) bool {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.EnableICMPRelay(on)
+}
+
+func AddInboundForward(listenPort int, targetIP string, targetPort int, proto string) error {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.AddInboundForward(listenPort, targetIP, targetPort, proto)
+}
+
+func RemoveInboundForward(listenPort int, proto string) error {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.RemoveInboundForward(listenPort, proto)
+}
+
+func InboundForwardsJSON() string {
+	activeMu.Lock()
+	ep := active
+	activeMu.Unlock()
+	return ep.InboundForwardsJSON()
+}
+
+// StartWgTcpBridge starts a length-framed TCP->UDP bridge on loopback for ADB USB forwarding.
+func StartWgTcpBridge(listenPort, wgPort int) (int, error) {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	if activeBridge != nil {
+		activeBridge.Stop()
+		activeBridge = nil
+	}
+	listenAddr := "127.0.0.1:0"
+	if listenPort > 0 && listenPort <= 65535 {
+		listenAddr = "127.0.0.1:" + itoa(listenPort)
+	}
+	b, err := StartTcpBridge(listenAddr, wgPort)
+	if err != nil {
+		return 0, err
+	}
+	activeBridge = b
+	return b.Port(), nil
+}
+
+func StopWgTcpBridge() {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	if activeBridge != nil {
+		activeBridge.Stop()
+		activeBridge = nil
+	}
+}
+
+func itoa(v int) string {
+	if v == 0 {
+		return "0"
+	}
+	var buf [12]byte
+	i := len(buf)
+	for v > 0 {
+		i--
+		buf[i] = byte('0' + v%10)
+		v /= 10
+	}
+	return string(buf[i:])
 }

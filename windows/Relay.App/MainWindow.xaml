@@ -131,6 +131,8 @@
                         Click="OnScanClick" />
                 <Button x:Name="EnterCodeButton" Style="{StaticResource QuietButton}"
                         Click="OnEnterCodeClick" />
+                <Button x:Name="ConnectAdbButton" Style="{StaticResource QuietButton}"
+                        Click="OnConnectAdbClick" />
             </StackPanel>
 
             <!-- Scanning ────────────────────────────────────────-->
@@ -243,6 +245,10 @@
                 <TextBlock x:Name="ConnectedText" Style="{StaticResource HeadlineText}" />
                 <TextBlock x:Name="ConnectedDetailText" Style="{StaticResource MonoText}"
                            HorizontalAlignment="Center" />
+                <TextBlock x:Name="ConnectedFeaturesText" Style="{StaticResource CaptionText}"
+                           Foreground="{StaticResource LabelTertiary}"
+                           HorizontalAlignment="Center"
+                           Visibility="Collapsed" />
 
                 <!-- What the tunnel is carrying, from the adapter's own
                      counters. Rates on top because they answer "is it working
@@ -397,6 +403,150 @@
                                   MinWidth="0" Margin="0,-6,0,-6"
                                   Toggled="OnKillSwitchToggled" />
                 </Grid>
+                <!-- Optional exclusions stored in %LOCALAPPDATA%\Relay\exclusions.json.
+                     LAN and app bypasses allow IPv4 connections outside the tunnel
+                     while keeping DNS, mDNS, LLMNR, and NetBIOS sealed inside it. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="AdvancedAllowLanLabel" Style="{StaticResource CaptionText}"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedAllowLanToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnAllowLanToggled" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="AdvancedAllowDiscoveryLabel" Style="{StaticResource CaptionText}"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedAllowDiscoveryToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnAllowDiscoveryToggled" />
+                </Grid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="AdvancedPersistKillSwitchLabel" Style="{StaticResource CaptionText}"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedPersistKillSwitchToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnPersistKillSwitchToggled" />
+                </Grid>
+                <StackPanel Spacing="6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="AdvancedExcludeAppsLabel" Style="{StaticResource CaptionText}"
+                                   Grid.Column="0" VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,8,0" />
+                        <HyperlinkButton x:Name="AdvancedExcludeBrowseButton" Grid.Column="1"
+                                         Padding="0" FontSize="{StaticResource SizeCaption}"
+                                         Click="OnBrowseExcludeAppClick" />
+                    </Grid>
+                    <TextBox x:Name="AdvancedExcludeAppsBox"
+                             PlaceholderText="C:\Program Files\App\app.exe"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             FlowDirection="LeftToRight"
+                             FontFamily="{StaticResource FontMono}"
+                             FontSize="{StaticResource SizeFootnote}"
+                             MinHeight="56"
+                             MaxHeight="92"
+                             CornerRadius="{StaticResource SunkenCorner}"
+                             Background="{StaticResource FillSunken}"
+                             Foreground="{StaticResource LabelPrimary}"
+                             BorderBrush="{StaticResource HairlineBrush}"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    <TextBlock x:Name="AdvancedExcludeCidrsLabel" Style="{StaticResource CaptionText}"
+                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                    <TextBox x:Name="AdvancedExcludeCidrsBox"
+                             PlaceholderText="192.168.1.50/32"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             FlowDirection="LeftToRight"
+                             FontFamily="{StaticResource FontMono}"
+                             FontSize="{StaticResource SizeFootnote}"
+                             MinHeight="42"
+                             MaxHeight="72"
+                             CornerRadius="{StaticResource SunkenCorner}"
+                             Background="{StaticResource FillSunken}"
+                             Foreground="{StaticResource LabelPrimary}"
+                             BorderBrush="{StaticResource HairlineBrush}"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    <Grid ColumnSpacing="8" Margin="0,2,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="AdvancedExclusionsStatusText" Style="{StaticResource CaptionText}"
+                                   Grid.Column="0" VerticalAlignment="Center"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="AdvancedSaveExclusionsButton" Grid.Column="1"
+                                Style="{StaticResource SecondaryButton}"
+                                MinHeight="34" Padding="14,6"
+                                FontSize="{StaticResource SizeFootnote}"
+                                HorizontalAlignment="Right"
+                                Click="OnSaveExclusionsClick" />
+                    </Grid>
+                </StackPanel>
+                <!-- Power-user client overrides stored in %LOCALAPPDATA%\Relay\preferences.json -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="AdvancedIpv6Label" Style="{StaticResource CaptionText}"
+                               Grid.Column="0" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="0,0,12,0" />
+                    <ToggleSwitch x:Name="AdvancedIpv6Toggle" Grid.Column="1" HorizontalAlignment="Right"
+                                  MinWidth="0" Margin="0,-6,0,-6"
+                                  Toggled="OnIpv6Toggled" />
+                </Grid>
+                <StackPanel Spacing="6">
+                    <TextBlock x:Name="AdvancedCustomDnsLabel" Style="{StaticResource CaptionText}"
+                               TextWrapping="Wrap" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="AdvancedCustomDnsBox"
+                                 Grid.Column="0"
+                                 PlaceholderText="1.1.1.1"
+                                 FlowDirection="LeftToRight"
+                                 FontFamily="{StaticResource FontMono}"
+                                 FontSize="{StaticResource SizeFootnote}"
+                                 MinHeight="34"
+                                 CornerRadius="{StaticResource SunkenCorner}"
+                                 Background="{StaticResource FillSunken}"
+                                 Foreground="{StaticResource LabelPrimary}"
+                                 BorderBrush="{StaticResource HairlineBrush}" />
+                        <Button x:Name="AdvancedSavePrefsButton" Grid.Column="1"
+                                Style="{StaticResource SecondaryButton}"
+                                MinHeight="34" Padding="14,6"
+                                FontSize="{StaticResource SizeFootnote}"
+                                Click="OnSavePrefsClick" />
+                    </Grid>
+                    <TextBlock x:Name="AdvancedPrefsStatusText" Style="{StaticResource CaptionText}"
+                               TextWrapping="Wrap" Visibility="Collapsed" />
+                </StackPanel>
                 <!-- Automatic updates (#173). On by default; off means Relay never
                      checks or installs by itself. Applies from the next launch. -->
                 <Grid>

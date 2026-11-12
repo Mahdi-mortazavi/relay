@@ -61,6 +61,8 @@ public sealed partial class MainWindow : Window
     private string? _errorAction;
     private bool _shown;
     private bool _pulsing;
+    private bool _pickingExclusionFile;
+    private bool _strictLeakBlock = true;
 
     /// <summary>Kept so the window can stop floating once it stops being transient.</summary>
     private OverlappedPresenter? _presenter;
@@ -70,9 +72,13 @@ public sealed partial class MainWindow : Window
     private DispatcherTimer? _statsTimer;
     private TimeSpan? _latency;
     private int _latencyTick;
+    private TunnelStats.Sample? _pipeStatsPrevious;
+    private DateTimeOffset? _pipeStatsStartedAt;
+    private DateTimeOffset? _pipeStatsUpdatedAt;
+    private TunnelStats.Reading? _pipeStatsReading;
 
     /// <summary>
-    /// True while the code box is asking for the eight-character fallback
+    /// True while the code box is asking for the fallback code
     /// instead of the two digits the phone normally shows.
     /// </summary>
     private bool _longCode;
@@ -142,6 +148,7 @@ public sealed partial class MainWindow : Window
         ApplyStrings();
 
         _controller.StateChanged += () => DispatcherQueue.TryEnqueue(OnStateChanged);
+        _controller.TunnelStatsChanged += snap => DispatcherQueue.TryEnqueue(() => OnPipeTunnelStats(snap));
         LocalLog.Changed += () => DispatcherQueue.TryEnqueue(RefreshLogs);
         // Discovery runs on its own socket thread; everything it touches here
         // is UI, so it is marshalled rather than handled where it arrives.
@@ -275,6 +282,7 @@ public sealed partial class MainWindow : Window
             // Minimise the window reported visible=false, iconic=false, which is
             // hidden, not minimised.
             if (_presenter?.State == OverlappedPresenterState.Minimized) return;
+            if (_pickingExclusionFile) return;
 
             if (e.WindowActivationState == WindowActivationState.Deactivated
                 && _mode == InputMode.None
@@ -418,7 +426,7 @@ public sealed partial class MainWindow : Window
     {
         foreach (var button in new[]
         {
-            ScanButton, EnterCodeButton, ScanCancelButton, CodeConnectButton,
+            ScanButton, EnterCodeButton, ConnectAdbButton, ScanCancelButton, CodeConnectButton,
             CodeCancelButton, BusyCancelButton, DisconnectButton,
             ErrorPrimaryButton, ErrorDismissButton,
         })
@@ -467,7 +475,7 @@ public sealed partial class MainWindow : Window
                     // itself. This handler used to run anyway, so tabbing to
                     // Dismiss and pressing Enter ran the primary action, and
                     // Enter on a listed phone also opened the camera (P-26).
-                    if (FocusManager.GetFocusedElement(Root.XamlRoot) is ButtonBase or ToggleSwitch)
+                    if (FocusManager.GetFocusedElement(Root.XamlRoot) is ButtonBase or ToggleSwitch or TextBox)
                     {
                         break;
                     }
@@ -521,6 +529,8 @@ public sealed partial class MainWindow : Window
         IdleBody.Text = Strings.Get("IdleBody");
         ScanButton.Content = Strings.Get("ScanQr");
         EnterCodeButton.Content = Strings.Get("EnterCode");
+        ConnectAdbButton.Content = Strings.Get("ConnectAdb");
+        ToolTipService.SetToolTip(ConnectAdbButton, Strings.Get("ConnectAdbHint"));
         ScanHintText.Text = Strings.Get("ScanAiming");
         ScanCancelButton.Content = Strings.Get("Cancel");
         CodeHintText.Text = Strings.Get("CodeHint");
@@ -559,6 +569,33 @@ public sealed partial class MainWindow : Window
         AdvancedKillSwitchToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
         ToolTipService.SetToolTip(AdvancedKillSwitchToggle, Strings.Get("AdvancedKillSwitchHint"));
         SyncKillSwitchToggle();
+        AdvancedAllowLanLabel.Text = Strings.Get("AdvancedAllowLan");
+        AdvancedAllowLanToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedAllowLanToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedAllowLanToggle, Strings.Get("AdvancedAllowLanHint"));
+        AdvancedAllowDiscoveryLabel.Text = Strings.Get("AdvancedAllowDiscovery");
+        AdvancedAllowDiscoveryToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedAllowDiscoveryToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedAllowDiscoveryToggle, Strings.Get("AdvancedAllowDiscoveryHint"));
+        AdvancedPersistKillSwitchLabel.Text = Strings.Get("AdvancedPersistKillSwitch");
+        AdvancedPersistKillSwitchToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedPersistKillSwitchToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedPersistKillSwitchToggle, Strings.Get("AdvancedPersistKillSwitchHint"));
+        AdvancedExcludeAppsLabel.Text = Strings.Get("AdvancedExcludeApps");
+        ToolTipService.SetToolTip(AdvancedExcludeAppsBox, Strings.Get("AdvancedExcludeAppsHint"));
+        AdvancedExcludeBrowseButton.Content = Strings.Get("AdvancedExcludeBrowse");
+        AdvancedExcludeCidrsLabel.Text = Strings.Get("AdvancedExcludeCidrs");
+        ToolTipService.SetToolTip(AdvancedExcludeCidrsBox, Strings.Get("AdvancedExcludeCidrsHint"));
+        AdvancedSaveExclusionsButton.Content = Strings.Get("AdvancedExclusionsSave");
+        SyncExclusionsControls();
+        AdvancedIpv6Label.Text = Strings.Get("AdvancedIpv6");
+        AdvancedIpv6Toggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
+        AdvancedIpv6Toggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
+        ToolTipService.SetToolTip(AdvancedIpv6Toggle, Strings.Get("AdvancedIpv6Hint"));
+        AdvancedCustomDnsLabel.Text = Strings.Get("AdvancedCustomDns");
+        ToolTipService.SetToolTip(AdvancedCustomDnsBox, Strings.Get("AdvancedCustomDnsHint"));
+        AdvancedSavePrefsButton.Content = Strings.Get("AdvancedPrefsSave");
+        SyncPreferencesControls();
         AdvancedAutoUpdateLabel.Text = Strings.Get("AdvancedAutoUpdate");
         AdvancedAutoUpdateToggle.OnContent = Strings.Get("AdvancedLeakBlockOn");
         AdvancedAutoUpdateToggle.OffContent = Strings.Get("AdvancedLeakBlockOff");
@@ -711,6 +748,195 @@ public sealed partial class MainWindow : Window
             : "Kill switch off — if the phone stops answering, the laptop uses its own connection");
     }
 
+    private bool _syncingExclusions;
+
+    private void SyncExclusionsControls()
+    {
+        var loaded = LeakExclusions.LoadOrDefault();
+        _syncingExclusions = true;
+        try
+        {
+            _strictLeakBlock = loaded.StrictLeakBlock;
+            AdvancedAllowLanToggle.IsOn = loaded.AllowLan;
+            AdvancedAllowDiscoveryToggle.IsOn = loaded.AllowDiscovery;
+            AdvancedPersistKillSwitchToggle.IsOn = loaded.PersistKillSwitch;
+            AdvancedExcludeAppsBox.Text = string.Join(Environment.NewLine, loaded.ExcludeApps);
+            AdvancedExcludeCidrsBox.Text = string.Join(Environment.NewLine, loaded.ExcludeCidrs);
+            AdvancedExclusionsStatusText.Text = string.Empty;
+        }
+        finally
+        {
+            _syncingExclusions = false;
+        }
+    }
+
+    private void OnAllowLanToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingExclusions) return;
+        SaveExclusionsFromUi();
+    }
+
+    private void OnAllowDiscoveryToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingExclusions) return;
+        SaveExclusionsFromUi();
+    }
+
+    private void OnPersistKillSwitchToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingExclusions) return;
+        SaveExclusionsFromUi();
+    }
+
+    private void OnSaveExclusionsClick(object sender, RoutedEventArgs e) =>
+        SaveExclusionsFromUi();
+
+    private async void OnBrowseExcludeAppClick(object sender, RoutedEventArgs e)
+    {
+        _pickingExclusionFile = true;
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker
+            {
+                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder,
+            };
+            picker.FileTypeFilter.Add(".exe");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, Hwnd);
+            var file = await picker.PickSingleFileAsync();
+            if (file is null || string.IsNullOrWhiteSpace(file.Path)) return;
+
+            var merged = LeakExclusions.SplitEntries(AdvancedExcludeAppsBox.Text)
+                .Append(file.Path)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            AdvancedExcludeAppsBox.Text = string.Join(Environment.NewLine, merged);
+            SaveExclusionsFromUi();
+        }
+        catch (Exception ex)
+        {
+            LocalLog.Add($"Browse executable failed: {ex.Message}");
+        }
+        finally
+        {
+            _pickingExclusionFile = false;
+        }
+    }
+
+    private void SaveExclusionsFromUi()
+    {
+        var draft = new LeakExclusions
+        {
+            AllowLan = AdvancedAllowLanToggle.IsOn,
+            AllowDiscovery = AdvancedAllowDiscoveryToggle.IsOn,
+            StrictLeakBlock = _strictLeakBlock,
+            PersistKillSwitch = AdvancedPersistKillSwitchToggle.IsOn,
+            ExcludeApps = LeakExclusions.SplitEntries(AdvancedExcludeAppsBox.Text),
+            ExcludeCidrs = LeakExclusions.SplitEntries(AdvancedExcludeCidrsBox.Text),
+        };
+
+        var (ok, saved, warnings) = LeakExclusions.Save(draft, log: LocalLog.Add);
+        if (!ok)
+        {
+            AdvancedExclusionsStatusText.Text = Strings.Get("AdvancedExclusionsSaveFailed");
+            return;
+        }
+
+        _syncingExclusions = true;
+        try
+        {
+            AdvancedAllowLanToggle.IsOn = saved.AllowLan;
+            AdvancedAllowDiscoveryToggle.IsOn = saved.AllowDiscovery;
+            AdvancedPersistKillSwitchToggle.IsOn = saved.PersistKillSwitch;
+            AdvancedExcludeAppsBox.Text = string.Join(Environment.NewLine, saved.ExcludeApps);
+            AdvancedExcludeCidrsBox.Text = string.Join(Environment.NewLine, saved.ExcludeCidrs);
+        }
+        finally
+        {
+            _syncingExclusions = false;
+        }
+
+        var message = _controller.StateName == "Connected"
+            ? Strings.Get("AdvancedExclusionsSavedReconnect")
+            : Strings.Format("AdvancedExclusionsSaved", saved.ExcludeApps.Count, saved.ExcludeCidrs.Count);
+        if (warnings.Count > 0)
+        {
+            message = $"{message} — {Strings.Format("AdvancedExclusionsWarnings", warnings.Count)}";
+        }
+        AdvancedExclusionsStatusText.Text = message;
+        LocalLog.Add($"Saved leak exclusions (allowLan={saved.AllowLan}, allowDiscovery={saved.AllowDiscovery}, persistKillSwitch={saved.PersistKillSwitch}, apps={saved.ExcludeApps.Count}, cidrs={saved.ExcludeCidrs.Count})");
+    }
+
+    private bool _syncingPrefs;
+
+    private void SyncPreferencesControls()
+    {
+        var loaded = ClientPreferences.LoadOrDefault();
+        _syncingPrefs = true;
+        try
+        {
+            AdvancedIpv6Toggle.IsOn = loaded.EnableIpv6Tunnel;
+            AdvancedCustomDnsBox.Text = loaded.CustomDnsOverride ?? string.Empty;
+            AdvancedPrefsStatusText.Text = string.Empty;
+            AdvancedPrefsStatusText.Visibility = Visibility.Collapsed;
+        }
+        finally
+        {
+            _syncingPrefs = false;
+        }
+    }
+
+    private void OnIpv6Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncingPrefs) return;
+        SavePreferencesFromUi();
+    }
+
+    private void OnSavePrefsClick(object sender, RoutedEventArgs e) =>
+        SavePreferencesFromUi();
+
+    private void SavePreferencesFromUi()
+    {
+        var rawDns = (AdvancedCustomDnsBox.Text ?? string.Empty).Trim();
+        if (rawDns.Length > 0 &&
+            (!System.Net.IPAddress.TryParse(rawDns, out var parsedDns) ||
+             parsedDns.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork))
+        {
+            AdvancedPrefsStatusText.Text = Strings.Get("AdvancedPrefsDnsInvalid");
+            AdvancedPrefsStatusText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var draft = new ClientPreferences
+        {
+            EnableIpv6Tunnel = AdvancedIpv6Toggle.IsOn,
+            CustomDnsOverride = rawDns.Length == 0 ? null : rawDns,
+        };
+        var (ok, saved, _) = ClientPreferences.Save(draft, log: LocalLog.Add);
+        if (!ok)
+        {
+            AdvancedPrefsStatusText.Text = Strings.Get("AdvancedPrefsSaveFailed");
+            AdvancedPrefsStatusText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        _syncingPrefs = true;
+        try
+        {
+            AdvancedIpv6Toggle.IsOn = saved.EnableIpv6Tunnel;
+            AdvancedCustomDnsBox.Text = saved.CustomDnsOverride ?? string.Empty;
+        }
+        finally
+        {
+            _syncingPrefs = false;
+        }
+
+        AdvancedPrefsStatusText.Text = _controller.StateName == "Connected"
+            ? Strings.Get("AdvancedPrefsSavedReconnect")
+            : Strings.Get("AdvancedPrefsSaved");
+        AdvancedPrefsStatusText.Visibility = Visibility.Visible;
+        LocalLog.Add($"Saved client preferences (ipv6={saved.EnableIpv6Tunnel}, dnsOverride={saved.CustomDnsOverride ?? "none"})");
+    }
+
     private void OnStartupToggled(object sender, RoutedEventArgs e)
     {
         if (_syncingStartup) return;
@@ -828,10 +1054,35 @@ public sealed partial class MainWindow : Window
             // The address line says how, when the phone told us: a person who
             // plugged a cable in should be able to see that it is the one being
             // used, rather than inferring it from the speed.
-            var link = _discovery.LinkStringKeyFor(payload.Host);
+            var link = payload.Transport switch
+            {
+                QrPayload.TransportAdb => "LinkAdb",
+                QrPayload.TransportWifiDirect => "LinkWifiDirect",
+                _ => _discovery.LinkStringKeyFor(payload.Host),
+            };
             ConnectedDetailText.Text = link is null
                 ? $"{payload.Host}:{payload.Port}"
                 : $"{payload.Host}:{payload.Port} · {Strings.Get(link)}";
+            var features = new List<string>();
+            if (!string.IsNullOrWhiteSpace(payload.Wg?.ClientIpv6) &&
+                ClientPreferences.LoadOrDefault().EnableIpv6Tunnel)
+            {
+                features.Add(Strings.Get("FeatureIpv6"));
+            }
+            if (!string.IsNullOrWhiteSpace(payload.Wg?.DohUrl))
+            {
+                features.Add(Strings.Get("FeatureDoh"));
+            }
+            if (features.Count > 0)
+            {
+                ConnectedFeaturesText.Text = string.Join(" · ", features);
+                ConnectedFeaturesText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ConnectedFeaturesText.Text = string.Empty;
+                ConnectedFeaturesText.Visibility = Visibility.Collapsed;
+            }
             ReconnectingText.Text = Strings.Get("Reconnecting");
             ReconnectingBanner.Visibility = Show(reconnecting);
             ConnectedDot.Fill = ThemeBrush(reconnecting ? "WarningBrush" : "AccentBrush");
@@ -1145,8 +1396,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ApplyCodeMode()
     {
-        CodeBox.MaxLength = _longCode ? TypedCode.Length + 1 : LanDiscovery.CodeLength;
-        CodeBox.PlaceholderText = _longCode ? "XXXX-XXXX" : "00";
+        CodeBox.MaxLength = _longCode ? TypedCode.ExtendedLength + 1 : LanDiscovery.CodeLength;
+        CodeBox.PlaceholderText = _longCode ? "XXXX-XXXX / XXXXX-XXXXX" : "00";
         CodeHintText.Text = Strings.Get(_longCode ? "CodeHintLong" : "CodeHint");
         CodeHintText.Foreground = ThemeBrush("LabelTertiary");
         CodeModeLink.Content = Strings.Get(_longCode ? "CodeUseShort" : "CodeUseLong");
@@ -1264,15 +1515,6 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void EvaluateLongCode(bool mayConnect)
     {
-        // Normalise exactly as TypedCode.Decode does, because that is what
-        // judges the code a moment later. This used to strip every character
-        // that was not a letter or digit, which is a wider rule than the
-        // contract's "whitespace and '-'". A code typed or pasted with any
-        // other separator — "ABCD.EFGH" — therefore passed this check with the
-        // dot quietly removed, turned the hint green, said "ready" and
-        // auto-connected, and the decoder then saw the raw nine characters and
-        // rejected them as ERR_CODE_INVALID. The code was correct; the app
-        // refused it and blamed the user.
         var clean = TypedCode.Normalize(CodeBox.Text);
 
         if (clean.Length == 0)
@@ -1303,7 +1545,27 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (TypedCode.Decode(clean) is null)
+        var decoded = TypedCode.Decode(clean);
+        if (clean.Length == TypedCode.Length)
+        {
+            if (decoded is null)
+            {
+                // Could be the first 8 chars of a 10-char RFC1918 code; let them keep typing.
+                CodeHintText.Text = Strings.Get("CodeHintLongContinue");
+                CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+                CodeConnectButton.IsEnabled = false;
+                return;
+            }
+        }
+        else if (clean.Length < TypedCode.ExtendedLength)
+        {
+            CodeHintText.Text = string.Format(
+                Strings.Get("CodeIncomplete"), TypedCode.ExtendedLength - clean.Length);
+            CodeHintText.Foreground = ThemeBrush("LabelTertiary");
+            CodeConnectButton.IsEnabled = false;
+            return;
+        }
+        else if (decoded is null)
         {
             CodeHintText.Text = Strings.Get("CodeChecksum");
             CodeHintText.Foreground = ThemeBrush("DangerBrush");
@@ -1634,17 +1896,39 @@ public sealed partial class MainWindow : Window
             ShowLocalError("ERR_CODE_INVALID");
             return;
         }
-        // The eight-character code carries an address and nothing else. Since
-        // ADR-0009 that is enough: ask at that address, on the port every phone
-        // offers, and the keys come back over the exchange.
+        // The fallback code carries an address and port. Since ADR-0009 that is
+        // enough: ask at that address, and the keys come back over the exchange.
         _localError = null;
         var host = decoded.Value.Host;
+        var pairPort = decoded.Value.Port > 0 ? decoded.Value.Port : PairingDefaultPort;
         _lastAttempt = async () =>
         {
-            var again = await PairAsync(host, PairingDefaultPort, null);
+            var again = await PairAsync(host, pairPort, null);
             if (again is not null) await _controller.ConnectAsync(again);
         };
         await _lastAttempt();
+    }
+
+    private async void OnConnectAdbClick(object sender, RoutedEventArgs e)
+    {
+        if (_connecting) return;
+        _connecting = true;
+        _localError = null;
+        _lastAttempt = ConnectViaAdbAsync;
+        try
+        {
+            await ConnectViaAdbAsync();
+        }
+        finally
+        {
+            _connecting = false;
+        }
+    }
+
+    private async Task ConnectViaAdbAsync()
+    {
+        var payload = await PairAsync("127.0.0.1", PairingDefaultPort, null, forceTransport: QrPayload.TransportAdb);
+        if (payload is not null) await _controller.ConnectAsync(payload);
     }
 
     /// <summary>Where a phone offers configurations (/shared/pairing-beacon.md).</summary>
@@ -1658,7 +1942,7 @@ public sealed partial class MainWindow : Window
     /// rather than appearing to hang — "look at your phone" is the whole
     /// instruction, and a spinner alone would not give it.
     /// </summary>
-    private async Task<QrPayload?> PairAsync(string host, int pairingPort, string? name)
+    private async Task<QrPayload?> PairAsync(string host, int pairingPort, string? name, string? forceTransport = null)
     {
         BusyText.Text = Strings.Get("BusyPairing");
         // The name the phone is shown, so the two screens can be checked
@@ -1687,31 +1971,46 @@ public sealed partial class MainWindow : Window
             return null;
         }
 
+        var resolvedHost = forceTransport == QrPayload.TransportAdb
+            ? "127.0.0.1"
+            : (result.Host ?? host);
         return new QrPayload
         {
             V = QrPayloadCodec.SupportedVersion,
             Mode = QrPayload.ModeWireguard,
-            Host = result.Host ?? host,
+            Host = resolvedHost,
             Port = result.Port,
             Name = name,
+            Transport = forceTransport,
             Wg = result.Wg,
         };
     }
 
-    /// <summary>
-    /// Samples the tunnel once a second while it is up.
-    ///
-    /// One second is the slowest interval at which a rate still feels live, and
-    /// the fastest at which it does not jitter: shorter windows turn ordinary
-    /// TCP burstiness into a number that flickers too much to read. Latency is
-    /// measured every fifth tick instead, because a ping every second on a
-    /// metered phone connection is traffic Relay charged the user for in order
-    /// to display a number.
-    /// </summary>
+    private void OnPipeTunnelStats(WgTunnelSession.TunnelStatsSnapshot snap)
+    {
+        var now = DateTimeOffset.UtcNow;
+        _pipeStatsStartedAt ??= now;
+        var current = new TunnelStats.Sample(snap.RxBytes, snap.TxBytes, now);
+        var (down, up) = TunnelStats.Rate(_pipeStatsPrevious, current);
+        _pipeStatsPrevious = current;
+        _pipeStatsUpdatedAt = now;
+        _pipeStatsReading = new TunnelStats.Reading(
+            snap.RxBytes,
+            snap.TxBytes,
+            down,
+            up,
+            now - _pipeStatsStartedAt.Value,
+            _latency);
+    }
+
     private void StartStats()
     {
         if (_statsTimer is not null) return;
         _stats.Begin(DateTimeOffset.UtcNow);
+        _pipeStatsPrevious = null;
+        _pipeStatsStartedAt = DateTimeOffset.UtcNow;
+        _pipeStatsUpdatedAt = null;
+        _pipeStatsReading = null;
         _latency = null;
         _latencyTick = 0;
         _statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -1725,6 +2024,10 @@ public sealed partial class MainWindow : Window
         _statsTimer?.Stop();
         _statsTimer = null;
         _stats.Reset();
+        _pipeStatsPrevious = null;
+        _pipeStatsStartedAt = null;
+        _pipeStatsUpdatedAt = null;
+        _pipeStatsReading = null;
         _latency = null;
     }
 
@@ -1743,7 +2046,19 @@ public sealed partial class MainWindow : Window
             });
         }
 
-        var reading = _stats.Update(DateTimeOffset.UtcNow, _latency);
+        var now = DateTimeOffset.UtcNow;
+        var reading = _stats.Update(now, _latency);
+        if (reading is null &&
+            _pipeStatsReading is { } pipeReading &&
+            _pipeStatsUpdatedAt is { } updatedAt &&
+            now - updatedAt <= TimeSpan.FromSeconds(5))
+        {
+            reading = pipeReading with
+            {
+                Duration = _pipeStatsStartedAt is { } started ? now - started : pipeReading.Duration,
+                Latency = _latency,
+            };
+        }
         if (reading is null)
         {
             ShowStatsUnreadable();
