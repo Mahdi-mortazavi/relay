@@ -7,6 +7,9 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -40,11 +43,28 @@ type upstream interface {
 }
 
 // direct is the original behaviour and stays the default: an ordinary Go socket
-// on the phone's default route.
-type direct struct{}
+// on the phone's default route, with optional socket TTL customization.
+type direct struct {
+	ttl *atomic.Int32
+}
 
-func (direct) Dial(network, address string) (net.Conn, error) {
-	return net.DialTimeout(network, address, dialTimeout)
+func (d direct) Dial(network, address string) (net.Conn, error) {
+	dialer := net.Dialer{Timeout: dialTimeout}
+	if d.ttl != nil {
+		if t := int(d.ttl.Load()); t > 0 {
+			dialer.Control = func(netw, addr string, c syscall.RawConn) error {
+				applySocketTTL(netw, addr, c, t)
+				return nil
+			}
+		}
+	}
+	conn, err := dialer.Dial(network, address)
+	if err == nil {
+		if tc, ok := conn.(*net.TCPConn); ok {
+			_ = tc.SetNoDelay(true)
+		}
+	}
+	return conn, err
 }
 
 // socks5 forwards through a SOCKS5 proxy, which on a phone means a VPN client's
@@ -96,6 +116,9 @@ func (s socks5) connect(address string) (net.Conn, error) {
 	control, err := net.DialTimeout("tcp", s.address, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("relaywg: upstream proxy unreachable: %w", err)
+	}
+	if tc, ok := control.(*net.TCPConn); ok {
+		_ = tc.SetNoDelay(true)
 	}
 	if _, _, err := s.handshake(control, cmdConnect, address); err != nil {
 		control.Close()
@@ -268,14 +291,33 @@ type socksPacketConn struct {
 	header  []byte
 }
 
+var socksUdpBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 64*1024+maxSocksHeader)
+		return &b
+	},
+}
+
 func (c *socksPacketConn) Write(payload []byte) (int, error) {
 	// RSV RSV FRAG, then the address, then the payload. FRAG 0: Relay never
 	// fragments, and a proxy that requires it is one this cannot use anyway.
-	datagram := make([]byte, 0, 3+len(c.header)+len(payload))
+	need := 3 + len(c.header) + len(payload)
+	var datagram []byte
+	var pooled *[]byte
+	if need <= 64*1024+maxSocksHeader { // quick path: reuse pooled slice
+		pooled = socksUdpBufPool.Get().(*[]byte)
+		datagram = (*pooled)[:0]
+	} else {
+		datagram = make([]byte, 0, need)
+	}
 	datagram = append(datagram, 0x00, 0x00, 0x00)
 	datagram = append(datagram, c.header...)
 	datagram = append(datagram, payload...)
-	if _, err := c.Conn.Write(datagram); err != nil {
+	_, err := c.Conn.Write(datagram)
+	if pooled != nil {
+		socksUdpBufPool.Put(pooled)
+	}
+	if err != nil {
 		return 0, err
 	}
 	// Report the caller's own length. Returning the wrapped length would make
@@ -285,21 +327,42 @@ func (c *socksPacketConn) Write(payload []byte) (int, error) {
 }
 
 func (c *socksPacketConn) Read(into []byte) (int, error) {
-	buffer := make([]byte, len(into)+maxSocksHeader)
+	need := len(into) + maxSocksHeader
+	var buffer []byte
+	var pooled *[]byte
+	if need <= 64*1024+maxSocksHeader {
+		pooled = socksUdpBufPool.Get().(*[]byte)
+		buffer = (*pooled)[:need]
+	} else {
+		buffer = make([]byte, need)
+	}
 	n, err := c.Conn.Read(buffer)
 	if err != nil {
+		if pooled != nil {
+			socksUdpBufPool.Put(pooled)
+		}
 		return 0, err
 	}
 	payload, err := stripSocksHeader(buffer[:n])
 	if err != nil {
+		if pooled != nil {
+			socksUdpBufPool.Put(pooled)
+		}
 		return 0, err
 	}
 	if len(payload) > len(into) {
+		if pooled != nil {
+			socksUdpBufPool.Put(pooled)
+		}
 		// The caller's buffer is the MTU; anything longer than that could not
 		// have crossed the tunnel to get here.
 		return 0, io.ErrShortBuffer
 	}
-	return copy(into, payload), nil
+	copied := copy(into, payload)
+	if pooled != nil {
+		socksUdpBufPool.Put(pooled)
+	}
+	return copied, nil
 }
 
 func (c *socksPacketConn) Close() error {

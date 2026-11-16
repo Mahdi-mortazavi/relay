@@ -21,6 +21,9 @@
 package relaywg
 
 import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -30,15 +33,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 )
 
 const (
-	// The address the phone's end of the tunnel answers on. Fixed rather than
-	// configurable: it is invisible to the user, it never leaves the tunnel,
-	// and one less thing in the QR is one less thing to get wrong.
-	tunnelAddress = "10.13.37.1"
+	// The addresses the phone's end of the tunnel answers on (IPv4 + IPv6).
+	tunnelAddress   = "10.13.37.1"
+	tunnelAddressV6 = "fd13:37::1"
 
 	// Matches WireGuard's own default and leaves room under a 1500-byte path.
 	mtu = 1420
@@ -127,7 +128,7 @@ func StartVia(ipcConfig, upstreamProxy string) (*Endpoint, error) {
 	// already has somewhere to go.
 	tunDevice.installForwarders()
 
-	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), device.NewLogger(
+	dev := device.NewDevice(tunDevice, newResilientBind(), device.NewLogger(
 		device.LogLevelError, "relaywg: "))
 
 	if err := dev.IpcSet(ipcConfig); err != nil {
@@ -197,57 +198,312 @@ func (e *Endpoint) Stop() {
 	e.tun = nil
 }
 
-// LastHandshakeUnix reports when the peer last completed a handshake, in
-// seconds since the epoch, or 0 if it never has.
-//
-// This is how the phone knows a laptop actually arrived. Fast Mode counts
-// accepted sockets; Full Mode has none to count — the peer's traffic is UDP to
-// a port that answers whether anyone is there or not — so without asking the
-// device, the screen would sit on "waiting for a PC" through an entire
-// download. WireGuard rekeys every two minutes while traffic flows, so a recent
-// handshake is a live peer, not merely one that once connected.
-//
-// Read from the device rather than remembered here: a second copy of this state
-// is a second thing that can disagree with the tunnel.
+// LastHandshakeUnix reports when any configured peer most recently completed a
+// handshake, in seconds since the epoch, or 0 if none ever has.
 func (e *Endpoint) LastHandshakeUnix() int64 {
-	return e.statValue("last_handshake_time_sec")
+	var best int64
+	for _, p := range e.peersStats() {
+		if p.LastHandshake > best {
+			best = p.LastHandshake
+		}
+	}
+	return best
 }
 
-// BytesReceived and BytesSent are counted from the phone's point of view:
-// received is what the laptop sent up, sent is what went back down.
-func (e *Endpoint) BytesReceived() int64 { return e.statValue("rx_bytes") }
-func (e *Endpoint) BytesSent() int64     { return e.statValue("tx_bytes") }
+// BytesReceived and BytesSent are the sum across all peers, from the phone's
+// point of view: received is what clients sent up, sent is what went back down.
+func (e *Endpoint) BytesReceived() int64 {
+	var sum int64
+	for _, p := range e.peersStats() {
+		sum += p.RxBytes
+	}
+	return sum
+}
 
-// statValue pulls one number out of the device's IPC status. Returns 0 for
-// anything it cannot read: this is called once a second to drive a label, and
-// an error path there would be noise, not information.
-func (e *Endpoint) statValue(name string) int64 {
+func (e *Endpoint) BytesSent() int64 {
+	var sum int64
+	for _, p := range e.peersStats() {
+		sum += p.TxBytes
+	}
+	return sum
+}
+
+// PeerStats summarizes one WireGuard peer from device.IpcGet().
+type PeerStats struct {
+	PublicKey     string `json:"publicKey"`
+	Endpoint      string `json:"endpoint"`
+	LastHandshake int64  `json:"lastHandshake"`
+	RxBytes       int64  `json:"rxBytes"`
+	TxBytes       int64  `json:"txBytes"`
+}
+
+func (e *Endpoint) peersStats() []PeerStats {
 	if e == nil {
-		return 0
+		return nil
 	}
 	e.mu.Lock()
 	dev := e.dev
 	e.mu.Unlock()
 	if dev == nil {
-		return 0
+		return nil
 	}
-
 	status, err := dev.IpcGet()
 	if err != nil {
-		return 0
+		return nil
 	}
+	return parsePeersIpc(status)
+}
+
+func parsePeersIpc(status string) []PeerStats {
+	var peers []PeerStats
+	var cur *PeerStats
 	for _, line := range strings.Split(status, "\n") {
 		key, value, found := strings.Cut(strings.TrimSpace(line), "=")
-		if !found || key != name {
+		if !found {
 			continue
 		}
-		parsed, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return 0
+		switch key {
+		case "public_key":
+			peers = append(peers, PeerStats{PublicKey: value})
+			cur = &peers[len(peers)-1]
+		case "endpoint":
+			if cur != nil {
+				cur.Endpoint = value
+			}
+		case "last_handshake_time_sec":
+			if cur != nil {
+				if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+					cur.LastHandshake = v
+				}
+			}
+		case "rx_bytes":
+			if cur != nil {
+				if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+					cur.RxBytes = v
+				}
+			}
+		case "tx_bytes":
+			if cur != nil {
+				if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+					cur.TxBytes = v
+				}
+			}
 		}
-		return parsed
 	}
-	return 0
+	return peers
+}
+
+// AddPeer dynamically adds or updates a WireGuard peer without interrupting active peers.
+func (e *Endpoint) AddPeer(publicKeyHex, allowedIPs string) error {
+	if e == nil {
+		return errors.New("relaywg: no endpoint is running")
+	}
+	rawKey, err := hex.DecodeString(strings.TrimSpace(publicKeyHex))
+	if err != nil || len(rawKey) != 32 {
+		return errors.New("relaywg: invalid hex peer public key")
+	}
+	var b strings.Builder
+	b.WriteString("public_key=")
+	b.WriteString(strings.ToLower(strings.TrimSpace(publicKeyHex)))
+	b.WriteByte('\n')
+	b.WriteString("replace_allowed_ips=true\n")
+	count := 0
+	for _, cidr := range strings.Split(allowedIPs, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("relaywg: invalid allowed_ip %q: %w", cidr, err)
+		}
+		b.WriteString("allowed_ip=")
+		b.WriteString(cidr)
+		b.WriteByte('\n')
+		count++
+	}
+	if count == 0 {
+		return errors.New("relaywg: peer requires at least one allowed_ip")
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed || e.dev == nil {
+		return errors.New("relaywg: the endpoint has stopped")
+	}
+	return e.dev.IpcSet(b.String())
+}
+
+// RemovePeer removes a peer from the running WireGuard device without touching other peers.
+func (e *Endpoint) RemovePeer(publicKeyHex string) error {
+	if e == nil {
+		return errors.New("relaywg: no endpoint is running")
+	}
+	rawKey, err := hex.DecodeString(strings.TrimSpace(publicKeyHex))
+	if err != nil || len(rawKey) != 32 {
+		return errors.New("relaywg: invalid hex peer public key")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed || e.dev == nil {
+		return errors.New("relaywg: the endpoint has stopped")
+	}
+	return e.dev.IpcSet(fmt.Sprintf("public_key=%s\nremove=true\n", strings.ToLower(strings.TrimSpace(publicKeyHex))))
+}
+
+func (e *Endpoint) PeerCount() int {
+	return len(e.peersStats())
+}
+
+func (e *Endpoint) PeersStatsJSON() string {
+	peers := e.peersStats()
+	if peers == nil {
+		peers = []PeerStats{}
+	}
+	raw, err := json.Marshal(peers)
+	if err != nil {
+		return "[]"
+	}
+	return string(raw)
+}
+
+func (e *Endpoint) ActiveFlowsJSON() string {
+	if e == nil {
+		return "[]"
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t == nil || t.flows == nil {
+		return "[]"
+	}
+	return t.flows.snapshotJSON()
+}
+
+func (e *Endpoint) SetTunnelDNS(customDNS, dohURL string) error {
+	if e == nil {
+		return errors.New("relaywg: no endpoint is running")
+	}
+	e.mu.Lock()
+	t := e.tun
+	closed := e.closed
+	e.mu.Unlock()
+	if closed || t == nil || t.dns == nil {
+		return errors.New("relaywg: the endpoint has stopped")
+	}
+	return t.dns.configure(customDNS, dohURL, t.dial)
+}
+
+func (e *Endpoint) SetTrafficLimits(upBytesPerSec, downBytesPerSec, quotaBytes int64) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t != nil && t.limiter != nil {
+		t.limiter.setLimits(upBytesPerSec, downBytesPerSec, quotaBytes)
+	}
+}
+
+func (e *Endpoint) QuotaUsedBytes() int64 {
+	if e == nil {
+		return 0
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t == nil || t.limiter == nil {
+		return 0
+	}
+	used, _, _ := t.limiter.status()
+	return used
+}
+
+func (e *Endpoint) QuotaExceeded() bool {
+	if e == nil {
+		return false
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t == nil || t.limiter == nil {
+		return false
+	}
+	_, _, ex := t.limiter.status()
+	return ex
+}
+
+func (e *Endpoint) SetTetherTTL(ttl int) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t != nil {
+		t.tetherTTL.Store(int32(ttl))
+	}
+}
+
+func (e *Endpoint) EnableICMPRelay(on bool) bool {
+	if e == nil {
+		return false
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t == nil || t.icmp == nil {
+		return false
+	}
+	ref := t.out.Load()
+	if on && ref != nil {
+		if _, isSocks := ref.upstream.(socks5); isSocks {
+			t.icmp.setEnabled(false)
+			return false
+		}
+	}
+	t.icmp.setEnabled(on)
+	return t.icmp.active()
+}
+
+func (e *Endpoint) AddInboundForward(listenPort int, targetIP string, targetPort int, proto string) error {
+	if e == nil {
+		return errors.New("relaywg: no endpoint is running")
+	}
+	e.mu.Lock()
+	t := e.tun
+	closed := e.closed
+	e.mu.Unlock()
+	if closed || t == nil || t.forwards == nil {
+		return errors.New("relaywg: the endpoint has stopped")
+	}
+	return t.forwards.add(listenPort, targetIP, targetPort, proto)
+}
+
+func (e *Endpoint) RemoveInboundForward(listenPort int, proto string) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t == nil || t.forwards == nil {
+		return nil
+	}
+	return t.forwards.remove(listenPort, proto)
+}
+
+func (e *Endpoint) InboundForwardsJSON() string {
+	if e == nil {
+		return "[]"
+	}
+	e.mu.Lock()
+	t := e.tun
+	e.mu.Unlock()
+	if t == nil || t.forwards == nil {
+		return "[]"
+	}
+	return t.forwards.listJSON()
 }
 
 // spliceBuffers backs every forwarded connection's two copy loops.
@@ -268,8 +524,19 @@ var spliceBuffers = sync.Pool{
 // finishes when the remote closes, an upload when the client does, and waiting
 // for the wrong one hangs the transfer.
 func forward(a, b net.Conn, idle time.Duration) {
-	defer a.Close()
-	defer b.Close()
+	forwardTracked(a, b, idle, context.Background(), nil, nil, nil)
+}
+
+func forwardTracked(
+	tunConn, remoteConn net.Conn,
+	idle time.Duration,
+	ctx context.Context,
+	flows *flowTracker,
+	limiter *trafficLimiter,
+	entry *flowEntry,
+) {
+	defer tunConn.Close()
+	defer remoteConn.Close()
 
 	// One clock for the pair, not one per direction. A download is silent
 	// upstream for its whole length and a upload is silent downstream, so a
@@ -278,8 +545,8 @@ func forward(a, b net.Conn, idle time.Duration) {
 	seen.mark()
 
 	done := make(chan struct{}, 2)
-	go copyUntilIdle(a, b, idle, &seen, done)
-	go copyUntilIdle(b, a, idle, &seen, done)
+	go copyUntilIdle(remoteConn, tunConn, idle, &seen, done, ctx, flows, limiter, entry, dirUp)
+	go copyUntilIdle(tunConn, remoteConn, idle, &seen, done, ctx, flows, limiter, entry, dirDown)
 	<-done
 }
 
@@ -305,7 +572,17 @@ func (a *activity) idleFor() time.Duration { return time.Since(a.last()) }
 // session and a websocket all died at the same mark, which from the outside is
 // indistinguishable from a flaky network, and is exactly what a user reported
 // as instability.
-func copyUntilIdle(dst, src net.Conn, idle time.Duration, seen *activity, done chan<- struct{}) {
+func copyUntilIdle(
+	dst, src net.Conn,
+	idle time.Duration,
+	seen *activity,
+	done chan<- struct{},
+	ctx context.Context,
+	flows *flowTracker,
+	limiter *trafficLimiter,
+	entry *flowEntry,
+	dir trafficDirection,
+) {
 	defer func() { done <- struct{}{} }()
 
 	// Pooled, and larger than io.Copy's default 32 KB. io.Copy allocates a
@@ -332,8 +609,20 @@ func copyUntilIdle(dst, src net.Conn, idle time.Duration, seen *activity, done c
 		n, readErr := src.Read(*buf)
 		if n > 0 {
 			seen.mark()
+			if limiter != nil {
+				if err := limiter.consume(ctx, dir, n); err != nil {
+					return
+				}
+			}
 			if _, writeErr := dst.Write((*buf)[:n]); writeErr != nil {
 				return
+			}
+			if flows != nil {
+				if dir == dirUp {
+					flows.addUp(entry, int64(n))
+				} else {
+					flows.addDown(entry, int64(n))
+				}
 			}
 			seen.mark()
 		}

@@ -15,7 +15,10 @@ package io.relay.app.core
 object WgConfig {
     const val SERVER_TUNNEL_IP = "10.13.37.1"
     const val CLIENT_TUNNEL_IP = "10.13.37.2"
+    const val SERVER_TUNNEL_IPV6 = "fd13:37::1"
+    const val CLIENT_TUNNEL_IPV6 = "fd13:37::2"
     const val CLIENT_ALLOWED_IPS = "0.0.0.0/0"
+    const val CLIENT_ALLOWED_IPS_DUAL = "0.0.0.0/0,::/0"
     const val DEFAULT_DNS = "1.1.1.1"
     const val DEFAULT_ENDPOINT_PORT = 51820
 

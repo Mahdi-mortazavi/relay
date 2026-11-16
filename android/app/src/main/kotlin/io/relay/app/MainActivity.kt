@@ -87,10 +87,21 @@ class MainActivity : ComponentActivity() {
             RelayTheme(themeMode = themeMode) {
                 RelayBackground {
                     val state by viewModel.state.collectAsState()
+                    val telemetry by viewModel.telemetry.collectAsState()
+                    val preFlight by viewModel.preFlight.collectAsState()
                     val upstreamProxy by viewModel.upstreamProxy.collectAsState()
                     val proxyScan by viewModel.proxyScan.collectAsState()
                     val automaticRoute by viewModel.automaticRoute.collectAsState()
                     val currentRoute by viewModel.currentRoute.collectAsState()
+                    val customDns by viewModel.customDns.collectAsState()
+                    val dohUrl by viewModel.dohUrl.collectAsState()
+                    val tetherTtl65 by viewModel.tetherTtl65.collectAsState()
+                    val icmpRelay by viewModel.icmpRelay.collectAsState()
+                    val uploadLimitKbps by viewModel.uploadLimitKbps.collectAsState()
+                    val downloadLimitKbps by viewModel.downloadLimitKbps.collectAsState()
+                    val quotaMb by viewModel.quotaMb.collectAsState()
+                    val inboundForwardsSpec by viewModel.inboundForwardsSpec.collectAsState()
+                    val adbBridgeEnabled by viewModel.adbBridgeEnabled.collectAsState()
                     val batteryExempt by viewModel.batteryExempt.collectAsState()
                     val warnings by viewModel.warnings.collectAsState()
                     val logs by viewModel.logs.collectAsState()
@@ -98,6 +109,25 @@ class MainActivity : ComponentActivity() {
                     val notificationPermission = rememberLauncherForActivityResult(
                         ActivityResultContracts.RequestPermission(),
                     ) { viewModel.startSharing() } // start regardless; the notification just may not show
+
+                    val wifiDirectPermission = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission(),
+                    ) { granted ->
+                        if (granted) viewModel.startWifiDirect()
+                    }
+
+                    val startWifiDirectWithPerm = {
+                        val perm = if (Build.VERSION.SDK_INT >= 33) {
+                            Manifest.permission.NEARBY_WIFI_DEVICES
+                        } else {
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        }
+                        if (checkSelfPermission(perm) == PackageManager.PERMISSION_GRANTED) {
+                            viewModel.startWifiDirect()
+                        } else {
+                            wifiDirectPermission.launch(perm)
+                        }
+                    }
 
                     // Android 17 blocks local-network traffic for an app that targets
                     // API 37 until the person allows it, and does so silently: the
@@ -126,6 +156,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(lifecycleOwner) {
                         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                             viewModel.refreshBatteryExempt()
+                            viewModel.refreshPreFlight()
                             viewModel.watchCable()
                         }
                     }
@@ -227,6 +258,30 @@ class MainActivity : ComponentActivity() {
                         onTurnOnUsb = viewModel::openTetheringSettings,
                         onDismissUsbOffer = viewModel::dismissUsbOffer,
                         onOpenVpnSettings = viewModel::openVpnSettings,
+                        telemetry = telemetry,
+                        preFlight = preFlight,
+                        accelCapabilities = viewModel.accelCapabilities,
+                        customDns = customDns,
+                        onSetCustomDns = viewModel::setCustomDns,
+                        dohUrl = dohUrl,
+                        onSetDohUrl = viewModel::setDohUrl,
+                        tetherTtl65 = tetherTtl65,
+                        onSetTetherTtl65 = viewModel::setTetherTtl65,
+                        icmpRelay = icmpRelay,
+                        onSetIcmpRelay = viewModel::setIcmpRelay,
+                        uploadLimitKbps = uploadLimitKbps,
+                        onSetUploadLimitKbps = viewModel::setUploadLimitKbps,
+                        downloadLimitKbps = downloadLimitKbps,
+                        onSetDownloadLimitKbps = viewModel::setDownloadLimitKbps,
+                        quotaMb = quotaMb,
+                        onSetQuotaMb = viewModel::setQuotaMb,
+                        inboundForwardsSpec = inboundForwardsSpec,
+                        onAddInboundForward = viewModel::addInboundForwardRule,
+                        onRemoveInboundForward = viewModel::removeInboundForwardRule,
+                        adbBridgeEnabled = adbBridgeEnabled,
+                        onSetAdbBridgeEnabled = viewModel::setAdbBridgeEnabled,
+                        onStartAdbBridge = viewModel::startAdbBridge,
+                        onStartWifiDirect = startWifiDirectWithPerm,
                     )
                 }
             }

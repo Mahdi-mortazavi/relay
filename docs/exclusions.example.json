@@ -1,0 +1,8 @@
+{
+  "allowLan": false,
+  "allowDiscovery": false,
+  "strictLeakBlock": true,
+  "persistKillSwitch": false,
+  "excludeApps": [],
+  "excludeCidrs": []
+}

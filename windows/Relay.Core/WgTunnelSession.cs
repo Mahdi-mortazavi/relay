@@ -110,6 +110,30 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// <summary>What the client takes to stop closing the paths around the tunnel.</summary>
     public const string DisableLeakBlockArgument = "-block-leaks=false";
 
+    /// <summary>Opt out of fail-closed abort when WFP filter installation fails.</summary>
+    public const string DisableStrictLeakBlockArgument = "-strict-leak-block=false";
+
+    /// <summary>Exclusion: allow RFC1918 and link-local IPv4 LAN traffic.</summary>
+    public const string AllowLanArgument = "-allow-lan";
+
+    /// <summary>Exclusion: allow Relay UI UDP port 47654 discovery/roaming beacons.</summary>
+    public const string AllowDiscoveryArgument = "-allow-discovery";
+
+    /// <summary>Exclusion: comma-separated absolute .exe paths permitted outside the tunnel.</summary>
+    public const string ExcludeAppsArgument = "-exclude-apps";
+
+    /// <summary>Exclusion: comma-separated CIDR prefixes permitted outside the tunnel.</summary>
+    public const string ExcludeCidrsArgument = "-exclude-cidrs";
+
+    /// <summary>With <see cref="HoldOnLossArgument"/>, persist WFP lockdown across crashes.</summary>
+    public const string PersistKillSwitchArgument = "-persist-killswitch";
+
+    /// <summary>Clears any persisted Relay WFP kill-switch filters and exits.</summary>
+    public const string ClearKillSwitchArgument = "-clear-killswitch";
+
+    /// <summary>Sent on intentional teardown so a persistent kill switch knows to disarm.</summary>
+    public const string DisconnectCommand = "DISCONNECT";
+
     /// <summary>
     /// Printed by the client when it could not close the paths around the
     /// tunnel. It always can't today — see the long comment in the client — and
@@ -131,6 +155,33 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// <summary>Printed by a holding client when the phone answers again. Must match the client.</summary>
     public const string PeerBackLine = "PEER-BACK";
 
+    /// <summary>Optional dual-stack IPv6 tunnel address (e.g. fd13:37::2/128).</summary>
+    public const string Address6Argument = "-address6";
+
+    /// <summary>Optional dual-stack IPv6 routes (e.g. ::/0).</summary>
+    public const string Routes6Argument = "-routes6";
+
+    /// <summary>Optional dual-stack IPv6 DNS server.</summary>
+    public const string Dns6Argument = "-dns6";
+
+    /// <summary>Optional WireGuard-over-TCP loopback/ADB bridge endpoint (e.g. 127.0.0.1:51821).</summary>
+    public const string WgTcpBridgeArgument = "-wg-tcp-bridge";
+
+    /// <summary>Ask the client to emit periodic STATS rx=<bytes> tx=<bytes> telemetry lines.</summary>
+    public const string EmitStatsArgument = "-emit-stats";
+
+    /// <summary>Prefix of periodic byte-counter telemetry emitted when <see cref="EmitStatsArgument"/> is set.</summary>
+    public const string StatsPrefix = "STATS ";
+
+    /// <summary>WireGuard peer counter snapshot reported over the control pipe.</summary>
+    public readonly record struct TunnelStatsSnapshot(long RxBytes, long TxBytes);
+
+    /// <summary>Raised when a holding tunnel's peer reports stats over the control pipe.</summary>
+    public event Action<TunnelStatsSnapshot>? TunnelStatsChanged;
+
+    /// <summary>Latest byte counters reported by the tunnel child, if available.</summary>
+    public TunnelStatsSnapshot? LatestTunnelStats { get; private set; }
+
     /// <summary>
     /// Raised with true when a holding tunnel's phone went quiet and false when
     /// it came back. Only ever raised with the kill switch on: without it the
@@ -149,6 +200,7 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     public static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(45);
 
     private IProcessHandle? _tunnel;
+    private bool _persistKillSwitchActive;
 
     public bool IsRunning => _tunnel is { HasExited: false };
 
@@ -156,20 +208,18 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// Brings the tunnel up from the QR's <c>wg</c> block.
     ///
     /// Nothing on this machine is changed before the child starts, and
-    /// everything it changes goes away with it, so a failure at any point here
-    /// needs no rollback of its own — which is why this reads so much simpler
-    /// than <see cref="Proxy.ProxySession"/>, where Relay edits the registry
-    /// itself and has to be able to put it back.
+    /// everything it changes goes away with it (unless persistent kill switch is
+    /// explicitly enabled in <paramref name="exclusions"/>), so a failure at any
+    /// point needs no registry rollback.
     /// </summary>
-    /// <param name="blockLeaks">
-    /// Close the paths that go around the tunnel. Defaults to true here as well
-    /// as in the client, so a caller that forgets still fails closed.
-    /// </param>
-    /// <param name="holdOnLoss">
-    /// The kill switch: keep blocking rather than fall back to the physical
-    /// adapter when the phone stops answering. See <see cref="HoldOnLossArgument"/>.
-    /// </param>
-    public Result Connect(WgParams wg, string host, bool blockLeaks = true, bool holdOnLoss = false)
+    public Result Connect(
+        WgParams wg,
+        string host,
+        bool blockLeaks = true,
+        bool holdOnLoss = false,
+        LeakExclusions? exclusions = null,
+        string? wgTcpBridgeEndpoint = null,
+        bool emitStats = false)
     {
         if (IsRunning) return Result.Fail("ERR_WG_ALREADY_RUNNING");
 
@@ -180,17 +230,16 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         }
         catch (ArgumentException)
         {
-            // The payload cannot produce a tunnel. Saying "the QR is unusable"
-            // is honest; letting the child fail on it would report the same
-            // thing as a tunnel that could not start, which sends someone
-            // looking at their network for a fault in a QR code.
             return Result.Fail("ERR_QR_INVALID");
         }
+
+        var cleanExclusions = exclusions?.Sanitize();
+        var persistKillSwitch = blockLeaks && holdOnLoss && (cleanExclusions?.PersistKillSwitch ?? false);
 
         IProcessHandle tunnel;
         try
         {
-            tunnel = processHost.Start(Arguments(wg, blockLeaks, holdOnLoss));
+            tunnel = processHost.Start(Arguments(wg, blockLeaks, holdOnLoss, cleanExclusions, wgTcpBridgeEndpoint, emitStats));
         }
         catch (ElevationDeclined)
         {
@@ -215,32 +264,34 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         }
         catch (Exception)
         {
-            Stop(tunnel);
+            Stop(tunnel, persistKillSwitch);
             return Result.Fail("ERR_WG_START_FAILED");
         }
 
         var failure = WaitForReady(tunnel, out var unprotected);
         if (failure is not null)
         {
-            Stop(tunnel);
+            Stop(tunnel, persistKillSwitch);
             return Result.Fail(failure);
         }
 
         _tunnel = tunnel;
+        _persistKillSwitchActive = persistKillSwitch;
         LeakProtectionUnavailable = unprotected;
         PeerLost = false;
-        if (holdOnLoss) WatchPeer(tunnel);
+        LatestTunnelStats = null;
+        if (holdOnLoss || emitStats) WatchOutput(tunnel);
         return Result.Success;
     }
 
     /// <summary>
-    /// Listens for the holding client's PEER-LOST and PEER-BACK lines.
+    /// Listens for the client's PEER-LOST / PEER-BACK and STATS lines.
     ///
     /// Its own thread, because a read on the pipe blocks and this lasts for the
     /// whole session. It ends by itself when the pipe does: Disconnect closes
     /// it, and so does the client exiting.
     /// </summary>
-    private void WatchPeer(IProcessHandle tunnel)
+    private void WatchOutput(IProcessHandle tunnel)
     {
         var thread = new Thread(() =>
         {
@@ -251,15 +302,25 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
                     var line = tunnel.ReadLine();
                     if (line is null) return;
                     var trimmed = line.Trim();
-                    bool lost;
-                    if (trimmed == PeerLostLine) lost = true;
-                    else if (trimmed == PeerBackLine) lost = false;
-                    else continue;
                     // Only for the tunnel that is still this session's: a line
                     // from one being torn down must not repaint the next.
                     if (!ReferenceEquals(_tunnel, tunnel)) return;
-                    PeerLost = lost;
-                    PeerLostChanged?.Invoke(lost);
+
+                    if (trimmed == PeerLostLine)
+                    {
+                        PeerLost = true;
+                        PeerLostChanged?.Invoke(true);
+                    }
+                    else if (trimmed == PeerBackLine)
+                    {
+                        PeerLost = false;
+                        PeerLostChanged?.Invoke(false);
+                    }
+                    else if (TryParseStats(trimmed, out var snapshot))
+                    {
+                        LatestTunnelStats = snapshot;
+                        TunnelStatsChanged?.Invoke(snapshot);
+                    }
                 }
             }
             catch (Exception)
@@ -269,9 +330,36 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
         })
         {
             IsBackground = true,
-            Name = "Relay tunnel peer watch",
+            Name = "Relay tunnel output watch",
         };
         thread.Start();
+    }
+
+    internal static bool TryParseStats(string line, out TunnelStatsSnapshot snapshot)
+    {
+        snapshot = default;
+        if (!line.StartsWith(StatsPrefix, StringComparison.Ordinal)) return false;
+
+        long? rx = null;
+        long? tx = null;
+        foreach (var token in line[StatsPrefix.Length..].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (token.StartsWith("rx=", StringComparison.Ordinal) &&
+                long.TryParse(token[3..], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsedRx) &&
+                parsedRx >= 0)
+            {
+                rx = parsedRx;
+            }
+            else if (token.StartsWith("tx=", StringComparison.Ordinal) &&
+                long.TryParse(token[3..], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsedTx) &&
+                parsedTx >= 0)
+            {
+                tx = parsedTx;
+            }
+        }
+        if (rx is null || tx is null) return false;
+        snapshot = new TunnelStatsSnapshot(rx.Value, tx.Value);
+        return true;
     }
 
     /// <summary>
@@ -314,24 +402,30 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     public Result Disconnect()
     {
         var tunnel = _tunnel;
+        var sendDisconnect = _persistKillSwitchActive;
         _tunnel = null;
+        _persistKillSwitchActive = false;
         PeerLost = false;
+        LatestTunnelStats = null;
         if (tunnel is null) return Result.Success;
 
-        return Stop(tunnel) ? Result.Success : Result.Fail("ERR_WG_STOP_FAILED");
+        return Stop(tunnel, sendDisconnect) ? Result.Success : Result.Fail("ERR_WG_STOP_FAILED");
     }
 
     /// <summary>
-    /// Closing stdin is the ordinary way out; the kill is for a child that has
-    /// wedged. Either way the adapter goes with the process, so "stopped" is a
-    /// fact about the machine and not a hope.
+    /// Closing stdin is the ordinary way out; when persistent kill switch is
+    /// active, DISCONNECT is sent first so intentional teardown disarms WFP rules.
     /// </summary>
-    private static bool Stop(IProcessHandle tunnel)
+    private static bool Stop(IProcessHandle tunnel, bool sendDisconnectCommand)
     {
         try
         {
             if (!tunnel.HasExited)
             {
+                if (sendDisconnectCommand)
+                {
+                    try { tunnel.WriteLine(DisconnectCommand); } catch { }
+                }
                 tunnel.CloseInput();
                 if (!tunnel.WaitForExit(TimeSpan.FromSeconds(10)))
                 {
@@ -378,23 +472,84 @@ public sealed class WgTunnelSession(WgTunnelSession.IProcessHost processHost)
     /// The client's arguments. The DNS server and the tunnel address come from
     /// the payload and the shared contract rather than being repeated here.
     /// </summary>
-    internal static string Arguments(WgParams wg, bool blockLeaks = true, bool holdOnLoss = false)
+    internal static string Arguments(
+        WgParams wg,
+        bool blockLeaks = true,
+        bool holdOnLoss = false,
+        LeakExclusions? exclusions = null,
+        string? wgTcpBridgeEndpoint = null,
+        bool emitStats = false)
     {
+        var address = string.IsNullOrWhiteSpace(wg.ClientAddress)
+            ? WgClientConfig.ClientTunnelAddress
+            : wg.ClientAddress.Trim();
+
+        var routes4List = new List<string>();
+        var routes6List = new List<string>();
+        foreach (var raw in wg.AllowedIps.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var route = raw.Trim();
+            if (route.Length == 0) continue;
+            if (route.Contains(':')) routes6List.Add(route);
+            else routes4List.Add(route);
+        }
+        var routes4 = routes4List.Count > 0 ? string.Join(',', routes4List) : wg.AllowedIps.Trim();
+
         var arguments = new List<string>
         {
             "-name", "Relay",
-            "-address", WgClientConfig.ClientTunnelAddress,
-            "-routes", wg.AllowedIps,
+            "-address", address,
+            "-routes", routes4,
         };
         if (!string.IsNullOrWhiteSpace(wg.Dns))
         {
             arguments.Add("-dns");
-            arguments.Add(wg.Dns);
+            arguments.Add(wg.Dns.Trim());
+        }
+        if (!string.IsNullOrWhiteSpace(wg.ClientIpv6))
+        {
+            arguments.Add(Address6Argument);
+            arguments.Add(wg.ClientIpv6.Trim());
+            arguments.Add(Routes6Argument);
+            arguments.Add(routes6List.Count > 0 ? string.Join(',', routes6List) : "::/0");
+            if (!string.IsNullOrWhiteSpace(wg.DnsIpv6))
+            {
+                arguments.Add(Dns6Argument);
+                arguments.Add(wg.DnsIpv6.Trim());
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(wgTcpBridgeEndpoint))
+        {
+            arguments.Add(WgTcpBridgeArgument);
+            arguments.Add(wgTcpBridgeEndpoint.Trim());
+        }
+        if (emitStats)
+        {
+            arguments.Add(EmitStatsArgument);
         }
         // Only ever passed to turn it OFF. The client defaults to blocking, so
         // a Relay that somehow forgets to pass anything still fails closed.
         if (!blockLeaks) arguments.Add(DisableLeakBlockArgument);
         if (holdOnLoss) arguments.Add(HoldOnLossArgument);
+
+        if (exclusions is not null)
+        {
+            var clean = exclusions.Sanitize();
+            if (!clean.StrictLeakBlock) arguments.Add(DisableStrictLeakBlockArgument);
+            if (holdOnLoss && clean.PersistKillSwitch) arguments.Add(PersistKillSwitchArgument);
+            if (clean.AllowLan) arguments.Add(AllowLanArgument);
+            if (clean.AllowDiscovery) arguments.Add(AllowDiscoveryArgument);
+            if (clean.ExcludeApps.Count > 0)
+            {
+                arguments.Add(ExcludeAppsArgument);
+                arguments.Add(string.Join(',', clean.ExcludeApps));
+            }
+            if (clean.ExcludeCidrs.Count > 0)
+            {
+                arguments.Add(ExcludeCidrsArgument);
+                arguments.Add(string.Join(',', clean.ExcludeCidrs));
+            }
+        }
         return string.Join(' ', arguments.Select(Quote));
     }
 
@@ -506,6 +661,31 @@ public sealed class ElevatedTunnelHost(string executablePath) : WgTunnelSession.
         }
 
         return new Handle(process, pipe);
+    }
+
+    /// <summary>
+    /// Runs <c>relaywg-client.exe -clear-killswitch</c> elevated to remove any
+    /// persisted WFP lockdown filters left behind by an abnormal crash.
+    /// </summary>
+    public static bool ClearPersistentKillSwitch(string executablePath)
+    {
+        try
+        {
+            var info = new ProcessStartInfo(executablePath, WgTunnelSession.ClearKillSwitchArgument)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+            };
+            using var process = Process.Start(info);
+            if (process is null) return false;
+            return process.WaitForExit((int)TimeSpan.FromSeconds(15).TotalMilliseconds) && process.ExitCode == 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private sealed class Handle : WgTunnelSession.IProcessHandle

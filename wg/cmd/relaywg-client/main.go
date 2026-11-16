@@ -16,24 +16,15 @@
 // Protocol with the parent process, over a named pipe (-config-pipe) or over
 // stdin and stdout when run by hand:
 //
-//	in      the wireguard-go IPC configuration, ended by "END-CONFIG"
+//	in      the wireguard-go IPC configuration, ended by "END-CONFIG"; then
+//	        optional control lines ("ENDPOINT <ip:port>", "DISCONNECT")
 //	out     "READY" once the peer has handshaked and traffic can flow, or
 //	        "NO-HANDSHAKE" if the adapter came up and the peer never answered;
 //	        then, only with -hold-on-loss, "PEER-LOST" and "PEER-BACK" as the
 //	        phone stops and resumes answering
 //	stderr  human-readable progress and errors
-//	exit    tear the tunnel down when the stream closes, or on Ctrl+Break
-//
-// The stream stays open for the life of the tunnel, which is what makes its
-// closing mean "the app is gone" -- including the app crashing, the case that
-// matters, because a tunnel nobody is watching still holds the machine's
-// routes. That is also why the configuration ends with a sentinel rather than
-// with EOF: reading to EOF would consume the very signal being waited on.
-//
-// The adapter disappears when this process exits, by any route including being
-// killed: WinTun removes it with the last handle. That is what makes the
-// teardown safe rather than merely careful -- the routes go with it, so there
-// is no state left behind for a crash to strand.
+//	exit    tear the tunnel down when the stream closes, on "DISCONNECT",
+//	        or on Ctrl+Break
 package main
 
 import (
@@ -51,7 +42,6 @@ import (
 	"time"
 
 	"golang.org/x/sys/windows"
-	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
@@ -69,9 +59,13 @@ const (
 	// Ends the configuration on stdin without closing it. See [readConfig].
 	configTerminator = "END-CONFIG"
 
-	// Printed when the tunnel is up but the filters that keep traffic inside it
-	// could not be installed. Not fatal -- see where it is used -- but the app
-	// must be able to tell the difference between protected and not.
+	// Graceful disconnect command sent before closing the pipe so persistent
+	// kill-switch filters know the shutdown is intentional rather than a crash.
+	disconnectCommand = "DISCONNECT"
+
+	// Printed when the filters that keep traffic inside the tunnel could not
+	// be installed. With -strict-leak-block (default), the tunnel refuses to
+	// come up; with -strict-leak-block=false, it warns and continues.
 	leakProtectionFailedLine = "LEAK-PROTECTION-FAILED"
 
 	// Prefix of the line the app sends when the phone turns up at a new address,
@@ -79,20 +73,13 @@ const (
 	endpointPrefix = "ENDPOINT "
 
 	// Printed instead of READY when the adapter came up but the peer never
-	// answered. Distinct from a generic failure because the user's next action
-	// is different: rescan the QR, because the phone has almost certainly minted
-	// new keys since that one was drawn.
+	// answered.
 	noHandshakeLine = "NO-HANDSHAKE"
 
 	// How long to wait for the first handshake before giving up on the peer.
-	// A handshake on a working link completes in well under a second; this is
-	// long enough to ride out a phone that is still bringing its endpoint up.
 	handshakeTimeout = 20 * time.Second
 
 	// How stale the last handshake may get before the peer counts as gone.
-	// Matches the phone's own PEER_ALIVE_SECONDS: WireGuard rekeys at two
-	// minutes, so three leaves a minute of margin without holding a dead tunnel
-	// open behind a UI that says "Connected".
 	handshakeStale = 3 * time.Minute
 
 	handshakePoll = 250 * time.Millisecond
@@ -103,33 +90,120 @@ const (
 	peerBackLine = "PEER-BACK"
 )
 
+type runConfig struct {
+	name              string
+	address           string
+	address6          string
+	dns               string
+	dns6              string
+	routes            string
+	routes6           string
+	wgTcpBridge       string
+	emitStats         bool
+	pipe              string
+	blockLeaks        bool
+	strictLeakBlock   bool
+	holdOnLoss        bool
+	persistKillSwitch bool
+	allowLAN          bool
+	allowDiscovery    bool
+	discoveryApp      string
+	excludeApps       []string
+	excludePrefixes   []netip.Prefix
+}
+
 func main() {
 	name := flag.String("name", "Relay", "adapter name")
-	address := flag.String("address", "10.13.37.2/32", "this end of the tunnel")
+	address := flag.String("address", "10.13.37.2/32", "this end of the tunnel (IPv4)")
+	address6 := flag.String("address6", "", "optional dual-stack IPv6 address on the tunnel (e.g. fd13:37::2/128)")
 	dns := flag.String("dns", "", "DNS server to set on the adapter; empty leaves it alone")
+	dns6 := flag.String("dns6", "", "optional IPv6 DNS server to set on the adapter")
 	routes := flag.String("routes", "0.0.0.0/0", "comma-separated prefixes to send through the tunnel")
+	routes6 := flag.String("routes6", "", "comma-separated IPv6 prefixes to send through the tunnel (defaults to ::/0 when -address6 is set)")
+	wgTcpBridge := flag.String("wg-tcp-bridge", "", "optional WireGuard-over-TCP loopback/ADB bridge endpoint (e.g. 127.0.0.1:51821)")
+	emitStats := flag.Bool("emit-stats", false, "periodically emit STATS rx=<bytes> tx=<bytes> lines on the control channel")
 	pipe := flag.String("config-pipe", "",
 		"named pipe carrying the configuration and readiness; stdin/stdout when empty")
 	blockLeaks := flag.Bool("block-leaks", true,
-		"block traffic that would bypass the tunnel (other resolvers, IPv6, other adapters)")
+		"block traffic that would bypass the tunnel (non-tunnel adapters, other resolvers, IPv6, mDNS/LLMNR/NBNS)")
+	strictLeakBlock := flag.Bool("strict-leak-block", true,
+		"fail closed and refuse to bring up the tunnel if WFP leak protection cannot be installed")
 	holdOnLoss := flag.Bool("hold-on-loss", false,
-		"kill switch: when the phone stops answering, keep the tunnel's routes so nothing "+
-			"leaves by another adapter, and wait for it to come back")
+		"kill switch: when the phone stops answering, keep the tunnel's routes and filters active so nothing leaks")
+	persistKillSwitch := flag.Bool("persist-killswitch", false,
+		"with -hold-on-loss, persist WFP lockdown filters across process crashes until DISCONNECT or -clear-killswitch")
+	clearKillSwitch := flag.Bool("clear-killswitch", false,
+		"remove any persisted Relay kill-switch filters from Windows Filtering Platform and exit")
+	allowLAN := flag.Bool("allow-lan", false,
+		"exclusion: permit RFC1918 and link-local IPv4 LAN traffic outside the tunnel (DNS/mDNS/LLMNR stay blocked)")
+	allowDiscovery := flag.Bool("allow-discovery", false,
+		"exclusion: permit Relay UI UDP port 47654 discovery and roaming beacons on physical adapters")
+	discoveryApp := flag.String("discovery-app", "",
+		"optional path to Relay.App.exe used with -allow-discovery")
+	excludeApps := flag.String("exclude-apps", "",
+		"exclusion: comma-separated absolute .exe paths allowed to bypass the tunnel (non-DNS IPv4 only)")
+	excludeCIDRs := flag.String("exclude-cidrs", "",
+		"exclusion: comma-separated CIDR prefixes allowed to bypass the tunnel (non-DNS only)")
 	flag.Parse()
 
-	if err := run(*name, *address, *dns, *routes, *pipe, *blockLeaks, *holdOnLoss); err != nil {
+	if *clearKillSwitch {
+		if err := clearPersistentKillSwitch(); err != nil {
+			fmt.Fprintf(os.Stderr, "relaywg-client: clear kill-switch failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "relaywg-client: persistent kill-switch filters cleared")
+		return
+	}
+
+	parsedApps, err := parseAppExclusions(*excludeApps)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
+		os.Exit(1)
+	}
+	parsedCIDRs, err := parsePrefixExclusions(*excludeCIDRs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
+		os.Exit(1)
+	}
+	var validatedBridge string
+	if strings.TrimSpace(*wgTcpBridge) != "" {
+		validatedBridge, err = validateWgTcpBridgeAddr(*wgTcpBridge)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	cfg := runConfig{
+		name:              *name,
+		address:           *address,
+		address6:          *address6,
+		dns:               *dns,
+		dns6:              *dns6,
+		routes:            *routes,
+		routes6:           *routes6,
+		wgTcpBridge:       validatedBridge,
+		emitStats:         *emitStats,
+		pipe:              *pipe,
+		blockLeaks:        *blockLeaks,
+		strictLeakBlock:   *strictLeakBlock,
+		holdOnLoss:        *holdOnLoss,
+		persistKillSwitch: *persistKillSwitch,
+		allowLAN:          *allowLAN,
+		allowDiscovery:    *allowDiscovery,
+		discoveryApp:      *discoveryApp,
+		excludeApps:       parsedApps,
+		excludePrefixes:   parsedCIDRs,
+	}
+
+	if err := run(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "relaywg-client: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) error {
-	// The app talks over a named pipe rather than stdin, because a process
-	// launched through the elevation prompt cannot have its streams redirected
-	// at all -- and the only other way to hand it a private key would be a temp
-	// file, which is exactly what should not exist. Stdin remains for running
-	// this by hand, and for the tests.
-	channel, err := openChannel(pipe)
+func run(cfg runConfig) error {
+	channel, err := openChannel(cfg.pipe)
 	if err != nil {
 		return err
 	}
@@ -141,21 +215,85 @@ func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) e
 		return err
 	}
 
-	prefix, err := netip.ParsePrefix(address)
+	prefix, err := netip.ParsePrefix(cfg.address)
 	if err != nil {
-		return fmt.Errorf("address %q: %w", address, err)
+		return fmt.Errorf("address %q: %w", cfg.address, err)
 	}
-	tunnelRoutes, err := parsePrefixes(routes)
+	parsedRoutes, err := parsePrefixes(cfg.routes)
 	if err != nil {
 		return err
 	}
+	var tunnelRoutes []netip.Prefix
+	var routesFromRoutes6 []netip.Prefix
+	for _, r := range parsedRoutes {
+		if r.Addr().Is4() {
+			tunnelRoutes = append(tunnelRoutes, r)
+		} else {
+			routesFromRoutes6 = append(routesFromRoutes6, r)
+		}
+	}
+	if len(tunnelRoutes) == 0 {
+		return errors.New("no IPv4 routes to install — the tunnel would carry nothing")
+	}
 
-	// Creating the adapter is the step that needs Administrator. Its failure is
-	// the one a person is most likely to hit, so it is reported on its own
-	// rather than folded into a generic "could not start".
-	adapter, err := tun.CreateTUN(name, mtu)
+	var prefix6 netip.Prefix
+	var routes6 []netip.Prefix
+	hasIPv6 := strings.TrimSpace(cfg.address6) != ""
+	if hasIPv6 {
+		prefix6, err = netip.ParsePrefix(strings.TrimSpace(cfg.address6))
+		if err != nil {
+			return fmt.Errorf("address6 %q: %w", cfg.address6, err)
+		}
+		r6 := strings.TrimSpace(cfg.routes6)
+		if r6 != "" {
+			parsed6, err := parsePrefixes(r6)
+			if err != nil {
+				return err
+			}
+			for _, r := range parsed6 {
+				if r.Addr().Is6() {
+					routes6 = append(routes6, r)
+				}
+			}
+		} else if len(routesFromRoutes6) > 0 {
+			routes6 = routesFromRoutes6
+		}
+		if len(routes6) == 0 {
+			routes6 = []netip.Prefix{netip.MustParsePrefix("::/0")}
+		}
+	}
+
+	var resolvers []netip.Addr
+	if cfg.dns != "" {
+		server, err := netip.ParseAddr(cfg.dns)
+		if err != nil {
+			return fmt.Errorf("dns %q: %w", cfg.dns, err)
+		}
+		resolvers = append(resolvers, server)
+	}
+	if cfg.dns6 != "" {
+		server6, err := netip.ParseAddr(cfg.dns6)
+		if err != nil {
+			return fmt.Errorf("dns6 %q: %w", cfg.dns6, err)
+		}
+		resolvers = append(resolvers, server6)
+	}
+
+	var bridge *udpToTcpBridge
+	if strings.TrimSpace(cfg.wgTcpBridge) != "" {
+		b, err := startUdpToTcpBridge(strings.TrimSpace(cfg.wgTcpBridge))
+		if err != nil {
+			return err
+		}
+		bridge = b
+		defer bridge.Close()
+		config = replaceIpcEndpoint(config, bridge.LocalEndpoint())
+		fmt.Fprintf(os.Stderr, "WireGuard-over-TCP bridge active via %s -> %s\n", bridge.LocalEndpoint(), cfg.wgTcpBridge)
+	}
+
+	adapter, err := tun.CreateTUN(cfg.name, mtu)
 	if err != nil {
-		return fmt.Errorf("could not create the %q adapter (Administrator required): %w", name, err)
+		return fmt.Errorf("could not create the %q adapter (Administrator required): %w", cfg.name, err)
 	}
 	defer adapter.Close()
 
@@ -165,7 +303,60 @@ func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) e
 	}
 	luid := winipcfg.LUID(native.LUID())
 
-	dev := device.NewDevice(adapter, conn.NewDefaultBind(),
+	// Install blanket WFP leak protection IMMEDIATELY once the WinTun LUID exists,
+	// before assigning IPs/routes or bringing WireGuard up, so no packet or DNS
+	// query can race out physical NICs during interface bring-up.
+	persistent := cfg.blockLeaks && cfg.holdOnLoss && cfg.persistKillSwitch
+	var stopWfp func()
+	disarmOnExit := true
+	defer func() {
+		if stopWfp != nil && (!persistent || disarmOnExit) {
+			stopWfp()
+		}
+	}()
+
+	if cfg.blockLeaks {
+		stop, err := enableLeakProtection(leakOptions{
+			tunLUID:         uint64(luid),
+			resolvers:       resolvers,
+			ipv6Tunnel:      hasIPv6,
+			allowLAN:        cfg.allowLAN,
+			allowDiscovery:  cfg.allowDiscovery,
+			discoveryApp:    cfg.discoveryApp,
+			excludeApps:     cfg.excludeApps,
+			excludePrefixes: cfg.excludePrefixes,
+			persistent:      persistent,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "leak protection unavailable: %v\n", err)
+			if _, werr := fmt.Fprintln(channel, leakProtectionFailedLine); werr != nil {
+				return fmt.Errorf("reporting that leak protection is unavailable: %w", werr)
+			}
+			if cfg.strictLeakBlock {
+				return fmt.Errorf("refusing to start without WFP leak protection: %w", err)
+			}
+		} else {
+			stopWfp = stop
+			if hasIPv6 {
+				fmt.Fprintln(os.Stderr, "leak protection on: non-tunnel traffic blocked, DNS pinned to tunnel, off-tunnel IPv6 refused")
+			} else {
+				fmt.Fprintln(os.Stderr, "leak protection on: non-tunnel traffic blocked, DNS pinned to tunnel, IPv6 refused")
+			}
+		}
+	}
+
+	cleanupBypassRoutes := installBypassRoutes(uint64(luid), cfg.excludePrefixes, cfg.allowLAN)
+	defer cleanupBypassRoutes()
+
+	// Cut pre-existing foreign IPv4 TCP connections right away (before waiting
+	// up to 20s for handshake) so long-lived flows don't keep leaking out the
+	// physical NIC during bring-up. Existing UDP/QUIC and IPv6 sockets are
+	// simultaneously blocked via BFE ALE reauthorization above.
+	if closed := resetForeignConnections(prefix.Addr(), peerEndpointAddr(config), cfg.excludePrefixes, cfg.allowLAN); closed > 0 {
+		fmt.Fprintf(os.Stderr, "closed %d connection(s) that predated the tunnel\n", closed)
+	}
+
+	dev := device.NewDevice(adapter, newResilientBind(),
 		device.NewLogger(device.LogLevelError, "relaywg-client: "))
 	defer dev.Close()
 
@@ -176,88 +367,38 @@ func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) e
 		return fmt.Errorf("the tunnel did not come up: %w", err)
 	}
 
-	if err := configureAdapter(luid, prefix, dns, tunnelRoutes); err != nil {
+	if err := configureAdapter(luid, prefix, cfg.dns, tunnelRoutes); err != nil {
 		return err
 	}
-
-	// Close the two ways traffic was leaving around the tunnel.
-	//
-	// DNS   Windows resolves names on every interface at once, so on a Wi-Fi
-	//       shared with the phone the router answered alongside the tunnel and a
-	//       leak test listed the local ISP. A user reported exactly that, and
-	//       only ever on Wi-Fi -- on a hotspot the only other resolver is the
-	//       phone, so nothing showed.
-	// IPv6  This client configures AF_INET only, so every v6 connection left by
-	//       the physical adapter carrying the real address.
-	//
-	// wfp_windows.go says why this is written against WFP directly rather than
-	// using wireguard-windows' firewall package, which cannot work from a
-	// non-service process. Failure is reported and the tunnel still comes up: a
-	// leak is bad, but a Relay that refuses to connect is worse, and every
-	// release before this one ran without these filters anyway. What must not
-	// happen is silence, because the person now believes they are protected.
-	if blockLeaks {
-		var resolvers []netip.Addr
-		if server, err := netip.ParseAddr(dns); err == nil {
-			resolvers = append(resolvers, server)
-		}
-		stop, err := enableLeakProtection(resolvers)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "leak protection unavailable: %v", err)
-			if _, werr := fmt.Fprintln(channel, leakProtectionFailedLine); werr != nil {
-				return fmt.Errorf("reporting that leak protection is unavailable: %w", werr)
-			}
-		} else {
-			defer stop()
-			fmt.Fprintln(os.Stderr, "leak protection on: DNS is pinned to the tunnel and IPv6 is refused")
+	if hasIPv6 {
+		if err := configureAdapter6(luid, prefix6, cfg.dns6, routes6); err != nil {
+			return err
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, name)
+	fmt.Fprintf(os.Stderr, "tunnel up on %s via %q\n", prefix, cfg.name)
 
-	// Readiness is the handshake, not the adapter.
-	//
-	// This used to report READY as soon as the adapter existed, which is equally
-	// true of a tunnel whose peer is gone, whose keys have been rotated, or that
-	// is pointed at nothing at all. The app then said "Connected" over a tunnel
-	// that could never carry a byte, and — having no probe and no supervision,
-	// on the strength of a comment claiming this line already meant a handshake
-	// — went on saying it. A stale QR is the ordinary way in: the phone mints
-	// fresh keys every time sharing restarts, so a code scanned minutes ago is
-	// no longer one the endpoint will answer.
 	if !waitForHandshake(dev, handshakeTimeout) {
 		fmt.Fprintln(os.Stderr, "no handshake: the peer never answered")
-		// Best effort — if the parent is already gone this fails and the error
-		// below is still the right one.
 		io.WriteString(channel, noHandshakeLine+"\n")
 		return errors.New("the peer never completed a handshake")
-	}
-
-	// The tunnel now carries traffic -- but only for connections opened from
-	// here on. Everything already established keeps leaving by the adapter it
-	// was born on, because Windows binds a TCP connection to its source address
-	// for life. Close those so their owners reconnect through the route that now
-	// exists; reset_windows.go carries the measurement behind this.
-	if closed := resetForeignConnections(prefix.Addr()); closed > 0 {
-		fmt.Fprintf(os.Stderr, "closed %d connection(s) that predated the tunnel\n", closed)
 	}
 
 	if _, err := io.WriteString(channel, "READY\n"); err != nil {
 		return fmt.Errorf("reporting readiness: %w", err)
 	}
 
-	// The peer's key, read once: an endpoint update has to name the peer it
-	// moves, and this is the only place the configuration is still in hand.
+	// Once READY is sent under persistent kill-switch mode, abnormal crashes or
+	// unexpected pipe loss must leave persistent BFE lockdown filters intact
+	// until an explicit DISCONNECT command or -clear-killswitch runs.
+	if persistent {
+		disarmOnExit = false
+	}
+
 	peerKey := peerPublicKey(config)
 
-	// Without the kill switch, a peer that goes quiet ends the process, which is
-	// the one signal the app watches. With it, the process stays -- and with it
-	// the adapter, its default route and the leak filters -- so the machine's
-	// traffic keeps going into a tunnel that drops it, rather than quietly out
-	// of the Wi-Fi adapter. That is the whole of a kill switch, and it needs no
-	// filter of its own: the route is already doing the blocking.
 	var gone <-chan struct{}
-	if holdOnLoss {
+	if cfg.holdOnLoss {
 		go watchPeer(dev, handshakeStale, func(lost bool) {
 			line := peerBackLine
 			if lost {
@@ -270,10 +411,17 @@ func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) e
 		gone = peerLost(dev)
 	}
 
-	waitForShutdown(reader, parentGone, gone, func(line string) {
+	stopBg := make(chan struct{})
+	defer close(stopBg)
+
+	if cfg.emitStats {
+		go emitTunnelStats(dev, channel, stopBg)
+	}
+
+	intentionalStop := waitForShutdown(reader, parentGone, gone, func(line string) {
 		endpoint, ok := strings.CutPrefix(line, endpointPrefix)
 		if !ok {
-			return // the app says nothing else here; ignore whatever this was
+			return
 		}
 		endpoint = strings.TrimSpace(endpoint)
 		if err := roam(dev, peerKey, endpoint); err != nil {
@@ -282,29 +430,16 @@ func run(name, address, dns, routes, pipe string, blockLeaks, holdOnLoss bool) e
 		}
 		fmt.Fprintf(os.Stderr, "the peer moved to %s\n", endpoint)
 	})
+
+	if intentionalStop {
+		disarmOnExit = true
+	}
+
 	fmt.Fprintln(os.Stderr, "tearing down")
-	// The deferred Close calls remove the adapter, and Windows drops its
-	// addresses and routes with it.
 	return nil
 }
 
 // roam re-points the tunnel at the peer's new address without rebuilding it.
-//
-// WireGuard follows a peer that moves, but only in the direction this end is
-// not: a responder learns an initiator's address from the packets it receives,
-// and here the phone is the responder and the one that moves. Its address is a
-// DHCP lease, so a renewal or a rejoin is enough, and then every handshake goes
-// to an address nobody is listening on until [peerLost] tears the tunnel down —
-// which is what "worked once, then never again" looked like from the outside.
-//
-// Only the endpoint moves. The keys are untouched, so this cannot hand the
-// tunnel to anyone: an endpoint that does not hold the peer's key completes no
-// handshake and gets nothing. update_only is belt and braces on top of that —
-// a line naming an unknown key moves nothing rather than adding a second peer.
-//
-// The address must be a literal. The beacon carries one, and refusing anything
-// else keeps a name lookup — which blocks, and which the tunnel would be
-// routing — off this path entirely.
 func roam(dev *device.Device, peerKey, endpoint string) error {
 	if peerKey == "" {
 		return errors.New("the configuration named no peer to move")
@@ -317,9 +452,6 @@ func roam(dev *device.Device, peerKey, endpoint string) error {
 }
 
 // peerPublicKey returns the peer's key from an IPC configuration.
-//
-// The device's own key is private_key=, so the first public_key= line is the
-// peer's -- and there is exactly one peer, by ADR-0009.
 func peerPublicKey(config string) string {
 	for _, line := range strings.Split(config, "\n") {
 		if key, ok := strings.CutPrefix(strings.TrimSpace(line), "public_key="); ok {
@@ -327,6 +459,19 @@ func peerPublicKey(config string) string {
 		}
 	}
 	return ""
+}
+
+// peerEndpointAddr extracts the literal endpoint IP from an IPC configuration,
+// returning an invalid Addr if none is present or malformed.
+func peerEndpointAddr(config string) netip.Addr {
+	for _, line := range strings.Split(config, "\n") {
+		if ep, ok := strings.CutPrefix(strings.TrimSpace(line), "endpoint="); ok {
+			if ap, err := netip.ParseAddrPort(strings.TrimSpace(ep)); err == nil {
+				return ap.Addr()
+			}
+		}
+	}
+	return netip.Addr{}
 }
 
 // waitForHandshake reports whether the peer answered within [within].
@@ -344,22 +489,12 @@ func waitForHandshake(dev *device.Device, within time.Duration) bool {
 }
 
 // peerLost closes when the peer stops handshaking.
-//
-// The tunnel process leaving is what tells the app the tunnel is dead — the
-// adapter goes with it — so this turns "the phone stopped answering" into the
-// one signal the app already watches for, rather than a second mechanism that
-// can disagree with the first.
-//
-// ponytail: the goroutine runs until the process exits, which is immediately
-// after this fires or after shutdown. Nothing to cancel in a single-purpose
-// process; give it a context if this ever becomes a library.
 func peerLost(dev *device.Device) <-chan struct{} {
 	lost := make(chan struct{})
 	go func() {
 		defer close(lost)
 		for {
 			time.Sleep(time.Second)
-			// Never-handshaked is not stale: this is gated behind READY.
 			if peerIsStale(lastHandshakeUnix(dev), time.Now(), handshakeStale) {
 				fmt.Fprintln(os.Stderr, "the peer stopped handshaking; tearing down")
 				return
@@ -370,16 +505,6 @@ func peerLost(dev *device.Device) <-chan struct{} {
 }
 
 // watchPeer reports the peer going quiet and coming back, for the kill switch.
-//
-// The same staleness rule as [peerLost], and the same reason for it: WireGuard
-// rekeys every two minutes while anything flows and the client keeps alive
-// every 25 seconds, so a handshake older than [handshakeStale] is a phone that
-// is not there. Coming back is a fresh handshake, which wireguard-go keeps
-// attempting on its own for as long as the device is up -- so a phone that
-// returns on the same session (same keys) is picked up with nothing done here
-// beyond noticing.
-//
-// Runs until the process exits; see [peerLost] for why that is fine.
 func watchPeer(dev *device.Device, stale time.Duration, report func(lost bool)) {
 	lost := false
 	for {
@@ -391,9 +516,7 @@ func watchPeer(dev *device.Device, stale time.Duration, report func(lost bool)) 
 	}
 }
 
-// peerIsStale is the rule [peerLost] and [watchPeer] share. Never having
-// handshaked is not stale: both are only started after READY, which required
-// one.
+// peerIsStale is the rule [peerLost] and [watchPeer] share.
 func peerIsStale(lastHandshake int64, now time.Time, stale time.Duration) bool {
 	if lastHandshake == 0 {
 		return false
@@ -401,9 +524,6 @@ func peerIsStale(lastHandshake int64, now time.Time, stale time.Duration) bool {
 	return now.Sub(time.Unix(lastHandshake, 0)) > stale
 }
 
-// lastHandshakeUnix reads the peer's last handshake out of the device itself,
-// for the same reason [relaywg.Endpoint] does: a second copy of this state is a
-// second thing that can disagree with the tunnel.
 func lastHandshakeUnix(dev *device.Device) int64 {
 	status, err := dev.IpcGet()
 	if err != nil {
@@ -423,11 +543,6 @@ func lastHandshakeUnix(dev *device.Device) int64 {
 	return 0
 }
 
-// configureAdapter gives the tunnel its address, DNS and routes.
-//
-// Order matters: the address has to exist before a route can point at the
-// interface, and the interface metric has to be set before the routes or
-// Windows may prefer the physical adapter for the same prefix.
 func configureAdapter(luid winipcfg.LUID, prefix netip.Prefix, dns string, routes []netip.Prefix) error {
 	if err := luid.SetIPAddressesForFamily(windows.AF_INET, []netip.Prefix{prefix}); err != nil {
 		return fmt.Errorf("setting %s on the adapter: %w", prefix, err)
@@ -440,8 +555,6 @@ func configureAdapter(luid winipcfg.LUID, prefix netip.Prefix, dns string, route
 	iface.NLMTU = mtu
 	iface.UseAutomaticMetric = false
 	iface.Metric = routeMetric
-	// Without this Windows sends router solicitations out of a point-to-point
-	// tunnel that has no router, which shows up as a delay before traffic flows.
 	iface.RouterDiscoveryBehavior = winipcfg.RouterDiscoveryDisabled
 	iface.DadTransmits = 0
 	if err := iface.Set(); err != nil {
@@ -458,13 +571,6 @@ func configureAdapter(luid winipcfg.LUID, prefix netip.Prefix, dns string, route
 		}
 	}
 
-	// Deliberately additive. Nothing here deletes or rewrites an existing route:
-	// the tunnel's default route wins on metric while it exists and disappears
-	// with the adapter, so a crash cannot strand a machine with a route to
-	// somewhere that is gone. The phone itself stays reachable because it sits
-	// on the local subnet, whose on-link route is more specific than 0.0.0.0/0
-	// and stays on the physical adapter -- which is also what stops the tunnel's
-	// own UDP from being routed into itself.
 	data := make([]*winipcfg.RouteData, 0, len(routes))
 	for _, route := range routes {
 		data = append(data, &winipcfg.RouteData{
@@ -477,6 +583,79 @@ func configureAdapter(luid winipcfg.LUID, prefix netip.Prefix, dns string, route
 		return fmt.Errorf("setting routes: %w", err)
 	}
 	return nil
+}
+
+func configureAdapter6(luid winipcfg.LUID, prefix netip.Prefix, dns string, routes []netip.Prefix) error {
+	if err := luid.SetIPAddressesForFamily(windows.AF_INET6, []netip.Prefix{prefix}); err != nil {
+		return fmt.Errorf("setting IPv6 %s on the adapter: %w", prefix, err)
+	}
+
+	iface, err := luid.IPInterface(windows.AF_INET6)
+	if err != nil {
+		return fmt.Errorf("reading the adapter's IPv6 settings: %w", err)
+	}
+	iface.NLMTU = mtu
+	iface.UseAutomaticMetric = false
+	iface.Metric = routeMetric
+	iface.RouterDiscoveryBehavior = winipcfg.RouterDiscoveryDisabled
+	iface.DadTransmits = 0
+	if err := iface.Set(); err != nil {
+		return fmt.Errorf("applying the adapter's IPv6 settings: %w", err)
+	}
+
+	if dns != "" {
+		server, err := netip.ParseAddr(dns)
+		if err != nil {
+			return fmt.Errorf("dns6 %q: %w", dns, err)
+		}
+		if err := luid.SetDNS(windows.AF_INET6, []netip.Addr{server}, nil); err != nil {
+			return fmt.Errorf("setting IPv6 DNS: %w", err)
+		}
+	}
+
+	data := make([]*winipcfg.RouteData, 0, len(routes))
+	for _, route := range routes {
+		data = append(data, &winipcfg.RouteData{
+			Destination: route,
+			NextHop:     netip.IPv6Unspecified(),
+			Metric:      0,
+		})
+	}
+	if err := luid.SetRoutesForFamily(windows.AF_INET6, data); err != nil {
+		return fmt.Errorf("setting IPv6 routes: %w", err)
+	}
+	return nil
+}
+
+func emitTunnelStats(dev *device.Device, channel io.Writer, done <-chan struct{}) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			status, err := dev.IpcGet()
+			if err != nil {
+				return
+			}
+			var rx, tx int64
+			for _, line := range strings.Split(status, "\n") {
+				if v, ok := strings.CutPrefix(strings.TrimSpace(line), "rx_bytes="); ok {
+					if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+						rx += n
+					}
+				} else if v, ok := strings.CutPrefix(strings.TrimSpace(line), "tx_bytes="); ok {
+					if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+						tx += n
+					}
+				}
+			}
+			if _, err := fmt.Fprintf(channel, "STATS rx=%d tx=%d\n", rx, tx); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func parsePrefixes(list string) ([]netip.Prefix, error) {
@@ -498,13 +677,6 @@ func parsePrefixes(list string) ([]netip.Prefix, error) {
 	return parsed, nil
 }
 
-// openChannel returns the stream the configuration arrives on and readiness is
-// reported over: a named pipe when one is given, otherwise stdin and stdout.
-//
-// The pipe is opened read-write and stays open for the life of the tunnel. Its
-// closing is how this process learns the app has gone -- including the app
-// crashing, which is the case that matters, because a tunnel nobody is watching
-// still holds the machine's routes.
 func openChannel(pipe string) (io.ReadWriteCloser, error) {
 	if pipe == "" {
 		return stdioChannel{}, nil
@@ -517,25 +689,12 @@ func openChannel(pipe string) (io.ReadWriteCloser, error) {
 	return handle, nil
 }
 
-// stdioChannel reads from stdin and writes to stdout as one stream.
 type stdioChannel struct{}
 
 func (stdioChannel) Read(p []byte) (int, error)  { return os.Stdin.Read(p) }
 func (stdioChannel) Write(p []byte) (int, error) { return os.Stdout.Write(p) }
 func (stdioChannel) Close() error                { return nil }
 
-// readConfig reads the IPC configuration up to [configTerminator], and reports
-// whether stdin reached EOF while doing so.
-//
-// The terminator exists because stdin is two things at once: the way the
-// configuration arrives, and the way this process learns its parent is gone.
-// Reading to EOF for the first would consume the second, and the tunnel would
-// tear itself down the instant it came up.
-//
-// Reaching EOF instead of the terminator is not an error — that is what
-// `type relay.conf | relaywg-client` looks like, and it is a reasonable way to
-// run this by hand. It only means the parent is already gone, so Ctrl+Break
-// becomes the only way out.
 func readConfig(stdin *bufio.Reader) (config string, parentGone bool, err error) {
 	var builder strings.Builder
 	for {
@@ -562,46 +721,50 @@ func readConfig(stdin *bufio.Reader) (config string, parentGone bool, err error)
 	return builder.String(), parentGone, nil
 }
 
-// waitForShutdown returns when the parent goes away or the console interrupts,
-// passing each line the parent sends meanwhile to [onLine].
-//
-// Both shutdown paths matter. The parent closing stdin is the ordinary
-// Disconnect; the signal is what a person pressing Ctrl+C in a console window
-// sends. Waiting on only one of them leaves a tunnel running with nobody
-// watching it.
-//
-// The lines are new. This end of the channel used to be drained into
-// io.Discard, because the only thing it had to detect was the stream ending --
-// and reading it for content costs nothing, since it was already being read.
+// waitForShutdown returns true if the shutdown was requested intentionally
+// (explicit DISCONNECT command, console interrupt, or normal non-hold peer loss),
+// and false if the parent pipe broke unexpectedly (crash/kill).
 func waitForShutdown(
 	channel *bufio.Reader,
 	parentAlreadyGone bool,
 	peerGone <-chan struct{},
 	onLine func(string),
-) {
+) bool {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
 	if parentAlreadyGone {
 		select {
 		case <-signals:
+			return true
 		case <-peerGone:
+			return true
 		}
-		return
 	}
 
 	closed := make(chan struct{})
+	disconnected := make(chan struct{})
 	go func() {
 		defer close(closed)
 		scanner := bufio.NewScanner(channel)
 		for scanner.Scan() {
-			onLine(strings.TrimSpace(scanner.Text()))
+			line := strings.TrimSpace(scanner.Text())
+			if line == disconnectCommand {
+				close(disconnected)
+				return
+			}
+			onLine(line)
 		}
 	}()
 
 	select {
 	case <-signals:
-	case <-closed:
+		return true
+	case <-disconnected:
+		return true
 	case <-peerGone:
+		return true
+	case <-closed:
+		return false
 	}
 }

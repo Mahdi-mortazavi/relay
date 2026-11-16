@@ -114,4 +114,20 @@ public class WgClientConfigTests
     [InlineData("999.1.1.1")]
     public void A_host_that_is_not_an_address_is_refused(string host)
         => Assert.Throws<ArgumentException>(() => WgClientConfig.ToIni(Params(), host));
+
+    [Fact]
+    public void Ini_includes_multi_peer_address_and_dual_stack_ipv6_when_present()
+    {
+        var wg = Params() with
+        {
+            ClientAddress = "10.13.37.5/32",
+            ClientIpv6 = "fd13:37::5/128",
+            DnsIpv6 = "fd13:37::1",
+            AllowedIps = "0.0.0.0/0, ::/0",
+        };
+        var ini = WgClientConfig.ToIni(wg, "192.168.43.1");
+        Assert.Contains("Address = 10.13.37.5/32, fd13:37::5/128", ini);
+        Assert.Contains("DNS = 1.1.1.1, fd13:37::1", ini);
+        Assert.Contains("AllowedIPs = 0.0.0.0/0, ::/0", ini);
+    }
 }

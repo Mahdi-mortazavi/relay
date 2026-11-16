@@ -26,4 +26,9 @@ object WgKeys {
             dns = dns,
         )
     }
+
+    fun generateClientPair(): Pair<String, String> {
+        val pair = KeyPair()
+        return pair.privateKey.toBase64() to pair.publicKey.toBase64()
+    }
 }

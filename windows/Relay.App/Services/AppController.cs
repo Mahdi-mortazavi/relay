@@ -19,13 +19,20 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
 
     private readonly ProxySession _session = new(proxyStore, backupStore);
 
+    private static readonly string TunnelExecutablePath =
+        Path.Combine(AppContext.BaseDirectory, "relaywg-client.exe");
+
+    private static readonly string PersistentKillSwitchMarkerPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Relay",
+        "persistent-killswitch.armed");
+
     /// <summary>
     /// Full Mode's tunnel. The client sits beside Relay.exe, with wintun.dll
     /// next to it — the DLL is loaded from the executable's own directory, so
     /// the two travel together or neither works.
     /// </summary>
-    private readonly WgTunnelSession _tunnel = new(new ElevatedTunnelHost(
-        Path.Combine(AppContext.BaseDirectory, "relaywg-client.exe")));
+    private readonly WgTunnelSession _tunnel = new(new ElevatedTunnelHost(TunnelExecutablePath));
     private readonly object _gate = new();
     private readonly object _sessionLock = new(); // serializes all _session IO
     private CancellationTokenSource? _supervisor;
@@ -37,6 +44,15 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
 
     /// <summary>Raised on any state change; may fire on a worker thread.</summary>
     public event Action? StateChanged;
+
+    /// <summary>Live byte counters emitted by the tunnel process over the pipe.</summary>
+    public event Action<WgTunnelSession.TunnelStatsSnapshot>? TunnelStatsChanged
+    {
+        add => _tunnel.TunnelStatsChanged += value;
+        remove => _tunnel.TunnelStatsChanged -= value;
+    }
+
+    public WgTunnelSession.TunnelStatsSnapshot? LatestTunnelStats => _tunnel.LatestTunnelStats;
 
     /// <summary>
     /// True when the tunnel came up but the filters that keep traffic inside it
@@ -51,12 +67,27 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
 
     private enum Probe { Ok, Refused, Unreachable }
 
-    /// <summary>Call once at startup, before any UI: undo a crashed session's proxy.</summary>
+    /// <summary>Call once at startup, before any UI: undo a crashed session's proxy or persistent kill-switch.</summary>
     public bool RecoverIfCrashed()
     {
         var recovered = _session.RecoverIfCrashed();
         if (recovered) LocalLog.Add("Recovered proxy from a previous crash");
         ShutdownRecoveryHook.Disarm();
+
+        if (File.Exists(PersistentKillSwitchMarkerPath))
+        {
+            if (ElevatedTunnelHost.ClearPersistentKillSwitch(TunnelExecutablePath))
+            {
+                LocalLog.Add("Cleared persistent kill-switch filters from a previous crash");
+                DisarmPersistentKillSwitchMarker();
+                recovered = true;
+            }
+            else
+            {
+                LocalLog.Add("Could not clear persistent kill-switch filters from a previous crash");
+            }
+        }
+
         return recovered;
     }
 
@@ -238,12 +269,27 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             return;
         }
         if (!Dispatch("start", payload)) return;
-        LocalLog.Add($"Full Mode: dialling {payload.Host}:{payload.Port}");
+
+        var useAdbBridge = string.Equals(payload.Transport, QrPayload.TransportAdb, StringComparison.OrdinalIgnoreCase)
+            || payload.Host == "127.0.0.1";
+        var tcpBridge = useAdbBridge ? ClientPreferences.DefaultAdbTcpEndpoint : null;
+        if (useAdbBridge)
+        {
+            LocalLog.Add($"Full Mode (ADB USB bridge): dialling {tcpBridge}");
+        }
+        else if (string.Equals(payload.Transport, QrPayload.TransportWifiDirect, StringComparison.OrdinalIgnoreCase))
+        {
+            LocalLog.Add($"Full Mode (Wi-Fi Direct): dialling {payload.Host}:{payload.Port}");
+        }
+        else
+        {
+            LocalLog.Add($"Full Mode: dialling {payload.Host}:{payload.Port}");
+        }
 
         WgTunnelSession.Result started;
         try
         {
-            started = await TunnelConnectLocked(payload.Wg, payload.Host);
+            started = await TunnelConnectLocked(payload.Wg, payload.Host, tcpBridge);
         }
         catch (Exception ex)
         {
@@ -284,6 +330,14 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
             return;
         }
         LocalLog.Add("Connected (Full Mode)");
+        if (!string.IsNullOrWhiteSpace(payload.Wg.DohUrl))
+        {
+            LocalLog.Add($"Encrypted DNS-over-HTTPS active on phone ({payload.Wg.DohUrl})");
+        }
+        if (!string.IsNullOrWhiteSpace(payload.Wg.ClientIpv6))
+        {
+            LocalLog.Add($"Dual-stack IPv6 tunnel assigned ({payload.Wg.ClientIpv6})");
+        }
         // Said every time, not once: a person who turned leak protection on is
         // entitled to know it did not happen, and the log is what the
         // diagnostic report carries to whoever reads the bug.
@@ -411,19 +465,85 @@ public sealed class AppController(IProxyStore proxyStore, IBackupStore backupSto
 
     // Full Mode's tunnel shares the same lock: a user Disconnect and anything
     // else touching the session must not overlap, exactly as for the proxy.
-    private Task<WgTunnelSession.Result> TunnelConnectLocked(WgParams wg, string host) =>
+    private Task<WgTunnelSession.Result> TunnelConnectLocked(
+        WgParams wg,
+        string host,
+        string? wgTcpBridgeEndpoint = null) =>
         Task.Run(() =>
         {
             lock (_sessionLock)
             {
+                var blockLeaks = LeakProtection.IsEnabled();
                 var hold = KillSwitch.IsEnabled();
+                var exclusions = LeakExclusions.LoadOrDefault(log: LocalLog.Add);
+                var prefs = ClientPreferences.LoadOrDefault(warn: LocalLog.Add);
+                var effectiveWg = prefs.ApplyTo(wg);
+                if (!string.IsNullOrWhiteSpace(prefs.CustomDnsOverride))
+                {
+                    LocalLog.Add($"Using custom in-tunnel DNS override ({prefs.CustomDnsOverride})");
+                }
+                if (!prefs.EnableIpv6Tunnel && !string.IsNullOrWhiteSpace(wg.ClientIpv6))
+                {
+                    LocalLog.Add("Dual-stack IPv6 disabled in client preferences; staying IPv4-only");
+                }
                 if (hold) LocalLog.Add("Kill switch on — if the phone stops answering, traffic is held, not sent around the tunnel");
-                return _tunnel.Connect(wg, host, LeakProtection.IsEnabled(), hold);
+                var persist = blockLeaks && hold && exclusions.PersistKillSwitch;
+                if (persist) ArmPersistentKillSwitchMarker();
+
+                var result = _tunnel.Connect(
+                    effectiveWg,
+                    host,
+                    blockLeaks,
+                    hold,
+                    exclusions,
+                    wgTcpBridgeEndpoint,
+                    emitStats: true);
+                if (!result.Ok && persist) DisarmPersistentKillSwitchMarker();
+                return result;
             }
         });
 
     private Task<WgTunnelSession.Result> TunnelDisconnectLocked() =>
-        Task.Run(() => { lock (_sessionLock) return _tunnel.Disconnect(); });
+        Task.Run(() =>
+        {
+            lock (_sessionLock)
+            {
+                var hadMarker = File.Exists(PersistentKillSwitchMarkerPath);
+                var wasRunning = _tunnel.IsRunning;
+                var result = _tunnel.Disconnect();
+                if (result.Ok)
+                {
+                    // If the tunnel process already died before Disconnect could send DISCONNECT,
+                    // clear any persisted WFP lockdown filters explicitly.
+                    if (hadMarker && !wasRunning)
+                    {
+                        ElevatedTunnelHost.ClearPersistentKillSwitch(TunnelExecutablePath);
+                    }
+                    DisarmPersistentKillSwitchMarker();
+                }
+                return result;
+            }
+        });
+
+    private static void ArmPersistentKillSwitchMarker()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(PersistentKillSwitchMarkerPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllText(PersistentKillSwitchMarkerPath, DateTimeOffset.UtcNow.ToString("O"));
+        }
+        catch { }
+    }
+
+    private static void DisarmPersistentKillSwitchMarker()
+    {
+        try
+        {
+            if (File.Exists(PersistentKillSwitchMarkerPath)) File.Delete(PersistentKillSwitchMarkerPath);
+        }
+        catch { }
+    }
 
     // --- reconnect supervisor (ADR-0007) -------------------------------------
 

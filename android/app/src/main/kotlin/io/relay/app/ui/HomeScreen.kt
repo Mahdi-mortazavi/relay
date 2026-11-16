@@ -86,10 +86,15 @@ import io.relay.app.core.ConnectionState
 import io.relay.app.core.ErrorCode
 import io.relay.app.core.QrPayload
 import io.relay.app.core.QrPayloadCodec
+import io.relay.app.core.TypedCode
 import io.relay.app.core.WarningCode
+import io.relay.app.net.AccelHelper
 import io.relay.app.net.ProxyScan
 import io.relay.app.core.RouteChoice
 import io.relay.app.net.UsbLink
+import io.relay.app.net.VpnPreFlight
+import io.relay.app.net.WifiDirectLink
+import io.relay.app.service.ConnectionRepository
 import io.relay.app.service.LocalLog
 import io.relay.app.service.Settings
 import io.relay.app.service.TrustedDevice
@@ -154,6 +159,30 @@ fun HomeScreen(
     onSetAutomaticRoute: (Boolean) -> Unit = {},
     /** The route in force while sharing, or null. */
     currentRoute: RouteChoice.Route? = null,
+    telemetry: ConnectionRepository.LiveTelemetry = ConnectionRepository.LiveTelemetry(),
+    preFlight: VpnPreFlight.Report? = null,
+    accelCapabilities: AccelHelper.Capabilities = AccelHelper.Capabilities(false, false),
+    customDns: String = "1.1.1.1",
+    onSetCustomDns: (String) -> Unit = {},
+    dohUrl: String = "",
+    onSetDohUrl: (String) -> Unit = {},
+    tetherTtl65: Boolean = false,
+    onSetTetherTtl65: (Boolean) -> Unit = {},
+    icmpRelay: Boolean = false,
+    onSetIcmpRelay: (Boolean) -> Unit = {},
+    uploadLimitKbps: Int = 0,
+    onSetUploadLimitKbps: (Int) -> Unit = {},
+    downloadLimitKbps: Int = 0,
+    onSetDownloadLimitKbps: (Int) -> Unit = {},
+    quotaMb: Int = 0,
+    onSetQuotaMb: (Int) -> Unit = {},
+    inboundForwardsSpec: String = "",
+    onAddInboundForward: (String) -> Boolean = { false },
+    onRemoveInboundForward: (String, Int) -> Unit = { _, _ -> },
+    adbBridgeEnabled: Boolean = true,
+    onSetAdbBridgeEnabled: (Boolean) -> Unit = {},
+    onStartAdbBridge: () -> Unit = {},
+    onStartWifiDirect: () -> Unit = {},
 ) {
     // Survives the crossfade between Connected and Reconnecting, and resets
     // whenever sharing stops: a new session starts with the code hidden.
@@ -180,20 +209,21 @@ fun HomeScreen(
             // the warning of the same name would only say it twice.
             WarningBanners(warnings - WarningCode.BATTERY_UNRESTRICTED_DENIED, onDismissWarning, onOpenVpnSettings)
 
-            // Key the crossfade on the state *name*, not the state value.
-            // Connected is a data class carrying byte counters that change every
-            // second, and the plain Crossfade overload keys on the value itself:
-            // the whole panel became a new entry once a second, so the card
-            // visibly re-faded and the QR was re-encoded from scratch (ZXing plus
-            // a 1.6 MB bitmap, on the main thread) for the entire session.
-            // Same-name updates now reuse the subtree and just re-render.
+            if (preFlight != null && (preFlight.finding == VpnPreFlight.Finding.LOCKDOWN_BLOCKING_LAN || preFlight.finding == VpnPreFlight.Finding.STRICT_VPN_NO_PROXY)) {
+                PreFlightBanner(
+                    report = preFlight,
+                    onOpenVpnSettings = onOpenVpnSettings,
+                    onStartAdbBridge = onStartAdbBridge,
+                )
+            }
+
             updateTransition(targetState = state, label = "state").Crossfade(
                 animationSpec = tween(320),
                 contentKey = { it.stateName },
             ) { current ->
                 when (current) {
                     is ConnectionState.Idle ->
-                        IdlePanel(fullModeAvailable, onStart)
+                        IdlePanel(fullModeAvailable, onStart, onStartAdbBridge, onStartWifiDirect)
                     is ConnectionState.Preparing -> PreparingPanel()
                     is ConnectionState.Advertising ->
                         PairingPanel(
@@ -205,17 +235,13 @@ fun HomeScreen(
                             reconnecting = current.reconnecting,
                             traffic = null, onStop = onStop,
                             overUsb = cable == UsbLink.Cable.Carrying,
+                            telemetry = telemetry,
                         )
-                    // Connected is its own screen now (docs/ux-audit.md P-03). It
-                    // used to be the pairing screen with one extra line, so the
-                    // answer to "is it working?" was the smallest text on it and
-                    // a code nobody needed any more was the biggest. The code is
-                    // one tap away for the rare second pairing; it is no longer
-                    // the subject.
                     is ConnectionState.Connected -> Column {
                         ConnectedPanel(
                             state = current,
                             overUsb = cable == UsbLink.Cable.Carrying,
+                            telemetry = telemetry,
                             showCode = showCode,
                             onToggleCode = { showCode = !showCode },
                             onStop = onStop,
@@ -227,6 +253,7 @@ fun HomeScreen(
                                 subtitle = null,
                                 reconnecting = current.reconnecting,
                                 traffic = null, onStop = onStop,
+                                telemetry = telemetry,
                                 showStop = false,
                             )
                         }
@@ -259,6 +286,17 @@ fun HomeScreen(
                 proxyScan, onScanForProxy, onUseFoundProxy,
                 automaticRoute, onSetAutomaticRoute, currentRoute,
                 trustedDevices, onRemoveTrusted, onClearTrusted,
+                accelCapabilities,
+                customDns, onSetCustomDns,
+                dohUrl, onSetDohUrl,
+                tetherTtl65, onSetTetherTtl65,
+                icmpRelay, onSetIcmpRelay,
+                uploadLimitKbps, onSetUploadLimitKbps,
+                downloadLimitKbps, onSetDownloadLimitKbps,
+                quotaMb, onSetQuotaMb,
+                inboundForwardsSpec, onAddInboundForward, onRemoveInboundForward,
+                adbBridgeEnabled, onSetAdbBridgeEnabled,
+                telemetry,
             )
         }
 
@@ -505,9 +543,53 @@ private fun rememberQrText(payload: QrPayload): String =
     remember(payload) { QrPayloadCodec.encodeForQr(payload) }
 
 @Composable
+private fun PreFlightBanner(
+    report: VpnPreFlight.Report,
+    onOpenVpnSettings: () -> Unit,
+    onStartAdbBridge: () -> Unit,
+) {
+    val glass = LocalGlass.current
+    val isLockdown = report.finding == VpnPreFlight.Finding.LOCKDOWN_BLOCKING_LAN
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .glassPanel(radius = 16.dp)
+            .padding(16.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(8.dp).background(glass.warning, CircleShape))
+            Text(
+                stringResource(R.string.preflight_lockdown_title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.textPrimary,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(
+                if (isLockdown) R.string.preflight_lockdown_body else R.string.preflight_strict_vpn_body,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = glass.textSecondary,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SubtleButton(text = stringResource(R.string.warning_lockdown_action), onClick = onOpenVpnSettings)
+            SubtleButton(text = stringResource(R.string.transport_adb_button), onClick = onStartAdbBridge)
+        }
+    }
+}
+
+@Composable
 private fun IdlePanel(
     fullModeAvailable: Boolean,
     onStart: () -> Unit,
+    onStartAdbBridge: () -> Unit = {},
+    onStartWifiDirect: () -> Unit = {},
 ) {
     val glass = LocalGlass.current
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -517,8 +599,6 @@ private fun IdlePanel(
             color = glass.textSecondary,
         )
         Spacer(Modifier.height(12.dp))
-        // One transport since ADR-0009, so there is nothing to choose here --
-        // just a sentence saying what pressing the button will do.
         Text(
             text = stringResource(
                 if (fullModeAvailable) R.string.mode_full_desc else R.string.mode_full_unavailable
@@ -528,14 +608,18 @@ private fun IdlePanel(
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(20.dp))
-        // A build without the forwarder cannot share at all now that there is no
-        // second transport, so the button is not offered rather than offered and
-        // guaranteed to fail.
         PrimaryButton(
             text = stringResource(R.string.action_start),
             onClick = onStart,
             enabled = fullModeAvailable,
         )
+        if (fullModeAvailable) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuietAction(stringResource(R.string.transport_adb_button), onClick = onStartAdbBridge)
+                QuietAction(stringResource(R.string.transport_wifi_direct_button), onClick = onStartWifiDirect)
+            }
+        }
     }
 }
 
@@ -648,6 +732,7 @@ private fun PairingPanel(
     connected: Boolean = false,
     /** Whether the phone is currently reachable over the cable. */
     overUsb: Boolean = false,
+    telemetry: ConnectionRepository.LiveTelemetry = ConnectionRepository.LiveTelemetry(),
     /** False when shown under the connected screen, which has its own Stop. */
     showStop: Boolean = true,
 ) {
@@ -767,7 +852,7 @@ private fun PairingPanel(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = typedCode.chunked(4).joinToString("-"),
+                text = TypedCode.format(typedCode),
                 style = MaterialTheme.typography.headlineMedium,
                 color = glass.textPrimary,
             )
@@ -777,6 +862,32 @@ private fun PairingPanel(
                 text = stringResource(R.string.code_unavailable),
                 style = MaterialTheme.typography.labelSmall,
                 color = glass.textTertiary,
+            )
+        }
+
+        val p2pActive = telemetry.wifiDirect as? WifiDirectLink.State.Active
+        if (p2pActive != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(
+                    R.string.wifi_direct_credentials,
+                    p2pActive.group.ssid,
+                    p2pActive.group.passphrase,
+                    p2pActive.group.ownerIp,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.accent,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (telemetry.adbStatus.active) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = telemetry.adbStatus.adbCommand,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = glass.textSecondary,
+                textAlign = TextAlign.Center,
             )
         }
 
@@ -800,6 +911,7 @@ private fun PairingPanel(
 private fun ConnectedPanel(
     state: ConnectionState.Connected,
     overUsb: Boolean,
+    telemetry: ConnectionRepository.LiveTelemetry,
     showCode: Boolean,
     onToggleCode: () -> Unit,
     onStop: () -> Unit,
@@ -808,6 +920,7 @@ private fun ConnectedPanel(
     var previous by remember { mutableStateOf<Triple<Long, Long, Long>?>(null) }
     var upRate by remember { mutableStateOf<Long?>(null) }
     var downRate by remember { mutableStateOf<Long?>(null) }
+    var showMonitor by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.bytesUp, state.bytesDown) {
         val now = SystemClock.elapsedRealtime()
         previous?.let { (up, down, at) ->
@@ -833,12 +946,38 @@ private fun ConnectedPanel(
             textAlign = TextAlign.Center,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.connected_devices_count, state.clientCount),
+            style = MaterialTheme.typography.labelSmall,
+            color = glass.textSecondary,
+        )
         if (overUsb) {
             Spacer(Modifier.height(4.dp))
             Text(
                 text = stringResource(R.string.usb_carrying),
                 style = MaterialTheme.typography.bodySmall,
                 color = glass.accent,
+            )
+        }
+        if (telemetry.quotaExceeded) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.connected_quota_exceeded),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.error,
+                textAlign = TextAlign.Center,
+            )
+        } else if (telemetry.quotaLimitBytes > 0) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(
+                    R.string.connected_quota_used,
+                    isolate(formatBytes(telemetry.quotaUsedBytes)),
+                    isolate(formatBytes(telemetry.quotaLimitBytes)),
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = glass.textSecondary,
             )
         }
         Spacer(Modifier.height(20.dp))
@@ -860,15 +999,69 @@ private fun ConnectedPanel(
             color = glass.textTertiary,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
         SubtleButton(text = stringResource(R.string.action_stop), onClick = onStop)
         Spacer(Modifier.height(8.dp))
-        QuietAction(
-            "${disclosure(showCode)}  " + stringResource(
-                if (showCode) R.string.connected_hide_code else R.string.connected_show_code,
-            ),
-            onClick = onToggleCode,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            QuietAction(
+                "${disclosure(showCode)}  " + stringResource(
+                    if (showCode) R.string.connected_hide_code else R.string.connected_show_code,
+                ),
+                onClick = onToggleCode,
+            )
+            QuietAction(
+                "${disclosure(showMonitor)}  " + stringResource(
+                    if (showMonitor) R.string.monitor_toggle_hide else R.string.monitor_toggle_show,
+                ),
+                onClick = { showMonitor = !showMonitor },
+            )
+        }
+        if (showMonitor) {
+            Spacer(Modifier.height(12.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassPanel(radius = 12.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    stringResource(R.string.monitor_peers_heading),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = glass.textSecondary,
+                )
+                telemetry.peers.forEach { peer ->
+                    Text(
+                        text = "${peer.publicKey.take(10)}… (${peer.endpoint.ifEmpty { "pending" }}) · ↓${formatBytes(peer.txBytes)} ↑${formatBytes(peer.rxBytes)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = glass.textTertiary,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.monitor_flows_heading, telemetry.flows.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = glass.textSecondary,
+                )
+                if (telemetry.flows.isEmpty()) {
+                    Text(
+                        stringResource(R.string.monitor_empty),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = glass.textTertiary,
+                    )
+                } else {
+                    telemetry.flows.take(12).forEach { flow ->
+                        Text(
+                            text = "${flow.proto} ${flow.client} -> ${flow.target} (↑${formatBytes(flow.txBytes)} ↓${formatBytes(flow.rxBytes)})",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = glass.textTertiary,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1133,6 +1326,27 @@ private fun AdvancedSection(
     trustedDevices: List<TrustedDevice>,
     onRemoveTrusted: (String) -> Unit,
     onClearTrusted: () -> Unit,
+    accelCapabilities: AccelHelper.Capabilities = AccelHelper.Capabilities(false, false),
+    customDns: String = "1.1.1.1",
+    onSetCustomDns: (String) -> Unit = {},
+    dohUrl: String = "",
+    onSetDohUrl: (String) -> Unit = {},
+    tetherTtl65: Boolean = false,
+    onSetTetherTtl65: (Boolean) -> Unit = {},
+    icmpRelay: Boolean = false,
+    onSetIcmpRelay: (Boolean) -> Unit = {},
+    uploadLimitKbps: Int = 0,
+    onSetUploadLimitKbps: (Int) -> Unit = {},
+    downloadLimitKbps: Int = 0,
+    onSetDownloadLimitKbps: (Int) -> Unit = {},
+    quotaMb: Int = 0,
+    onSetQuotaMb: (Int) -> Unit = {},
+    inboundForwardsSpec: String = "",
+    onAddInboundForward: (String) -> Boolean = { false },
+    onRemoveInboundForward: (String, Int) -> Unit = { _, _ -> },
+    adbBridgeEnabled: Boolean = true,
+    onSetAdbBridgeEnabled: (Boolean) -> Unit = {},
+    telemetry: ConnectionRepository.LiveTelemetry = ConnectionRepository.LiveTelemetry(),
 ) {
     val glass = LocalGlass.current
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -1346,6 +1560,31 @@ private fun AdvancedSection(
                 AdvancedHeading(R.string.advanced_section_trusted)
                 TrustedComputers(trustedDevices, onRemoveTrusted, onClearTrusted)
 
+                AdvancedHeading(R.string.advanced_section_power)
+                PowerUserControls(
+                    customDns = customDns,
+                    onSetCustomDns = onSetCustomDns,
+                    dohUrl = dohUrl,
+                    onSetDohUrl = onSetDohUrl,
+                    tetherTtl65 = tetherTtl65,
+                    onSetTetherTtl65 = onSetTetherTtl65,
+                    icmpRelay = icmpRelay,
+                    onSetIcmpRelay = onSetIcmpRelay,
+                    uploadLimitKbps = uploadLimitKbps,
+                    onSetUploadLimitKbps = onSetUploadLimitKbps,
+                    downloadLimitKbps = downloadLimitKbps,
+                    onSetDownloadLimitKbps = onSetDownloadLimitKbps,
+                    quotaMb = quotaMb,
+                    onSetQuotaMb = onSetQuotaMb,
+                    inboundForwardsSpec = inboundForwardsSpec,
+                    onAddInboundForward = onAddInboundForward,
+                    onRemoveInboundForward = onRemoveInboundForward,
+                    adbBridgeEnabled = adbBridgeEnabled,
+                    onSetAdbBridgeEnabled = onSetAdbBridgeEnabled,
+                    telemetry = telemetry,
+                    accelCapabilities = accelCapabilities,
+                )
+
                 // Appearance
                 AdvancedHeading(R.string.advanced_theme)
                 Column {
@@ -1506,6 +1745,252 @@ private fun TrustedComputers(
         if (devices.size > 1) {
             QuietAction(stringResource(R.string.trusted_remove_all), onClick = onRemoveAll)
         }
+    }
+}
+
+@Composable
+private fun PowerUserControls(
+    customDns: String,
+    onSetCustomDns: (String) -> Unit,
+    dohUrl: String,
+    onSetDohUrl: (String) -> Unit,
+    tetherTtl65: Boolean,
+    onSetTetherTtl65: (Boolean) -> Unit,
+    icmpRelay: Boolean,
+    onSetIcmpRelay: (Boolean) -> Unit,
+    uploadLimitKbps: Int,
+    onSetUploadLimitKbps: (Int) -> Unit,
+    downloadLimitKbps: Int,
+    onSetDownloadLimitKbps: (Int) -> Unit,
+    quotaMb: Int,
+    onSetQuotaMb: (Int) -> Unit,
+    inboundForwardsSpec: String,
+    onAddInboundForward: (String) -> Boolean,
+    onRemoveInboundForward: (String, Int) -> Unit,
+    adbBridgeEnabled: Boolean,
+    onSetAdbBridgeEnabled: (Boolean) -> Unit,
+    telemetry: ConnectionRepository.LiveTelemetry,
+    accelCapabilities: AccelHelper.Capabilities,
+) {
+    val glass = LocalGlass.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Custom DNS & DoH selector inside tunnel
+        Column {
+            Text(stringResource(R.string.power_dns_label), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
+            Spacer(Modifier.height(4.dp))
+            BasicTextField(
+                value = customDns,
+                onValueChange = onSetCustomDns,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = glass.textPrimary, fontFamily = FontFamily.Monospace),
+                cursorBrush = SolidColor(glass.accent),
+                modifier = Modifier.fillMaxWidth().glassPanel(radius = 12.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PresetChip("1.1.1.1", customDns == "1.1.1.1") { onSetCustomDns("1.1.1.1") }
+                PresetChip("9.9.9.9", customDns == "9.9.9.9") { onSetCustomDns("9.9.9.9") }
+                PresetChip("8.8.8.8", customDns == "8.8.8.8") { onSetCustomDns("8.8.8.8") }
+            }
+        }
+
+        Column {
+            Text(stringResource(R.string.power_doh_label), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PresetChip(stringResource(R.string.power_doh_off), dohUrl.isBlank()) { onSetDohUrl("") }
+                PresetChip("CF", dohUrl == Settings.DOH_CLOUDFLARE) { onSetDohUrl(Settings.DOH_CLOUDFLARE) }
+                PresetChip("Google", dohUrl == Settings.DOH_GOOGLE) { onSetDohUrl(Settings.DOH_GOOGLE) }
+                PresetChip("Quad9", dohUrl == Settings.DOH_QUAD9) { onSetDohUrl(Settings.DOH_QUAD9) }
+            }
+            Spacer(Modifier.height(6.dp))
+            BasicTextField(
+                value = dohUrl,
+                onValueChange = onSetDohUrl,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = glass.textPrimary, fontFamily = FontFamily.Monospace),
+                cursorBrush = SolidColor(glass.accent),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth().glassPanel(radius = 12.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+                decorationBox = { field ->
+                    if (dohUrl.isEmpty()) {
+                        Text(
+                            stringResource(R.string.power_doh_placeholder),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = glass.textTertiary,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                    field()
+                },
+            )
+        }
+
+        // Carrier tether TTL, ICMP relay, and ADB bridge toggles
+        ToggleOptionChip(stringResource(R.string.power_tether_ttl), tetherTtl65, onSetTetherTtl65)
+        ToggleOptionChip(stringResource(R.string.power_icmp_relay), icmpRelay, onSetIcmpRelay)
+        ToggleOptionChip(stringResource(R.string.adb_bridge_toggle), adbBridgeEnabled, onSetAdbBridgeEnabled)
+
+        if (telemetry.adbStatus.active) {
+            Text(
+                "${stringResource(R.string.adb_bridge_title)}: ${telemetry.adbStatus.adbCommand}",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = glass.textTertiary,
+            )
+        }
+
+        // Rate caps and session quota
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NumericField(
+                label = stringResource(R.string.power_up_limit),
+                value = uploadLimitKbps,
+                onChange = onSetUploadLimitKbps,
+                modifier = Modifier.weight(1f),
+            )
+            NumericField(
+                label = stringResource(R.string.power_down_limit),
+                value = downloadLimitKbps,
+                onChange = onSetDownloadLimitKbps,
+                modifier = Modifier.weight(1f),
+            )
+            NumericField(
+                label = stringResource(R.string.power_quota_mb),
+                value = quotaMb,
+                onChange = onSetQuotaMb,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // Inbound LAN-to-PC port forwards
+        var forwardDraft by rememberSaveable { mutableStateOf("") }
+        var forwardError by remember { mutableStateOf(false) }
+        Column {
+            Text(stringResource(R.string.power_forwards_label), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
+            Spacer(Modifier.height(2.dp))
+            Text(stringResource(R.string.power_forwards_hint), style = MaterialTheme.typography.labelSmall, color = glass.textTertiary)
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BasicTextField(
+                    value = forwardDraft,
+                    onValueChange = { forwardDraft = it; forwardError = false },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = glass.textPrimary, fontFamily = FontFamily.Monospace),
+                    cursorBrush = SolidColor(glass.accent),
+                    modifier = Modifier.weight(1f).glassPanel(radius = 12.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+                SubtleButton(text = stringResource(R.string.power_forwards_add)) {
+                    if (onAddInboundForward(forwardDraft)) {
+                        forwardDraft = ""
+                        forwardError = false
+                    } else {
+                        forwardError = true
+                    }
+                }
+            }
+            if (forwardError) {
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(R.string.power_forwards_invalid), style = MaterialTheme.typography.labelSmall, color = glass.error)
+            }
+            Settings.parseInboundForwards(inboundForwardsSpec).forEach { rule ->
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        rule.encode(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = glass.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    QuietAction(stringResource(R.string.trusted_remove)) {
+                        onRemoveInboundForward(rule.proto, rule.listenPort)
+                    }
+                }
+            }
+        }
+
+        // Root / Kernel diagnostics
+        Column {
+            Text(stringResource(R.string.power_accel_label), style = MaterialTheme.typography.labelSmall, color = glass.textSecondary)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                stringResource(
+                    R.string.power_accel_status,
+                    if (accelCapabilities.suAvailable) "yes" else "no",
+                    if (accelCapabilities.kernelWireguardAvailable) "yes" else "no",
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = glass.textTertiary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PresetChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val glass = LocalGlass.current
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) glass.accentSubtle else Color.Transparent)
+            .clickable(role = Role.Button, onClick = onClick)
+            .minimumInteractiveComponentSize()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = if (selected) glass.accent else glass.textSecondary)
+    }
+}
+
+@Composable
+private fun ToggleOptionChip(label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    val glass = LocalGlass.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (checked) glass.accentSubtle else Color.Transparent)
+            .clickable(role = Role.Switch) { onToggle(!checked) }
+            .minimumInteractiveComponentSize()
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).background(if (checked) glass.accent else glass.textTertiary, CircleShape))
+        Spacer(Modifier.size(10.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (checked) glass.textPrimary else glass.textSecondary,
+        )
+    }
+}
+
+@Composable
+private fun NumericField(label: String, value: Int, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val glass = LocalGlass.current
+    var text by remember(value) { mutableStateOf(if (value == 0) "" else value.toString()) }
+    Column(modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = glass.textTertiary, maxLines = 2)
+        Spacer(Modifier.height(4.dp))
+        BasicTextField(
+            value = text,
+            onValueChange = { input ->
+                val digits = input.filter { it.isDigit() }.take(7)
+                text = digits
+                onChange(digits.toIntOrNull() ?: 0)
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = MaterialTheme.typography.bodySmall.copy(color = glass.textPrimary, fontFamily = FontFamily.Monospace),
+            cursorBrush = SolidColor(glass.accent),
+            modifier = Modifier.fillMaxWidth().glassPanel(radius = 12.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+            decorationBox = { field ->
+                if (text.isEmpty()) {
+                    Text("0", style = MaterialTheme.typography.bodySmall, color = glass.textTertiary, fontFamily = FontFamily.Monospace)
+                }
+                field()
+            },
+        )
     }
 }
 

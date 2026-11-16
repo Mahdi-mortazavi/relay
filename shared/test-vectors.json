@@ -212,12 +212,31 @@
         "host": "192.168.0.1",
         "port": 65535,
         "code": "AAA99952"
+      },
+      {
+        "host": "10.0.0.5",
+        "port": 8080,
+        "code": "JAAACT9EEE"
+      },
+      {
+        "host": "172.16.5.1",
+        "port": 10808,
+        "code": "SAAWAUWQHV"
+      },
+      {
+        "host": "172.31.255.254",
+        "port": 51820,
+        "code": "SR999NW5E9"
       }
     ],
     "invalid": [
       {
         "description": "corrupted character (checksum mismatch)",
         "code": "FNBSJQE2"
+      },
+      {
+        "description": "corrupted 10-char code (checksum mismatch)",
+        "code": "JBAACT9EEE"
       },
       {
         "description": "non-zero padding bits",

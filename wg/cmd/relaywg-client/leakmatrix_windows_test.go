@@ -16,43 +16,25 @@ import (
 
 // What leak protection actually blocks, measured rather than reasoned about.
 //
-// The rules are four lines of Go and it is easy to convince yourself you know
-// what they do. The loopback bug is what that costs: "block all of
-// ALE_AUTH_CONNECT_V6" was read as "block IPv6 leaving the machine" and it
-// meant "block IPv6", localhost included. Nobody noticed until it was measured.
+// Every probe runs twice -- once without filters, once with the filters live --
+// and the assertion is on the transition so unreachable baseline targets report
+// NOT MEASURED rather than false greens.
 //
-// So this measures. Every probe runs twice -- once with no tunnel, once with
-// the filters live -- and the assertion is on the *transition*. That is what
-// isolates the filter's effect from whatever this machine could reach anyway,
-// which a single after-the-fact probe cannot do: a runner with no IPv6 route
-// looks exactly like a runner whose IPv6 has been blocked.
+// With blanket non-tunnel blocking and LUID-pinned DNS active:
 //
-// The contract being pinned, in both directions:
-//
-//	must keep working   loopback v4 and v6, ordinary IPv4, DNS to the tunnel's
-//	                    own resolver
-//	must stop working   DNS to any other resolver, IPv6 off the machine
-//
-// The first half matters as much as the second. A rule that blocks more than it
-// needs to is not "extra safe" -- it is unrelated software breaking, and the
-// user turning the whole feature off to get their machine back.
+//	must keep working   loopback v4 and v6, link-local to self
+//	must stop working   DNS to other resolvers, unpinned DNS to 1.1.1.1 over the
+//	                    physical NIC, non-53 UDP/TCP outside the tunnel (including
+//	                    DoH/443 and WireGuard ports), mDNS/LLMNR, and IPv6 off-host
 func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 	if os.Getenv("RELAYWG_CLIENT") == "" {
 		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
 	}
 
-	// The resolver the tunnel is told to use, and therefore the one address on
-	// port 53 that must survive.
 	const tunnelResolver = "1.1.1.1"
-	// Any other resolver. This is the leak: on a shared Wi-Fi it is the router,
-	// answering alongside the tunnel.
 	const otherResolver = "9.9.9.9"
-	// A host that answers on 443 and ignores 51820, used only to ask whether
-	// the machine was *allowed* to try.
-	const vpnProbe = "1.1.1.1"
+	const externalProbe = "1.1.1.1"
 
-	// Listeners of our own, so "this still works" is a real connection rather
-	// than an assumption about something on the internet.
 	lan := listenOrSkip(t, "tcp4", nonLoopbackAddr(t)+":0")
 	loopback4 := listenOrSkip(t, "tcp4", "127.0.0.1:0")
 	loopback6 := listenOrSkip(t, "tcp6", "[::1]:0")
@@ -61,44 +43,28 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 	probes := []struct {
 		what        string
 		run         func() error
-		mustSurvive bool // true: must still work; false: must be blocked
+		mustSurvive bool
 	}{
 		{"loopback IPv4", func() error { return dialTCP(loopback4) }, true},
 		{"loopback IPv6", func() error { return dialTCP(loopback6) }, true},
-		{"ordinary IPv4", func() error { return dialTCP(lan) }, true},
-		{"DNS to the tunnel's resolver (UDP)", func() error { return resolve(tunnelResolver + ":53") }, true},
+		// Non-tunnel physical IPv4 (no longer left open around the tunnel).
+		{"non-tunnel physical IPv4", func() error { return dialTCP(lan) }, false},
+		// Off-tunnel query to 1.1.1.1:53 MUST fail when not routed via WinTun LUID.
+		{"unpinned DNS via physical NIC (UDP)", func() error { return resolve(tunnelResolver + ":53") }, false},
 		{"DNS to another resolver (UDP)", func() error { return resolve(otherResolver + ":53") }, false},
 		{"DNS to another resolver (TCP)", func() error { return dialTCP(otherResolver + ":53") }, false},
-		// VPN coexistence, as far as one machine can show it. Every VPN's
-		// transport is UDP or TCP on a port that is not 53 -- WireGuard on
-		// 51820, OpenVPN on 1194, anything tunnelling over 443. Relay's rules
-		// touch port 53 and IPv6 and nothing else, and this is what says so out
-		// loud: if a rule ever grows to block more, another VPN on this machine
-		// stops working and Relay gets the blame.
-		{"a VPN's UDP transport (non-53)", func() error { return sendUDP(vpnProbe + ":51820") }, true},
-		{"a VPN's TCP transport (443)", func() error { return dialTCP(vpnProbe + ":443") }, true},
+		{"non-tunnel UDP transport (51820)", func() error { return sendUDP(externalProbe + ":51820") }, false},
+		{"non-tunnel DoH/TCP transport (443)", func() error { return dialTCP(externalProbe + ":443") }, false},
+		{"off-host mDNS (5353)", func() error { return sendUDP("224.0.0.251:5353") }, false},
 		{"IPv6 off the machine", func() error { return sendUDP("[2606:4700:4700::1111]:53") }, false},
-		// IPv6 to this machine's own link-local address, which must keep
-		// working.
-		//
-		// This was added trying to measure the *block*, on the reasoning that a
-		// link-local address is reachable without an IPv6 route and is not
-		// loopback. Measurement said otherwise: it stays allowed, because WFP
-		// classifies traffic to any of the machine's own addresses as loopback,
-		// so the loopback permit covers it. Which makes the block to a remote
-		// IPv6 address unmeasurable from a single machine -- and that line is
-		// reported NOT MEASURED rather than quietly asserted.
-		//
-		// Kept, pointing the other way, because what it does measure is worth
-		// keeping: local IPv6 services must survive leak protection for the
-		// same reason localhost must.
+		// WFP classifies traffic to local link-local addresses as loopback.
 		{"IPv6 to this machine", func() error { return dialTCP(linkLocal) }, true},
 	}
 
 	before := make([]error, len(probes))
 	for i, probe := range probes {
 		before[i] = probe.run()
-		t.Logf("baseline   %-34s %s", probe.what, outcome(before[i]))
+		t.Logf("baseline   %-36s %s", probe.what, outcome(before[i]))
 	}
 
 	stop := startProtectedTunnel(t, "RelayTestMatrix", tunnelResolver)
@@ -106,48 +72,58 @@ func TestLeakProtectionBlocksWhatItShouldAndNothingElse(t *testing.T) {
 
 	for i, probe := range probes {
 		after := probe.run()
-		t.Logf("protected  %-34s %s", probe.what, outcome(after))
+		t.Logf("protected  %-36s %s", probe.what, outcome(after))
 
 		if before[i] != nil {
-			// It did not work without the tunnel either, so this machine can say
-			// nothing about it. Logged rather than passed over in silence: a
-			// green run that skipped its own assertions has proven nothing.
-			t.Logf("           %-34s NOT MEASURED: unreachable at baseline", probe.what)
+			t.Logf("           %-36s NOT MEASURED: unreachable at baseline", probe.what)
 			continue
 		}
 
 		switch {
 		case probe.mustSurvive && after != nil:
-			t.Errorf("%s worked before leak protection and not after (%v).\n"+
-				"A rule is blocking more than it needs to, which breaks unrelated "+
-				"software and makes turning leak protection off look like the fix.",
-				probe.what, after)
+			t.Errorf("%s worked before leak protection and not after (%v).", probe.what, after)
 		case !probe.mustSurvive && after == nil:
-			t.Errorf("%s still worked with leak protection on. "+
-				"This is the leak the feature exists to close.", probe.what)
+			t.Errorf("%s bypassed leak protection and still succeeded.", probe.what)
 		}
+	}
+}
+
+func TestLeakProtectionExclusionAllowsCIDRButStillBlocksDNS(t *testing.T) {
+	if os.Getenv("RELAYWG_CLIENT") == "" {
+		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
+	}
+
+	lanIP := nonLoopbackAddr(t)
+	lan := listenOrSkip(t, "tcp4", lanIP+":0")
+
+	stop := startProtectedTunnel(t, "RelayTestExcl", "1.1.1.1", "-exclude-cidrs", lanIP+"/32")
+	defer stop()
+
+	if err := dialTCP(lan); err != nil {
+		t.Errorf("excluded CIDR %s/32 failed to connect: %v", lanIP, err)
+	}
+	if err := sendUDP(lanIP + ":53"); err == nil {
+		t.Errorf("excluded CIDR %s/32 was permitted to send port 53 DNS outside tunnel", lanIP)
 	}
 }
 
 // startProtectedTunnel brings the client up far enough that its filters are
 // live, and returns a function that tears it down.
-//
-// No peer answers, and none is needed: the filters go in before the handshake
-// is waited for, so they are live for the whole handshake timeout.
-func startProtectedTunnel(t *testing.T, adapter, resolver string) func() {
+func startProtectedTunnel(t *testing.T, adapter, resolver string, extraArgs ...string) func() {
 	t.Helper()
 
 	_, serverPublic := keyPair(t)
 	clientPrivate, _ := keyPair(t)
 
-	client := exec.Command(os.Getenv("RELAYWG_CLIENT"),
+	args := []string{
 		"-name", adapter,
 		"-address", "10.13.37.2/32",
-		// A documentation prefix, so this never takes over the runner's default
-		// route: what is under test is the filters, not the routing table.
 		"-routes", "198.51.100.0/24",
 		"-dns", resolver,
-	)
+	}
+	args = append(args, extraArgs...)
+
+	client := exec.Command(os.Getenv("RELAYWG_CLIENT"), args...)
 	stdin, err := client.StdinPipe()
 	if err != nil {
 		t.Fatalf("stdin: %v", err)
@@ -198,11 +174,6 @@ func startProtectedTunnel(t *testing.T, adapter, resolver string) func() {
 	return stop
 }
 
-// linkLocalListener listens on this machine's own link-local IPv6 address.
-//
-// Not loopback, so the loopback permit does not cover it, and reachable without
-// any IPv6 route to the internet -- which is what makes it the only address on
-// this runner that can tell a working IPv6 block from an absent one.
 func linkLocalListener(t *testing.T) string {
 	t.Helper()
 
@@ -223,8 +194,6 @@ func linkLocalListener(t *testing.T) string {
 			if !ok || ipNet.IP.To4() != nil || !ipNet.IP.IsLinkLocalUnicast() {
 				continue
 			}
-			// The zone is required: a link-local address is only meaningful
-			// alongside the interface it belongs to.
 			host := fmt.Sprintf("[%s%%%s]:0", ipNet.IP, iface.Name)
 			listener, err := net.Listen("tcp6", host)
 			if err != nil {
@@ -274,14 +243,6 @@ func dialTCP(address string) error {
 	return conn.Close()
 }
 
-// resolve asks a resolver a question and waits for its answer.
-//
-// This is the measurement that matters, and sendUDP is not it. A WFP block does
-// not always fail the send on a UDP socket -- Windows can accept the datagram
-// and drop it -- so "the send returned no error" is not "the query left". What
-// the feature is about is whether the other resolver *answers*, which is
-// exactly how the leak was seen in the first place: a leak test listing the
-// local ISP beside the tunnel's exit.
 func resolve(address string) error {
 	conn, err := net.DialTimeout("udp", address, 4*time.Second)
 	if err != nil {
@@ -304,11 +265,6 @@ func resolve(address string) error {
 	return nil
 }
 
-// sendUDP reports whether the machine was allowed to send at all.
-//
-// Whether an answer comes back is the network's business; what a WFP block at
-// ALE_AUTH_CONNECT changes is whether the send is permitted, and that surfaces
-// as an error on the connect or on the first write.
 func sendUDP(address string) error {
 	conn, err := net.DialTimeout("udp", address, 4*time.Second)
 	if err != nil {
@@ -320,8 +276,6 @@ func sendUDP(address string) error {
 	return err
 }
 
-// A well-formed A query for example.com, so nothing downstream is being asked
-// to make sense of garbage.
 var dnsQuery = []byte{
 	0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
@@ -339,7 +293,6 @@ func outcome(err error) string {
 	return "refused: " + err.Error()
 }
 
-// nonLoopbackAddr is this machine's address as the routing table sees it.
 func nonLoopbackAddr(t *testing.T) string {
 	t.Helper()
 	conn, err := net.Dial("udp4", "192.0.2.1:9")
@@ -350,36 +303,22 @@ func nonLoopbackAddr(t *testing.T) string {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
-// What leak protection costs, in numbers.
-//
-// The question that started this -- "why does it get slower when I turn leak
-// protection on?" -- has been answered with reasoning twice and measured never.
-// It is answerable here without a phone, because the filters are a property of
-// the machine rather than of the tunnel: they are installed whether or not any
-// traffic is flowing through WireGuard, so their cost can be measured against a
-// local server with nothing else in the way.
-//
-// The rules sit at ALE_AUTH_CONNECT, which Windows evaluates once per
-// connection and never per packet. So the shape of the answer should be: a
-// little more time to open a connection, and no difference at all to the
-// throughput of one already open. This measures both rather than asserting it.
-//
-// Bounds are deliberately loose. A shared runner cannot support a tight timing
-// assertion without flaking, and the failure worth catching is not "three
-// percent slower", it is "something here is per-packet after all".
 func TestWhatLeakProtectionCosts(t *testing.T) {
 	if os.Getenv("RELAYWG_CLIENT") == "" {
 		t.Skip("RELAYWG_CLIENT is not set; CI builds the client and points this at it")
 	}
 
-	destination := echoListener(t)
+	host := nonLoopbackAddr(t)
+	destination := echoListener(t, host)
 
 	connectBefore := medianConnectTime(t, destination)
 	throughputBefore := localThroughput(t, destination)
 	t.Logf("leak protection OFF  connect %v   throughput %.0f MB/s",
 		connectBefore, throughputBefore)
 
-	stop := startProtectedTunnel(t, "RelayTestCost", "1.1.1.1")
+	// Explicitly exclude the test echo host IP so WFP evaluates the filter chain
+	// and permits the connection without changing non-excluded block semantics.
+	stop := startProtectedTunnel(t, "RelayTestCost", "1.1.1.1", "-exclude-cidrs", host+"/32")
 	defer stop()
 
 	connectAfter := medianConnectTime(t, destination)
@@ -387,29 +326,21 @@ func TestWhatLeakProtectionCosts(t *testing.T) {
 	t.Logf("leak protection ON   connect %v   throughput %.0f MB/s",
 		connectAfter, throughputAfter)
 
-	// Per-connection cost. Generous, because the absolute numbers are tens of
-	// microseconds on a machine that is also running a CI job.
 	if connectBefore > 0 && connectAfter > 8*connectBefore {
-		t.Errorf("opening a connection went from %v to %v with leak protection on.\n"+
-			"These rules are evaluated once per connection; a jump this size means "+
-			"something is being evaluated far more often than that.",
+		t.Errorf("opening a connection went from %v to %v with leak protection on.",
 			connectBefore, connectAfter)
 	}
 
-	// Per-byte cost, which there should be none of at all.
 	if throughputBefore > 0 && throughputAfter < throughputBefore/3 {
-		t.Errorf("throughput on an established connection went from %.0f to %.0f MB/s "+
-			"with leak protection on.\nThe rules sit at connect time and must not "+
-			"touch a connection that is already open.",
+		t.Errorf("throughput on an established connection went from %.0f to %.0f MB/s with leak protection on.",
 			throughputBefore, throughputAfter)
 	}
 }
 
-// echoListener is a local server that reads and echoes, on a real interface.
-func echoListener(t *testing.T) string {
+func echoListener(t *testing.T, host string) string {
 	t.Helper()
 
-	listener, err := net.Listen("tcp4", nonLoopbackAddr(t)+":0")
+	listener, err := net.Listen("tcp4", host+":0")
 	if err != nil {
 		t.Skipf("no routable interface to measure against: %v", err)
 	}
@@ -430,8 +361,6 @@ func echoListener(t *testing.T) string {
 	return listener.Addr().String()
 }
 
-// medianConnectTime opens and closes a connection repeatedly and takes the
-// middle time, so one scheduling hiccup does not become the answer.
 func medianConnectTime(t *testing.T, address string) time.Duration {
 	t.Helper()
 
@@ -450,8 +379,6 @@ func medianConnectTime(t *testing.T, address string) time.Duration {
 	return times[len(times)/2]
 }
 
-// localThroughput measures one already-open connection, which is where a
-// per-packet cost would show up and a per-connection one would not.
 func localThroughput(t *testing.T, address string) float64 {
 	t.Helper()
 

@@ -3,13 +3,7 @@ package io.relay.app.service
 import android.content.Context
 
 /**
- * Small persisted preferences for the Advanced surface. Nothing here is
- * sensitive; it's user convenience.
- *
- * There is no transport setting any more (ADR-0009) and no preferred port: Full
- * Mode's endpoint takes a fixed UDP port and the pairing port is fixed too, so
- * neither was a choice a person could make usefully. A stale "FAST" left in
- * SharedPreferences by an older install is simply never read.
+ * Small persisted preferences for Advanced & Power-User controls.
  */
 class Settings(context: Context) {
     private val prefs = context.getSharedPreferences("relay", Context.MODE_PRIVATE)
@@ -19,61 +13,66 @@ class Settings(context: Context) {
         get() = prefs.getString(KEY_THEME, "system") ?: "system"
         set(value) = prefs.edit().putString(KEY_THEME, value).apply()
 
-    /**
-     * Whether the first-run walkthrough has been shown.
-     *
-     * Once, not once-per-version: someone who has already set the phone up does
-     * not want to be walked through it again because the app updated.
-     */
     var onboarded: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDED, false)
         set(value) = prefs.edit().putBoolean(KEY_ONBOARDED, value).apply()
 
-    /**
-     * A SOCKS5 `host:port` to forward the PC's traffic through, or empty for
-     * the phone's default route.
-     *
-     * The one setting here that changes where packets go, and it exists for a
-     * trade nothing else can escape. An Android VPN captures by UID: leave
-     * Relay inside the tunnel and the phone cannot answer the PC at all; take
-     * Relay out of it — which is the advice every VPN gives — and the PC gets
-     * the phone's connection instead of the phone's VPN. Pointing this at the
-     * VPN client's own local port is the only arrangement that gives both.
-     *
-     * Stored as typed, validated at use. A port on its own means this phone.
-     */
     var upstreamProxy: String
         get() = prefs.getString(KEY_UPSTREAM, "")?.trim() ?: ""
         set(value) = prefs.edit().putString(KEY_UPSTREAM, value.trim()).apply()
 
-    /**
-     * Whether Relay picks the PC's route by itself while sharing (ADR-0011):
-     * the phone's own route when Relay is inside the VPN, the VPN app's local
-     * proxy when it is not and one answers. Only consulted while
-     * [upstreamProxy] is empty — a typed proxy is never second-guessed.
-     *
-     * On by default. Before 2.10.0 an empty field meant "the phone's route,
-     * always", and the found proxy was only offered; that left the PC without
-     * the VPN on exactly the phones where Relay had been excluded to make the
-     * connection work at all, unless the person found Advanced, understood it,
-     * and tapped. Off restores that behaviour exactly.
-     */
     var automaticRoute: Boolean
         get() = prefs.getBoolean(KEY_AUTOMATIC_ROUTE, true)
         set(value) = prefs.edit().putBoolean(KEY_AUTOMATIC_ROUTE, value).apply()
 
-    /**
-     * The computers the person chose "Always allow" for, as JSON, or null.
-     *
-     * Public keys and display names, which is why it lives with the other
-     * preferences. It is the one setting here that decides who may use the
-     * phone's connection without being asked, so [TrustedDevices] -- not this
-     * class -- owns reading it: anything it cannot make sense of means nobody
-     * is trusted.
-     */
     var trustedDevicesJson: String?
         get() = prefs.getString(KEY_TRUSTED, null)
         set(value) = prefs.edit().putString(KEY_TRUSTED, value).apply()
+
+    /** Custom upstream DNS server IP for tunnel DNS forwarding (default "1.1.1.1"). */
+    var customDns: String
+        get() = prefs.getString(KEY_CUSTOM_DNS, "1.1.1.1")?.trim()?.ifEmpty { "1.1.1.1" } ?: "1.1.1.1"
+        set(value) = prefs.edit().putString(KEY_CUSTOM_DNS, value.trim()).apply()
+
+    /** Optional DNS-over-HTTPS resolver URL inside the tunnel (empty = disabled). */
+    var dohUrl: String
+        get() = prefs.getString(KEY_DOH_URL, "")?.trim() ?: ""
+        set(value) = prefs.edit().putString(KEY_DOH_URL, value.trim()).apply()
+
+    /** Carrier tether-quota workaround: forces outbound socket TTL/HL to 65. */
+    var tetherTtl65: Boolean
+        get() = prefs.getBoolean(KEY_TETHER_TTL65, false)
+        set(value) = prefs.edit().putBoolean(KEY_TETHER_TTL65, value).apply()
+
+    /** Opt-in unprivileged ICMP echo relay for traceroute/ping through the tunnel. */
+    var icmpRelay: Boolean
+        get() = prefs.getBoolean(KEY_ICMP_RELAY, false)
+        set(value) = prefs.edit().putBoolean(KEY_ICMP_RELAY, value).apply()
+
+    /** Upload throttle in KB/s (0 = unlimited). */
+    var uploadLimitKbps: Int
+        get() = prefs.getInt(KEY_UP_LIMIT_KBPS, 0).coerceAtLeast(0)
+        set(value) = prefs.edit().putInt(KEY_UP_LIMIT_KBPS, value.coerceAtLeast(0)).apply()
+
+    /** Download throttle in KB/s (0 = unlimited). */
+    var downloadLimitKbps: Int
+        get() = prefs.getInt(KEY_DOWN_LIMIT_KBPS, 0).coerceAtLeast(0)
+        set(value) = prefs.edit().putInt(KEY_DOWN_LIMIT_KBPS, value.coerceAtLeast(0)).apply()
+
+    /** Hard session quota in MB (0 = unlimited). */
+    var quotaMb: Int
+        get() = prefs.getInt(KEY_QUOTA_MB, 0).coerceAtLeast(0)
+        set(value) = prefs.edit().putInt(KEY_QUOTA_MB, value.coerceAtLeast(0)).apply()
+
+    /** Semicolon-separated inbound port forwards: `tcp:8080->10.13.37.2:8080;udp:...`. */
+    var inboundForwardsSpec: String
+        get() = prefs.getString(KEY_INBOUND_FORWARDS, "")?.trim() ?: ""
+        set(value) = prefs.edit().putString(KEY_INBOUND_FORWARDS, value.trim()).apply()
+
+    /** Expose loopback WireGuard-over-TCP bridge on 127.0.0.1:51821 for ADB forwarding. */
+    var adbBridgeEnabled: Boolean
+        get() = prefs.getBoolean(KEY_ADB_BRIDGE, true)
+        set(value) = prefs.edit().putBoolean(KEY_ADB_BRIDGE, value).apply()
 
     companion object {
         private const val KEY_TRUSTED = "trusted_devices"
@@ -81,15 +80,20 @@ class Settings(context: Context) {
         private const val KEY_THEME = "theme_mode"
         private const val KEY_ONBOARDED = "onboarded"
         private const val KEY_UPSTREAM = "upstream_proxy"
+        private const val KEY_CUSTOM_DNS = "custom_dns"
+        private const val KEY_DOH_URL = "doh_url"
+        private const val KEY_TETHER_TTL65 = "tether_ttl65"
+        private const val KEY_ICMP_RELAY = "icmp_relay"
+        private const val KEY_UP_LIMIT_KBPS = "up_limit_kbps"
+        private const val KEY_DOWN_LIMIT_KBPS = "down_limit_kbps"
+        private const val KEY_QUOTA_MB = "quota_mb"
+        private const val KEY_INBOUND_FORWARDS = "inbound_forwards"
+        private const val KEY_ADB_BRIDGE = "adb_bridge_enabled"
 
-        /**
-         * Whether [upstreamProxy] is something the Go side will accept, so a
-         * typo is refused on the screen where it was typed rather than
-         * surfacing later as a tunnel that comes up and forwards nothing.
-         *
-         * Empty is valid and means the default route. Otherwise it is
-         * `host:port` or a bare `:port`, with the port in range.
-         */
+        const val DOH_CLOUDFLARE = "https://cloudflare-dns.com/dns-query"
+        const val DOH_GOOGLE = "https://dns.google/dns-query"
+        const val DOH_QUAD9 = "https://dns.quad9.net/dns-query"
+
         fun isUsableProxy(value: String): Boolean {
             val text = value.trim()
             if (text.isEmpty()) return true
@@ -98,9 +102,43 @@ class Settings(context: Context) {
             val port = text.substring(colon + 1).toIntOrNull() ?: return false
             if (port !in 1..65535) return false
             val host = text.substring(0, colon)
-            // A bare ":1080" is what someone types for a proxy on this phone,
-            // and every proxy this targets is on loopback.
             return host.isEmpty() || host.isNotBlank()
+        }
+
+        fun isValidDohUrl(value: String): Boolean {
+            val text = value.trim()
+            return text.isEmpty() || text.startsWith("https://")
+        }
+
+        data class InboundForwardRule(
+            val proto: String,
+            val listenPort: Int,
+            val targetHost: String,
+            val targetPort: Int,
+        ) {
+            fun encode(): String = "$proto:$listenPort->$targetHost:$targetPort"
+        }
+
+        fun parseInboundForwards(spec: String): List<InboundForwardRule> {
+            if (spec.isBlank()) return emptyList()
+            return spec.split(';')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .mapNotNull { parseInboundForwardRule(it) }
+        }
+
+        fun parseInboundForwardRule(token: String): InboundForwardRule? {
+            val arrow = token.split("->")
+            if (arrow.size != 2) return null
+            val left = arrow[0].trim().split(":")
+            val right = arrow[1].trim().split(":")
+            if (left.size != 2 || right.size != 2) return null
+            val proto = left[0].lowercase()
+            if (proto != "tcp" && proto != "udp") return null
+            val listenPort = left[1].toIntOrNull()?.takeIf { it in 1..65535 } ?: return null
+            val targetHost = right[0].trim().takeIf { it.isNotEmpty() } ?: return null
+            val targetPort = right[1].toIntOrNull()?.takeIf { it in 1..65535 } ?: return null
+            return InboundForwardRule(proto, listenPort, targetHost, targetPort)
         }
     }
 }
